@@ -467,6 +467,108 @@ inline PacketKeyType PacketKey(const AVPacket &packet) {
   return {false, packet.dts != AV_NOPTS_VALUE ? packet.dts : packet.pts};
 }
 
+constexpr int kMpeg4IVop = 0;
+constexpr int kMpeg4BVop = 2;
+
+// Reads the bits of an MPEG-4 Part 2 header, most significant first; zeros past the end
+class Mpeg4BitReader {
+ public:
+  Mpeg4BitReader(const uint8_t *data, int size) : data_(data), bits_(int64_t{size} * 8) {}
+
+  unsigned Get(int n) {
+    unsigned value = 0;
+    for (int i = 0; i < n; i++, pos_++) {
+      unsigned bit = pos_ < bits_ ? (data_[pos_ >> 3] >> (7 - (pos_ & 7))) & 1 : 0;
+      value = (value << 1) | bit;
+    }
+    return value;
+  }
+
+  void Skip(int n) { pos_ += n; }
+
+  // Whether no bit was read past the end
+  bool IsWithinBounds() const { return pos_ <= bits_; }
+
+ private:
+  const uint8_t *data_;
+  int64_t bits_;
+  int64_t pos_ = 0;
+};
+
+// The start codes of MPEG-4 Part 2: 00 00 01 and the code
+inline bool IsMpeg4StartCode(const uint8_t *p) {
+  return p[0] == 0 && p[1] == 0 && p[2] == 1;
+}
+
+/**
+ * @brief Reads the length of vop_time_increment from a video object layer header (ISO/IEC
+ * 14496-2, 6.2.3), which starts after its start code. Returns -1 if the header is cut short.
+ */
+int Mpeg4TimeIncrementBits(Mpeg4BitReader r) {
+  r.Skip(1 + 8);  // random_accessible_vol, video_object_type_indication
+  int verid = 1;
+  if (r.Get(1)) {  // is_object_layer_identifier
+    verid = r.Get(4);
+    r.Skip(3);  // video_object_layer_priority
+  }
+  if (r.Get(4) == 0xF)  // aspect_ratio_info: extended PAR
+    r.Skip(8 + 8);
+  if (r.Get(1)) {  // vol_control_parameters
+    r.Skip(2 + 1);  // chroma_format, low_delay
+    if (r.Get(1))   // vbv_parameters: bit rate, buffer size and occupancy, with their markers
+      r.Skip(15 + 1 + 15 + 1 + 15 + 1 + 3 + 11 + 1 + 15 + 1);
+  }
+  int shape = r.Get(2);
+  if (shape == 3 && verid != 1)  // grayscale
+    r.Skip(4);  // video_object_layer_shape_extension
+  r.Skip(1);  // marker_bit
+  unsigned resolution = r.Get(16);  // vop_time_increment_resolution
+  if (!r.IsWithinBounds() || resolution == 0)
+    return -1;
+  int bits = 1;  // as many as resolution - 1 takes, and at least 1
+  while ((1u << bits) < resolution)
+    bits++;
+  return bits;
+}
+
+struct Mpeg4Vop {
+  int type;    // vop_coding_type: I, P, B or S
+  bool coded;  // vop_coded: a not-coded VOP repeats the previous one (e.g. a DivX placeholder)
+};
+
+/**
+ * @brief The VOPs of an MPEG-4 Part 2 packet, in order: two for a DivX packed packet (a P- or
+ * I-VOP and the B-VOP shown before it).
+ *
+ * A video object layer header in the packet sets `time_increment_bits`, which is needed to read
+ * vop_coded. While it is unknown (-1), the VOPs are taken as coded.
+ */
+SmallVector<Mpeg4Vop, 2> Mpeg4Vops(const uint8_t *data, int size, int &time_increment_bits) {
+  SmallVector<Mpeg4Vop, 2> vops;
+  for (int i = 0; i + 4 < size; i++) {
+    if (!IsMpeg4StartCode(data + i))
+      continue;
+    uint8_t code = data[i + 3];
+    Mpeg4BitReader r(data + i + 4, size - i - 4);
+    if ((code & 0xF0) == 0x20) {  // video_object_layer_start_code
+      int bits = Mpeg4TimeIncrementBits(r);
+      if (bits > 0)
+        time_increment_bits = bits;
+    } else if (code == 0xB6) {  // vop_start_code
+      Mpeg4Vop vop = {static_cast<int>(r.Get(2)), true};
+      if (time_increment_bits > 0) {
+        while (r.Get(1) && r.IsWithinBounds()) {}  // modulo_time_base
+        r.Skip(1 + time_increment_bits + 1);  // marker_bit, vop_time_increment, marker_bit
+        unsigned coded = r.Get(1);
+        vop.coded = coded || !r.IsWithinBounds();  // cut short: taken as coded
+      }
+      vops.push_back(vop);
+    }
+    i += 3;
+  }
+  return vops;
+}
+
 // A packet where a seek can land: a key packet, or the first packet of the stream
 struct SyncPacket {
   PacketKeyType key;
@@ -542,6 +644,7 @@ void FramesDecoderBase::BuildIndex() {
   index_.index.clear();
   index_.filename = Filename();
   index_.timebase = ctx_->streams[stream_id_]->time_base;
+  index_.decode_order_timestamps = HasDecodeOrderTimestamps();
 
   // Track the position of the last keyframe seen
   int last_keyframe = -1;
@@ -553,6 +656,17 @@ void FramesDecoderBase::BuildIndex() {
   // Packets decoded but not shown (e.g. hidden by an edit list): marked as discarded by the
   // demuxer, or with negative timestamps
   bool has_hidden_packets = false;
+  // MPEG-4 Part 2 with timestamps in decoding order (AVI): the VOPs tell where a seek can start,
+  // and the B-VOPs right after an I-VOP in decoding order, which are shown before it: its leading
+  // pictures
+  bool read_vops = index_.decode_order_timestamps &&
+                   ctx_->streams[stream_id_]->codecpar->codec_id == AV_CODEC_ID_MPEG4;
+  int time_increment_bits = -1;  // from the video object layer header, to read the VOP headers
+  int leading_of = -1;  // the keyframe whose leading B-VOPs the next packets may hold
+  if (read_vops) {
+    auto *par = ctx_->streams[stream_id_]->codecpar;
+    Mpeg4Vops(par->extradata, par->extradata_size, time_increment_bits);
+  }
 
   while (true) {
     // Read the next frame from the video
@@ -576,6 +690,10 @@ void FramesDecoderBase::BuildIndex() {
     if (packet->stream_index != stream_id_) {
       continue;
     }
+
+    SmallVector<Mpeg4Vop, 2> vops;
+    if (read_vops)
+      vops = Mpeg4Vops(packet->data, packet->size, time_increment_bits);
 
     IndexEntry entry;
     entry.is_keyframe = false;  // Default to false, set true only if confirmed
@@ -616,6 +734,7 @@ void FramesDecoderBase::BuildIndex() {
             // IDR frames are special keyframes that clear all reference buffers
             if (nal_unit_type == 5) {
               entry.is_keyframe = true;
+              entry.leading_pictures = 0;  // no picture after an IDR is shown before it
               break;
             }
           } else {  // AV_CODEC_ID_HEVC
@@ -625,11 +744,18 @@ void FramesDecoderBase::BuildIndex() {
             // which serve as keyframes in HEVC
             if (nal_unit_type >= 16 && nal_unit_type <= 21) {
               entry.is_keyframe = true;
+              // IDR_N_LP has no leading pictures; the others may have (RADL, RASL)
+              if (nal_unit_type == 20)
+                entry.leading_pictures = 0;
               break;
             }
           }
           nal_start += nal_size;  // Advance to next NAL unit
         }
+      } else if (read_vops) {
+        // AVI key flags are not always on coded I-VOPs: e.g. a remux of a packed stream flags the
+        // not-coded VOP (typed I) after a packed I+B packet. A seek must start at a coded I-VOP.
+        entry.is_keyframe = !vops.empty() && vops[0].type == kMpeg4IVop && vops[0].coded;
       } else {
         // For other codecs, trust the AV_PKT_FLAG_KEY flag
         entry.is_keyframe = true;
@@ -658,6 +784,21 @@ void FramesDecoderBase::BuildIndex() {
     entry.is_flush_frame = false;
     index_.index.push_back(entry);
     ++num_frames_;
+
+    if (read_vops) {
+      size_t first = 0;
+      if (entry.is_keyframe) {
+        leading_of = static_cast<int>(index_.size()) - 1;
+        index_[leading_of].leading_pictures = 0;
+        first = 1;  // after the I-VOP: a DivX packed packet holds the B-VOP shown before it
+      }
+      for (size_t v = first; leading_of >= 0 && v < vops.size(); v++) {
+        if (vops[v].type == kMpeg4BVop)
+          index_[leading_of].leading_pictures++;
+        else
+          leading_of = -1;  // the next reference picture: shown after the keyframe
+      }
+    }
   }
 
   LOG_LINE << "Index building complete. Total frames: " << index_.size() << std::endl;
@@ -828,9 +969,28 @@ int FramesDecoderBase::SeekTarget(const FrameIndex &index, int next_frame, int f
   if (frame >= next_frame && frame <= next_frame + kMinimumSeekLeap)
     return -1;  // a short leap forward
   int keyframe = index[frame].last_keyframe_id;
-  if (frame > next_frame && index[next_frame].last_keyframe_id == keyframe)
-    return -1;  // further ahead, but within the same keyframe
+  if (index.decode_order_timestamps && keyframe > 0) {
+    // Maybe a leading picture of the keyframe: it needs the pictures before the keyframe
+    int leading = index[keyframe].leading_pictures;
+    if (frame - keyframe < (leading >= 0 ? leading : kMaxLeadingPictures))
+      keyframe = index[keyframe - 1].last_keyframe_id;
+  }
+  if (frame > next_frame && index[next_frame].last_keyframe_id >= keyframe)
+    return -1;  // further ahead, but past the keyframe that it would seek to
   return keyframe;
+}
+
+bool FramesDecoderBase::HasDecodeOrderTimestamps() const {
+  if (!ctx_ || !ctx_->iformat || strcmp(ctx_->iformat->name, "avi") != 0)
+    return false;
+  switch (ctx_->streams[stream_id_]->codecpar->codec_id) {
+    case AV_CODEC_ID_MPEG4:
+    case AV_CODEC_ID_H264:
+    case AV_CODEC_ID_HEVC:
+      return true;
+    default:
+      return false;  // each packet shown in its own place (e.g. MJPEG, VP8, VP9)
+  }
 }
 
 FramesDecoderBase::DecodePosition FramesDecoderBase::PositionAt(const FrameIndex &index,

@@ -220,6 +220,7 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
   EXPECT_EQ(actual.filename, expected.filename);
   EXPECT_EQ(actual.timebase.num, expected.timebase.num);
   EXPECT_EQ(actual.timebase.den, expected.timebase.den);
+  EXPECT_EQ(actual.decode_order_timestamps, expected.decode_order_timestamps);
   for (size_t i = 0; i < expected.size(); i++) {
     EXPECT_EQ(actual.index[i].pts, expected.index[i].pts) << "frame " << i;
     EXPECT_EQ(actual.index[i].is_keyframe, expected.index[i].is_keyframe) << "frame " << i;
@@ -228,6 +229,8 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
         << "frame " << i;
     EXPECT_EQ(actual.index[i].decode_idx, expected.index[i].decode_idx) << "frame " << i;
     EXPECT_EQ(actual.index[i].seek_decode_idx, expected.index[i].seek_decode_idx)
+        << "frame " << i;
+    EXPECT_EQ(actual.index[i].leading_pictures, expected.index[i].leading_pictures)
         << "frame " << i;
   }
   EXPECT_EQ(indexer.NumFrames(), decoder.NumFrames());
@@ -672,6 +675,45 @@ TEST(FramesDecoderDecodeWorkTest, SeekTarget) {
   EXPECT_EQ(SeekTarget(20, 5), 0);    // backward, to another keyframe
 }
 
+// With the timestamps in decoding order (AVI), the frames right after a keyframe may be its leading
+// pictures, which need the pictures before it: SeekFrame seeks to the keyframe before
+TEST(FramesDecoderDecodeWorkTest, SeekTargetWithDecodeOrderTimestamps) {
+  static_assert(FramesDecoderBase::kMaxLeadingPictures == 16, "the frames below assume it");
+  // GOPs of 40 frames: keyframes 0, 40, 80
+  auto index = MakeIndex(std::vector<int>(120, -1), {0, 40, 80});
+  index.decode_order_timestamps = true;
+  auto SeekTarget = [&](int next, int frame) {
+    return FramesDecoderBase::SeekTarget(index, next, frame);
+  };
+  EXPECT_EQ(SeekTarget(3, 5), -1);     // a short leap
+  EXPECT_EQ(SeekTarget(30, 5), 0);     // backward, in the first GOP: no keyframe before
+  EXPECT_EQ(SeekTarget(3, 41), -1);    // right after keyframe 40: decoding through from GOP 0
+  EXPECT_EQ(SeekTarget(70, 41), 0);    // backward, right after keyframe 40: the keyframe before
+  EXPECT_EQ(SeekTarget(70, 55), 0);    // the last frame that may lead keyframe 40
+  EXPECT_EQ(SeekTarget(70, 56), 40);   // past the leading pictures
+  EXPECT_EQ(SeekTarget(3, 56), 40);
+  EXPECT_EQ(SeekTarget(20, 85), 40);   // right after keyframe 80: seeks to keyframe 40
+  EXPECT_EQ(SeekTarget(45, 85), -1);   // ... where the decoder already is: decoding through
+  EXPECT_EQ(SeekTarget(30, 90), 40);   // a longer leap from GOP 0
+  CheckPositionAtInARow(index);
+
+  // Known leading pictures (MPEG-4 Part 2): 2 for keyframe 40, none for keyframe 80
+  index[40].leading_pictures = 2;
+  index[80].leading_pictures = 0;
+  EXPECT_EQ(SeekTarget(70, 40), 0);    // a leading picture: the keyframe before
+  EXPECT_EQ(SeekTarget(70, 41), 0);
+  EXPECT_EQ(SeekTarget(70, 42), 40);   // the keyframe itself, shown after its leading pictures
+  EXPECT_EQ(SeekTarget(70, 55), 40);
+  EXPECT_EQ(SeekTarget(20, 80), 80);   // no leading pictures
+  EXPECT_EQ(SeekTarget(20, 85), 80);
+  CheckPositionAtInARow(index);
+
+  index.decode_order_timestamps = false;  // the same index, with presentation timestamps
+  EXPECT_EQ(SeekTarget(70, 41), 40);
+  EXPECT_EQ(SeekTarget(3, 41), 40);
+  EXPECT_EQ(SeekTarget(20, 85), 80);
+}
+
 TEST(FramesDecoderDecodeWorkTest, NoDecodeOrder) {
   // One GOP of 30 frames, without decoding positions: taken in display order
   auto index = MakeIndex(std::vector<int>(30, -1), {0});
@@ -1078,6 +1120,68 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerGivesTheIndexOfTheDecoder) {
     FramesDecoderCpu decoder(path);
     FramesIndexer indexer(path);
     ExpectIndexerGivesTheIndexOfTheDecoder(decoder, indexer);
+  }
+}
+
+// In MPEG-4 Part 2 AVI, the keyframes are the packets that start with a coded I-VOP, and the
+// B-VOPs right after one are its leading pictures. Neither file below has leading pictures: they
+// are in the open GOPs that qa/TL0_videoreader_test generates (see test_video_reader.py).
+TEST_F(FramesDecoderTest_CpuOnlyTests, IndexOfMpeg4Avi) {
+  struct Expected {
+    std::string path;
+    int frames;
+    std::vector<int> keyframes;
+  };
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  // From the AVI chunks: the packets of packed_bframes_test.avi are I, then P+B, B, a not-coded
+  // VOP (typed P), ... ; those of test_1.avi are I-VOPs and P-VOPs only
+  for (const auto &expected :
+       {Expected{make_string(video_dir, "/ucf101_test/packed_bframes_test.avi"), 91, {0}},
+        Expected{make_string(video_dir, "/cfr/test_1.avi"), 50, {0, 12, 24, 36, 48}}}) {
+    SCOPED_TRACE(expected.path);
+    FramesIndexer indexer(expected.path);
+    indexer.BuildIndex();
+    const auto &index = indexer.GetIndex();
+    EXPECT_TRUE(index.decode_order_timestamps);
+    ASSERT_EQ(index.size(), static_cast<size_t>(expected.frames));
+    std::vector<int> keyframes;
+    for (int i = 0; i < expected.frames; i++) {
+      if (index[i].is_keyframe) {
+        keyframes.push_back(i);
+        EXPECT_EQ(index[i].leading_pictures, 0) << "frame " << i;
+      } else {
+        EXPECT_EQ(index[i].leading_pictures, -1) << "frame " << i;
+      }
+    }
+    EXPECT_EQ(keyframes, expected.keyframes);
+  }
+}
+
+// An IDR picture has no leading pictures; an HEVC CRA picture may have
+TEST_F(FramesDecoderTest_CpuOnlyTests, LeadingPicturesOfIdrKeyframes) {
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  {
+    FramesIndexer indexer(make_string(video_dir, "/cfr/test_1.mp4"));  // H.264
+    indexer.BuildIndex();
+    const auto &index = indexer.GetIndex();
+    int keyframes = 0;
+    for (size_t i = 0; i < index.size(); i++) {
+      if (index[i].is_keyframe) {
+        keyframes++;
+        EXPECT_EQ(index[i].leading_pictures, 0) << "frame " << i;
+      }
+    }
+    EXPECT_GT(keyframes, 1);
+  }
+  {
+    // keyframes every few frames, open GOPs (CRA pictures)
+    FramesIndexer indexer(make_string(video_dir, "/hevc/sintel_trailer-720p.mp4"));
+    indexer.BuildIndex();
+    const auto &index = indexer.GetIndex();
+    int unknown = 0;
+    for (size_t i = 0; i < index.size(); i++)
+      unknown += index[i].is_keyframe && index[i].leading_pictures == -1;
+    EXPECT_GT(unknown, 0);
   }
 }
 

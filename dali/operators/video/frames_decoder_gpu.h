@@ -272,6 +272,16 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   // This is used to order the frames, if there is no pts
   int frame_index_if_no_pts_ = 0;
 
+  // The stream's timestamps are in decoding order (HasDecodeOrderTimestamps). A picture is then
+  // labelled with the timestamp that the parser passes to the display callback, instead of its
+  // packet's: the parser hands the timestamps fed in decoding order out in display order.
+  bool labels_from_parser_ = false;
+  // With labels_from_parser_: a copy of the last frame read, which a frame without a picture of its
+  // own (e.g. the not-coded VOP of a DivX packed stream) repeats. Unknown after a flush: such a
+  // frame then takes the next picture shown.
+  DeviceBuffer<uint8_t> last_frame_;
+  bool has_last_frame_ = false;
+
   AVUniquePtr<AVBSFContext> bsfc_;
   AVUniquePtr<AVPacket> filtered_packet_;
 
@@ -295,6 +305,19 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   void SendLastPacket(bool flush = false);
 
   BufferedFrame& FindEmptySlot();
+
+  // Bytes of a frame in the output type
+  size_t FrameBytes() const;
+
+  // The buffer for the last frame read (see last_frame_), allocated for the output type
+  uint8_t *LastFrame();
+
+  // Keeps a copy of the frame read (see last_frame_), unless it was converted into LastFrame()
+  void KeepAsLastFrame(const void *frame);
+
+  // Returns the frame wanted, which has no picture, as a repeat of the last frame read, into `data`
+  // (nullptr: skipped, which needs no last frame)
+  void RepeatLastFrame(void *data);
 
   bool HasEmptySlot() const;
 
