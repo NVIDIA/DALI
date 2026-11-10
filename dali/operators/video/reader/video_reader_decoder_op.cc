@@ -566,12 +566,15 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
           add_sample(start);
         }
 
-        // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last
-        // sequence
-        if (boundary_type_ != boundary::BoundaryType::ISOLATED && start < entry.end_frame) {
-          LOG_LINE << "Adding padded tail sample starting at frame " << start
-                   << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
-          add_sample(start);
+        // With padding, the sequences that do not fit are padded: there is a sample at every step
+        // that remains in the range, as in the legacy reader, with fewer and fewer frames of the
+        // range in each.
+        if (boundary_type_ != boundary::BoundaryType::ISOLATED) {
+          for (; start < entry.end_frame; start += step_) {
+            LOG_LINE << "Adding padded sample starting at frame " << start
+                     << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
+            add_sample(start);
+          }
         }
       }
     }
@@ -1351,6 +1354,11 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
 * ``'edge'`` or ``'repeat'``: Repeat the last valid frame: ABC -> ABCCCC
 * ``'reflect_1001'`` or ``'symmetric'``: Reflect padding, including the last element: ABC -> ABCCBA
 * ``'reflect_101'`` or ``'reflect'``: Reflect padding, not including the last element: ABC -> ABCBA
+
+A sequence only needs its last frame to exist, so a sequence of ``sequence_length`` frames with the
+given ``stride`` fits in ``(sequence_length - 1) * stride + 1`` frames. With padding, a sample starts
+at every ``step`` position of the video (or of its ``file_list`` range), so the last ones hold
+fewer frames of the video than ``sequence_length``, as with the legacy ``fn.readers.video``.
 
 Not relevant when using ``frames`` argument.)code",
         "none", true)
