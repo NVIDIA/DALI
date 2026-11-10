@@ -224,6 +224,14 @@ static void ValidateSourceArgs(const OpSpec &spec) {
   std::vector<int> labels;
   if (!spec.TryGetRepeatedArgument(labels, "labels"))
     return;
+  // As in legacy readers.video, `labels` is meaningful only for `filenames`: `file_root` and
+  // `file_list` provide their own labels. Checked before the empty-list check, so that `labels=[]`
+  // with `file_root` or `file_list` gets this message too.
+  if (!spec.HasArgument("filenames")) {
+    throw std::invalid_argument(
+        "The argument ``labels`` is valid only when file paths are provided with `filenames` "
+        "argument.");
+  }
   if (labels.empty()) {
     throw std::invalid_argument(
         "``labels`` must not be an empty list: pass one label per file in ``filenames`` (e.g. "
@@ -975,7 +983,10 @@ Default: ``timestamps``.)code",
         R"code(If true, include the end frame in the range. Default: true)code",
         true)
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
-`filenames` argument, one per file. If not provided, no labels will be yielded.)",
+`filenames` argument, one per file. If not provided, no labels will be yielded.
+
+This argument is valid only together with `filenames`. ``file_root`` and ``file_list`` provide
+their own labels, so combining either of them with ``labels`` is an error.)",
                                  nullptr)
     .AddArg("sequence_length", R"code(Frames to load per sequence.)code", DALI_INT32)
     .AddOptionalArg("enable_frame_num",

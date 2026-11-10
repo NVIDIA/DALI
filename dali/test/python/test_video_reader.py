@@ -1044,3 +1044,32 @@ def test_two_non_empty_sources_raise(device):
     with assert_raises(ValueError, glob="*Exactly one of*Got 2*"):
         p = pipe()
         p.build()
+
+
+def _labels_without_filenames_pipe(reader, source, labels):
+    kwargs = (
+        dict(file_root=MULTIPLE_RESOLUTION_ROOT)
+        if source == "file_root"
+        else dict(file_list=_write_file_list([f"{VIDEO_0} 7 0 30"]))
+    )
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        return tuple(reader(labels=labels, sequence_length=3, **kwargs))
+
+    return pipe
+
+
+@cartesian_params(devices, ("file_root", "file_list"), ([], [1]))
+def test_labels_are_rejected_without_filenames(device, source, labels):
+    """`labels` names the files of `filenames`; `file_root` and `file_list` provide their own, so
+    the combination is an error, with the legacy reader's message. `labels=[]` counts too."""
+    message = "*The argument ``labels`` is valid only when file paths*"
+    # The experimental reader checks the arguments at the reader call (ValueError), the legacy
+    # reader when the pipeline is built (RuntimeError)
+    for reader, error in (
+        (_experimental_reader(device), ValueError),
+        (_legacy_gpu_reader, RuntimeError),
+    ):
+        with assert_raises(error, glob=message):
+            _labels_without_filenames_pipe(reader, source, labels)().build()
