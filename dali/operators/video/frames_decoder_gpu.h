@@ -153,6 +153,23 @@ struct NvDecodeState {
   CUVIDSOURCEDATAPACKET packet = { 0 };
 
   uint8_t *decoded_frame_yuv = nullptr;
+
+  // The surface of the last picture that was sent to the decoder, and whether it was mapped (the
+  // map waits for the decode of the picture)
+  int last_decoded = -1;
+  bool last_mapped = true;
+
+  /**
+   * @brief Waits for the pictures that were sent to the decoder, before it goes back to the cache.
+   *
+   * A picture that is decoded but never mapped (the parser holds some for the display delay, and
+   * skipped reads and seeks leave others) can still be queued on NVDEC. The decoder may be
+   * reconfigured for another stream right after, and the driver does not wait for the queue then:
+   * cuvidReconfigureDecoder returns while pictures of the previous stream are in progress.
+   * NVDEC decodes the pictures of a decoder in the order that they were sent, and the map of a
+   * picture waits for its decode, so mapping the last one is enough.
+   */
+  ~NvDecodeState();
 };
 
 struct BufferedFrame {
