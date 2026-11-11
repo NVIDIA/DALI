@@ -256,9 +256,19 @@ def test_transfer_cpu_gpu():
 
 
 def check_array_types(t):
-    arr = np.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=float).astype(t)
+    if np.issubdtype(t, np.complexfloating):
+        arr = np.array([[-0.39 + 0.5j, 1.5 - 2.1j], [-1.5 + 0.1j, 0.33 + 1.2j]], dtype=t)
+    else:
+        arr = np.array([[-0.39, 1.5], [-1.5, 0.33]], dtype=float).astype(t)
     tensor = TensorCPU(arr, "HW")
     assert np.allclose(np.array(arr), np.asanyarray(tensor))
+    assert np.dtype(tensor.__array_interface__["typestr"]) == np.dtype(
+        types.to_numpy_type(tensor.dtype)
+    )
+    tl = TensorListCPU(arr)
+    tl_arr = tl.as_array()
+    assert tl_arr.dtype == arr.dtype
+    assert np.allclose(arr, tl_arr)
 
 
 def test_array_interface_types():
@@ -277,6 +287,8 @@ def test_array_interface_types():
         np.uint64,
         np.float32,
         np.float16,
+        np.complex64,
+        np.complex128,
         np.short,
         int,
         np.longlong,
@@ -505,12 +517,14 @@ def test_tensor_dlpack_export():
     if not hasattr(np, "from_dlpack"):
         raise SkipTest("Test requires Numpy DLPack support.")
 
-    arr = np.arange(20)
-    tensor = TensorCPU(arr)
-
-    arr_from_dlapck = np.from_dlpack(tensor)
-
-    assert np.array_equal(arr, arr_from_dlapck)
+    for arr in [
+        np.arange(20),
+        np.array([1 + 2j, -3.5 + 4j], dtype=np.complex64),
+        np.array([1.25 - 2.5j, 3.75 + 4.125j], dtype=np.complex128),
+    ]:
+        tensor = TensorCPU(arr)
+        arr_from_dlpack = np.from_dlpack(tensor)
+        assert np.array_equal(arr, arr_from_dlpack)
 
 
 def test_tensor_from_numpy_dlpack():
@@ -734,3 +748,19 @@ def test_schema_and_target():
     assert target.Name() == "readers__MXNet"
     schema, same_schema = GetSchemaAndTarget("readers__MXNet")
     assert schema.Name() == same_schema.Name() == "readers__MXNet"
+
+
+def test_complex_non_native_byte_order():
+    native_endian = "<" if sys.byteorder == "little" else ">"
+    non_native_endian = ">" if sys.byteorder == "little" else "<"
+    vals = [[1.0 + 2.0j, -3.5 + 4.25j]]
+    for suffix in ("c8", "c16"):
+        native_arr = np.array(vals, dtype=f"{native_endian}{suffix}")
+        assert_array_equal(native_arr, np.array(TensorCPU(native_arr)))
+        assert_array_equal(native_arr, TensorListCPU(native_arr).as_array())
+
+        non_native_arr = np.array(vals, dtype=f"{non_native_endian}{suffix}")
+        with assert_raises(RuntimeError, glob="*Non-native byte order*"):
+            TensorCPU(non_native_arr)
+        with assert_raises(RuntimeError, glob="*Non-native byte order*"):
+            TensorListCPU(non_native_arr)

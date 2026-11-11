@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -292,9 +292,10 @@ void CopyBatch(span<StridedCopyDesc> sample_descs, int max_mismatched_ndim, int 
 
 }  // namespace strided_copy
 
-void ValidateBatch(int &element_size, int &ndim, std::vector<DLMTensorPtr> &dl_tensors,
-                   int batch_size) {
-  int num_bits;
+void ValidateBatch(int &element_size, int &num_components, int &ndim,
+                   std::vector<DLMTensorPtr> &dl_tensors, int batch_size) {
+  int num_bits = 0;
+  uint8_t dtype_code = 0;
   for (int i = 0; i < batch_size; i++) {
     auto &dlm_tensor_ptr = dl_tensors[i];
     auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
@@ -304,9 +305,10 @@ void ValidateBatch(int &element_size, int &ndim, std::vector<DLMTensorPtr> &dl_t
                                          lanes, "` lanes."));
     if (i == 0) {
       num_bits = dl_tensor.dtype.bits;
+      dtype_code = dl_tensor.dtype.code;
       ndim = dl_tensor.ndim;
     } else {
-      DALI_ENFORCE(num_bits == dl_tensor.dtype.bits,
+      DALI_ENFORCE(dtype_code == dl_tensor.dtype.code && num_bits == dl_tensor.dtype.bits,
                    "All tensors in the DALI batch must have the same type.");
       int cur_ndim = dl_tensor.ndim;
       DALI_ENFORCE(
@@ -317,13 +319,22 @@ void ValidateBatch(int &element_size, int &ndim, std::vector<DLMTensorPtr> &dl_t
     }
   }
   // Limitation based on DLToDALIType
-  DALI_ENFORCE(num_bits == 8 || num_bits == 16 || num_bits == 32 || num_bits == 64,
-               "Unsupported data type width. Currently DALI tensors support only types of 8, 16, "
-               "32 or 64 bits");
+  if (dtype_code == kDLComplex) {
+    DALI_ENFORCE(num_bits == 64 || num_bits == 128,
+                 make_string("Unsupported complex data type width: ", num_bits,
+                             " bits. Currently DALI tensors support only 64 or 128-bit "
+                             "complex types."));
+    num_components = 2;
+  } else {
+    DALI_ENFORCE(num_bits == 8 || num_bits == 16 || num_bits == 32 || num_bits == 64,
+                 "Unsupported data type width. Currently DALI tensors support only types of 8, 16, "
+                 "32 or 64 bits");
+    num_components = 1;
+  }
   DALI_ENFORCE(0 <= ndim && ndim <= strided_copy::MAX_DIMS,
                make_string("DALI tensor must have between 0 and ", strided_copy::MAX_DIMS,
                            " dimensions, got tensor with `", ndim, "` dimensions."));
-  element_size = num_bits / 8;
+  element_size = (num_bits / 8) / num_components;
 }
 
 
@@ -349,13 +360,14 @@ void CopyDlTensorBatchGpu(TensorList<GPUBackend> &output, std::vector<DLMTensorP
   if (batch_size <= 0) {
     return;
   }
-  int element_size, ndim;
-  ValidateBatch(element_size, ndim, dl_tensors, batch_size);
+  int element_size, num_components, ndim;
+  ValidateBatch(element_size, num_components, ndim, dl_tensors, batch_size);
   SmallVector<strided_copy::StridedCopyDesc, 32> sample_descs;
-  const auto cuda_mem_copy = [&output, element_size, stream](int sample_idx,
-                                                             const auto &dl_tensor) {
+  const auto cuda_mem_copy = [&output, element_size, num_components, stream](
+                                 int sample_idx, const auto &dl_tensor) {
     void *out_data = output.raw_mutable_tensor(sample_idx);
-    auto size = volume(dl_tensor.shape, dl_tensor.shape + dl_tensor.ndim) * element_size;
+    auto size = volume(dl_tensor.shape, dl_tensor.shape + dl_tensor.ndim) *
+                element_size * num_components;
     CUDA_CALL(cudaMemcpyAsync(out_data, dl_tensor.data, size, cudaMemcpyDeviceToDevice, stream));
   };
   // If some innermost (the smallest in DALI tensor) strides match the strides of the incoming
@@ -372,17 +384,17 @@ void CopyDlTensorBatchGpu(TensorList<GPUBackend> &output, std::vector<DLMTensorP
     strided_copy::StridedCopyDesc sample_desc{};
     sample_desc.output = output.raw_mutable_tensor(sample_idx);
     sample_desc.input = dl_tensor.data;
-    sample_desc.size = volume(dl_tensor.shape, dl_tensor.shape + ndim);
+    sample_desc.size = volume(dl_tensor.shape, dl_tensor.shape + ndim) * num_components;
     // nothing to do for empty tensor
     if (!sample_desc.size) {
       continue;
     }
     // compute input and the compact output strides first, if they match
     for (int d = 0; d < dl_tensor.ndim; d++) {
-      sample_desc.in_strides[d] = dl_tensor.strides[d];
+      sample_desc.in_strides[d] = dl_tensor.strides[d] * num_components;
     }
     if (ndim > 0) {
-      sample_desc.out_strides[ndim - 1] = 1;
+      sample_desc.out_strides[ndim - 1] = num_components;
       for (int d = ndim - 2; d >= 0; --d) {
         sample_desc.out_strides[d] = sample_desc.out_strides[d + 1] * dl_tensor.shape[d + 1];
       }
