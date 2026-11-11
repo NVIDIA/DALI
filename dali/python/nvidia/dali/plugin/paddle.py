@@ -42,6 +42,8 @@ dtype_map = {
     types.DALIDataType.INT16: paddle.framework.core.VarDesc.VarType.INT16,
     types.DALIDataType.INT32: paddle.framework.core.VarDesc.VarType.INT32,
     types.DALIDataType.INT64: paddle.framework.core.VarDesc.VarType.INT64,
+    types.DALIDataType.COMPLEX64: paddle.framework.core.VarDesc.VarType.COMPLEX64,
+    types.DALIDataType.COMPLEX128: paddle.framework.core.VarDesc.VarType.COMPLEX128,
 }
 
 

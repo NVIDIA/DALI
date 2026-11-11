@@ -63,6 +63,7 @@ class DType:
             signed:     Signed integer
             unsigned:   Unsigned integer
             float:      Floating-point number
+            complex:    Complex floating-point number
             bool:       Boolean
             enum:       Enumerator type
         """
@@ -70,6 +71,7 @@ class DType:
         signed = auto()
         unsigned = auto()
         float = auto()
+        complex = auto()
         bool = auto()
         enum = auto()
 
@@ -125,10 +127,37 @@ class DType:
         self.bits = bits
         self.type_id = type_id
 
-        if kind == DType.Kind.float:
-            self.exponent_bits = exponent_bits or DType._default_exponent_bits(bits, True)
-            self.significand_bits = significand_bits or DType._default_significand_bits(bits, True)
+        if kind in (DType.Kind.float, DType.Kind.complex):
+            if kind == DType.Kind.complex:
+                if bits % 2 != 0:
+                    raise ValueError(f"Complex types must have an even number of bits, got {bits}.")
+                float_bits = bits // 2
+            else:
+                float_bits = bits
+            if exponent_bits is None and significand_bits is None:
+                exponent_bits = DType._default_exponent_bits(float_bits, True)
+                significand_bits = DType._default_significand_bits(float_bits, True)
+            elif exponent_bits is None:
+                exponent_bits = float_bits - significand_bits - 1
+            elif significand_bits is None:
+                significand_bits = float_bits - exponent_bits - 1
+            if exponent_bits <= 0 or significand_bits <= 0:
+                raise ValueError(
+                    "exponent_bits and significand_bits must be positive, got "
+                    f"exponent_bits={exponent_bits}, significand_bits={significand_bits}."
+                )
+            if 1 + exponent_bits + significand_bits != float_bits:
+                raise ValueError(
+                    f"Invalid {float_bits}-bit float layout: "
+                    f"1 + {exponent_bits} + {significand_bits} != {float_bits}."
+                )
+            self.exponent_bits = exponent_bits
+            self.significand_bits = significand_bits
         else:
+            if exponent_bits is not None or significand_bits is not None:
+                raise ValueError(
+                    f"exponent_bits and significand_bits are not supported for kind {kind}."
+                )
             self.exponent_bits = None
             self.significand_bits = None
         if name and docs:
@@ -145,7 +174,9 @@ class DType:
         if type_id is not None:
             _id2type[type_id] = self
             _type2id[self] = type_id
-        _name2type[self.name] = self
+            _name2type[self.name] = self
+        else:
+            _name2type.setdefault(self.name, self)
 
     @staticmethod
     def _make_name_and_docs(
@@ -155,18 +186,22 @@ class DType:
             return f"i{bits}", f"{bits}-bit signed integer"
         elif kind == DType.Kind.unsigned:
             return f"u{bits}", f"{bits}-bit unsigned integer"
-        elif kind == DType.Kind.float:
+        elif kind in (DType.Kind.float, DType.Kind.complex):
+            is_complex = kind == DType.Kind.complex
+            float_bits = bits // 2 if is_complex else bits
+            prefix = "c" if is_complex else "f"
+            desc = "complex floating point" if is_complex else "floating point"
             if exponent_bits == DType._default_exponent_bits(
-                bits
-            ) and significand_bits == DType._default_significand_bits(bits):
-                return f"f{bits}", f"{bits}-bit floating point number (IEEE 754)"
-            elif bits == 16 and exponent_bits == 8 and significand_bits == 7:
+                float_bits
+            ) and significand_bits == DType._default_significand_bits(float_bits):
+                return f"{prefix}{bits}", f"{bits}-bit {desc} number (IEEE 754)"
+            elif not is_complex and bits == 16 and exponent_bits == 8 and significand_bits == 7:
                 return (
                     "bfloat16",
                     "Brain Floating Point. A 16-bit floating point number with 8-bit exponent "
                     "and 7-bit mantissa",
                 )
-            elif bits == 19 and exponent_bits == 8 and significand_bits == 10:
+            elif not is_complex and bits == 19 and exponent_bits == 8 and significand_bits == 10:
                 return (
                     "tf32",
                     "TensorFloat-32. A 19-bit floating point number with 8-bit exponent and "
@@ -175,8 +210,8 @@ class DType:
                 )
             else:
                 return (
-                    f"f{bits}e{exponent_bits}m{significand_bits}",
-                    f"{bits}-bit floating point number with {exponent_bits}-bit exponent and "
+                    f"{prefix}{bits}e{exponent_bits}m{significand_bits}",
+                    f"{bits}-bit {desc} number with {exponent_bits}-bit exponent and "
                     f"{significand_bits}-bit mantissa",
                 )
         elif kind == DType.Kind.bool:
@@ -252,7 +287,8 @@ class DType:
                 return DType(DType.Kind.float, 16, 8, 7)
             elif name == "tf32":
                 return DType(DType.Kind.float, 19, 8, 10, bytes=4)
-            elif name.startswith("f"):
+            elif name.startswith(("f", "c")):
+                kind = DType.Kind.complex if name[0] == "c" else DType.Kind.float
                 exp = name.find("e")
                 sig = name.find("m")
                 if exp != -1 or sig != -1:
@@ -263,10 +299,10 @@ class DType:
                     bits = int(name[1:exp])
                     exp_bits = int(name[exp + 1 : sig])
                     sig_bits = int(name[sig + 1 :])
-                    return DType(DType.Kind.float, bits, exp_bits, sig_bits)
+                    return DType(kind, bits, exp_bits, sig_bits)
                 else:
                     bits = int(name[1:])
-                    return DType(DType.Kind.float, bits)
+                    return DType(kind, bits)
             elif name == "DataType":
                 return DataType
             elif name == "ImageType":
@@ -306,6 +342,8 @@ uint64 = DType(DType.Kind.unsigned, 64, type_id=nvidia.dali.types.UINT64)
 float16 = DType(DType.Kind.float, 16, type_id=nvidia.dali.types.FLOAT16)
 float32 = DType(DType.Kind.float, 32, type_id=nvidia.dali.types.FLOAT)
 float64 = DType(DType.Kind.float, 64, type_id=nvidia.dali.types.FLOAT64)
+complex64 = DType(DType.Kind.complex, 64, type_id=nvidia.dali.types.COMPLEX64)
+complex128 = DType(DType.Kind.complex, 128, type_id=nvidia.dali.types.COMPLEX128)
 bool = DType(DType.Kind.bool, 8, type_id=nvidia.dali.types.BOOL)
 bfloat16 = DType(DType.Kind.float, 16, 8, 7)  # TODO(michalz): Add type_id for bfloat16
 DataType = DType(
@@ -371,6 +409,8 @@ __all__ = sum(
         ["uint8", "uint16", "uint32", "uint64"],
         # floating point types
         ["float16", "float32", "float64", "bfloat16"],
+        # complex types
+        ["complex64", "complex128"],
         # boolean and enum types
         ["bool", "DataType", "ImageType", "InterpType"],
     ],

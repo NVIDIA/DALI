@@ -16,6 +16,7 @@ import numpy as np
 
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.types as types
+from nose_utils import assert_raises
 
 
 def test_type_ids():
@@ -30,6 +31,8 @@ def test_type_ids():
     assert ndd.float16.type_id == types.FLOAT16
     assert ndd.float32.type_id == types.FLOAT
     assert ndd.float64.type_id == types.FLOAT64
+    assert ndd.complex64.type_id == types.COMPLEX64
+    assert ndd.complex128.type_id == types.COMPLEX128
     assert ndd.bool.type_id == types.BOOL
     assert ndd.InterpType.type_id == types.INTERP_TYPE
     assert ndd.DataType.type_id == types.DATA_TYPE
@@ -48,6 +51,8 @@ def test_type_ids_to_type():
     assert ndd.dtype(types.FLOAT16) == ndd.float16
     assert ndd.dtype(types.FLOAT) == ndd.float32
     assert ndd.dtype(types.FLOAT64) == ndd.float64
+    assert ndd.dtype(types.COMPLEX64) == ndd.complex64
+    assert ndd.dtype(types.COMPLEX128) == ndd.complex128
     assert ndd.dtype(types.BOOL) == ndd.bool
     assert ndd.dtype(types.INTERP_TYPE) == ndd.InterpType
     assert ndd.dtype(types.DATA_TYPE) == ndd.DataType
@@ -66,6 +71,8 @@ def test_type_names():
     assert ndd.float16.name == "f16"
     assert ndd.float32.name == "f32"
     assert ndd.float64.name == "f64"
+    assert ndd.complex64.name == "c64"
+    assert ndd.complex128.name == "c128"
     assert ndd.bool.name == "bool"
     assert ndd.bfloat16.name == "bfloat16"
     assert ndd.DataType.name == "DataType"
@@ -85,6 +92,8 @@ def test_type_names_to_type():
     assert ndd.dtype("f16") is ndd.float16
     assert ndd.dtype("f32") is ndd.float32
     assert ndd.dtype("f64") is ndd.float64
+    assert ndd.dtype("c64") is ndd.complex64
+    assert ndd.dtype("c128") is ndd.complex128
     assert ndd.dtype("bool") is ndd.bool
     assert ndd.dtype("bfloat16") is ndd.bfloat16
     assert ndd.dtype("DataType") is ndd.DataType
@@ -105,6 +114,8 @@ def test_numpy_scalar_type_to_type():
     assert ndd.dtype(np.float16) is ndd.float16
     assert ndd.dtype(np.float32) is ndd.float32
     assert ndd.dtype(np.float64) is ndd.float64
+    assert ndd.dtype(np.complex64) is ndd.complex64
+    assert ndd.dtype(np.complex128) is ndd.complex128
 
 
 def test_numpy_dtype_to_type():
@@ -120,6 +131,8 @@ def test_numpy_dtype_to_type():
     assert ndd.dtype(np.dtype(np.float16)) is ndd.float16
     assert ndd.dtype(np.dtype(np.float32)) is ndd.float32
     assert ndd.dtype(np.dtype(np.float64)) is ndd.float64
+    assert ndd.dtype(np.dtype(np.complex64)) is ndd.complex64
+    assert ndd.dtype(np.dtype(np.complex128)) is ndd.complex128
 
 
 def test_type_bytes():
@@ -134,6 +147,8 @@ def test_type_bytes():
     assert ndd.float16.bytes == 2
     assert ndd.float32.bytes == 4
     assert ndd.float64.bytes == 8
+    assert ndd.complex64.bytes == 8
+    assert ndd.complex128.bytes == 16
     assert ndd.bool.bytes == 1
     assert ndd.InterpType.bytes == 4
     assert ndd.DataType.bytes == 4
@@ -152,6 +167,8 @@ def test_type_exponent_bits():
     assert ndd.float16.exponent_bits == 5
     assert ndd.float32.exponent_bits == 8
     assert ndd.float64.exponent_bits == 11
+    assert ndd.complex64.exponent_bits == 8
+    assert ndd.complex128.exponent_bits == 11
 
 
 def test_type_significand_bits():
@@ -166,3 +183,23 @@ def test_type_significand_bits():
     assert ndd.float16.significand_bits == 10
     assert ndd.float32.significand_bits == 23
     assert ndd.float64.significand_bits == 52
+    assert ndd.complex64.significand_bits == 23
+    assert ndd.complex128.significand_bits == 52
+
+
+def test_complex_and_float_layout_validation():
+    assert ndd.complex64.kind == ndd.DType.Kind.complex
+    assert ndd.complex128.kind == ndd.DType.Kind.complex
+    assert ndd.DType(ndd.DType.Kind.complex, 64, exponent_bits=8) == ndd.complex64
+    assert ndd.DType(ndd.DType.Kind.complex, 128, significand_bits=52) == ndd.complex128
+    assert ndd.dtype("c64e8m23") is ndd.complex64
+    with assert_raises(ValueError, glob="*even*"):
+        ndd.DType(ndd.DType.Kind.complex, 33)
+    with assert_raises(ValueError, glob="*float layout*"):
+        ndd.DType(ndd.DType.Kind.complex, 64, 11, 52)
+    with assert_raises(ValueError, glob="*float layout*"):
+        ndd.DType(ndd.DType.Kind.float, 32, 8, 10)
+    with assert_raises(ValueError, glob="*positive*"):
+        ndd.DType(ndd.DType.Kind.float, 32, 0, 31)
+    with assert_raises(ValueError, glob="*not supported*"):
+        ndd.DType(ndd.DType.Kind.signed, 32, 8, 23)

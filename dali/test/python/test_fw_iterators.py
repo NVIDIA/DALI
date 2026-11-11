@@ -662,6 +662,8 @@ def check_paddle_iterator_feed_ndarray_types(data_type):
         np.int16: paddle.framework.core.VarDesc.VarType.INT16,
         np.int32: paddle.framework.core.VarDesc.VarType.INT32,
         np.int64: paddle.framework.core.VarDesc.VarType.INT64,
+        np.complex64: paddle.framework.core.VarDesc.VarType.COMPLEX64,
+        np.complex128: paddle.framework.core.VarDesc.VarType.COMPLEX128,
     }
 
     shape = [3, 9]
@@ -671,6 +673,9 @@ def check_paddle_iterator_feed_ndarray_types(data_type):
         )
     elif data_type == np.bool_:
         arr = np.random.randint(0, high=2, size=shape, dtype=data_type)
+    elif np.issubdtype(data_type, np.complexfloating):
+        rng = np.random.default_rng(12345)
+        arr = (rng.standard_normal(shape) + 1j * rng.standard_normal(shape)).astype(data_type)
     else:
         arr = np.random.randn(*shape).astype(data_type)
     tensor = TensorCPU(arr)
@@ -693,6 +698,8 @@ def test_paddle_iterator_feed_ndarray_types():
         np.int16,
         np.int32,
         np.int64,
+        np.complex64,
+        np.complex128,
     ]
     for data_type in types:
         yield check_paddle_iterator_feed_ndarray_types, data_type

@@ -13,7 +13,7 @@ def type_order(name):
     Returns a tuple of (type group index, type size, type name) that determines the order
     of the types in the table.
     """
-    type_groups = ["int", "uint", "float", "bfloat", "bool"]
+    type_groups = ["int", "uint", "float", "bfloat", "complex", "bool"]
     for i, group in enumerate(type_groups):
         if m := re.match(rf"^{group}(\d+)?$", name):
             return (i, int(m.group(1)) if m.group(1) else 0, name)

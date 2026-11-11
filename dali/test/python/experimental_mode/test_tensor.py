@@ -579,3 +579,27 @@ def test_bool_ambiguous(device_type, data):
     with assert_raises(ValueError, glob="*truth value*ambiguous*"):
         if t:
             pass
+
+
+@eval_modes()
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        (np.complex64, ndd.complex64),
+        (np.complex128, ndd.complex128),
+    ),
+)
+def test_complex_tensor(device_type, dtypes):
+    np_dtype, ndd_dtype = dtypes
+    data = np.array([[1 + 2j, -3.5 + 0.25j], [0 - 1j, 4.25 + 0j]], dtype=np_dtype)
+    t = ndd.tensor(data, device=device_type)
+    assert t.dtype == ndd_dtype
+    assert np.array_equal(asnumpy(t), data)
+
+
+@eval_modes(ndd.EvalMode.sync_cpu, ndd.EvalMode.sync_full)
+@cartesian_params(("cpu", "gpu"), (np.complex64, np.complex128))
+def test_complex_cast_error(device_type, np_dtype):
+    t = ndd.tensor(np.array([1 + 2j, -3.5 + 0.25j], dtype=np_dtype), device=device_type)
+    with assert_raises(RuntimeError, glob="*Invalid input type*"):
+        ndd.cast(t, dtype=ndd.float32).evaluate()
