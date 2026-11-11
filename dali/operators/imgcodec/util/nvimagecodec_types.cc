@@ -48,6 +48,14 @@ NvImageCodecCodeStream NvImageCodecCodeStream::FromHostMem(nvimgcodecInstance_t 
   return ret;
 }
 
+void NvImageCodecCodeStream::ResetFromHostMem(nvimgcodecInstance_t instance,
+                                              const void *data, size_t length) {
+  // A non-null handle is reused in place by nvImageCodec. If creating a new stream fails,
+  // nvImageCodec frees it and leaves the handle null.
+  CHECK_NVIMGCODEC(nvimgcodecCodeStreamCreateFromHostMem(
+      instance, &handle_, static_cast<const unsigned char*>(data), length, nullptr));
+}
+
 NvImageCodecCodeStream NvImageCodecCodeStream::FromSubCodeStream(
   nvimgcodecCodeStream_t code_stream, const nvimgcodecCodeStreamView_t* cs_view) {
   NvImageCodecCodeStream ret;

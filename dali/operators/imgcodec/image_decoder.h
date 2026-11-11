@@ -471,8 +471,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
   }
 
   void ParseSample(ParsedSample &parsed_sample, span<const uint8_t> encoded) {
-    parsed_sample.encoded_stream =
-        NvImageCodecCodeStream::FromHostMem(instance_, encoded.data(), encoded.size());
+    // Reuse the code stream from the previous iteration instead of destroying and recreating it.
+    parsed_sample.encoded_stream.ResetFromHostMem(instance_, encoded.data(), encoded.size());
     parsed_sample.nvimgcodec_jpeg_info = nvimgcodecJpegImageInfo_t{
         NVIMGCODEC_STRUCTURE_TYPE_JPEG_IMAGE_INFO, sizeof(nvimgcodecJpegImageInfo_t), nullptr};
     parsed_sample.nvimgcodec_img_info =
