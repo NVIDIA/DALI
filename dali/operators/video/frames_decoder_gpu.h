@@ -119,6 +119,10 @@ class NVDECLease {
     DecInstance *decoder = nullptr;
 };
 
+// The three functions below are for tests: the counters show which path the decoder cache took,
+// and NVDECDestroyUnusedDecoders lets a test start from an empty cache. They are exported because
+// the tests are built into a separate binary that links the operators library.
+
 /**
  * @brief Returns how many NVDEC decoders were created (cuvidCreateDecoder) so far for a device.
  *
