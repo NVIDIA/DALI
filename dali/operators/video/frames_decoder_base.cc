@@ -441,10 +441,16 @@ namespace detail {
  * gives. MPEG-TS and raw streams store them in the Annex B format, after a start code (00 00 01, or
  * 00 00 00 01), and their extradata, if any, starts with one. This is how FFmpeg's
  * h264_mp4toannexb and hevc_mp4toannexb tell them apart.
+ *
+ * Extradata that starts with no start code but is shorter than the minimum avcC/hvcC header (7
+ * bytes for H.264, 23 for HEVC) is malformed. The packets still come from a container that stores
+ * lengths, so they are taken to have the usual 4-byte lengths.
  */
 int NalLengthSize(const AVCodecParameters &par) {
   const uint8_t *extradata = par.extradata;
-  int size = par.extradata_size;
+  int size = extradata ? par.extradata_size : 0;
+  if (size <= 0)
+    return 0;  // the parameter sets are in the stream, after start codes
   bool annex_b = (size >= 3 && extradata[0] == 0 && extradata[1] == 0 && extradata[2] == 1) ||
                  (size >= 4 && extradata[0] == 0 && extradata[1] == 0 && extradata[2] == 0 &&
                   extradata[3] == 1);
@@ -454,7 +460,8 @@ int NalLengthSize(const AVCodecParameters &par) {
     return (extradata[4] & 3) + 1;  // avcC: lengthSizeMinusOne
   if (par.codec_id == AV_CODEC_ID_HEVC && size >= 23)
     return (extradata[21] & 3) + 1;  // hvcC: lengthSizeMinusOne
-  return 0;
+  // Too short for avcC/hvcC
+  return 4;
 }
 
 /**

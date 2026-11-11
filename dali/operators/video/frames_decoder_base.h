@@ -232,7 +232,8 @@ namespace detail {
 
 /**
  * @brief The size of the length that precedes each NAL unit in the packets of an H.264 or HEVC
- * stream (from its avcC/hvcC extradata), or 0 if start codes precede them (Annex B).
+ * stream (from its avcC/hvcC extradata), or 0 if start codes precede them (Annex B). Extradata
+ * too short for avcC/hvcC that does not start with a start code gives 4.
  */
 DLL_PUBLIC int NalLengthSize(const AVCodecParameters &par);
 

@@ -1608,9 +1608,14 @@ TEST(NalFramingTest, LengthSizeFromExtradata) {
     EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc), 4) << "configurationVersion " << version;
   }
 
-  // too short to hold the field: not avcC/hvcC
-  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAvcC, 4), 0);
-  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, kHvcC, 21), 0);
+  // shorter than an avcC/hvcC header, and no start code: malformed, the usual 4-byte lengths
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAvcC, 6), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAvcC, 1), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc_1, 22), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc_1, 2), 4);
+  // ...but a start code, however short the extradata, is Annex B
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAnnexBExtradata, 3), 0);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hevc_annex_b, 4), 0);
 }
 
 TEST(NalFramingTest, LengthPrefixes) {
