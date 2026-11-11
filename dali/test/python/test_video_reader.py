@@ -22,10 +22,9 @@ import atexit
 import enum
 import functools
 import itertools
+import multiprocessing
 import random
 import shutil
-import subprocess
-import sys
 import tempfile
 import unittest
 import uuid
@@ -850,26 +849,32 @@ def test_file_url_can_be_opened(device):
     p.run()
 
 
+def _lazy_init_reader_meta_before_the_first_run():
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=[VIDEO_0], sequence_length=3, lazy_init=True, name="reader"
+        )
+
+    p = pipe()
+    p.build()
+    assert p.reader_meta("reader")["epoch_size"] > 0
+
+
 def test_lazy_init_reader_meta_before_the_first_run():
     """With lazy_init, reader_meta() builds the metadata of the GPU reader on the calling thread.
     That thread has no CUDA context when nothing made one before (a CUDA tensor, torch.cuda or an
     earlier GPU video operator all do), and the codec checks of the reader have to work then too.
-    A fresh process is needed, as a context made by any earlier test would hide the problem."""
-    script = (
-        "from nvidia.dali import fn, pipeline_def\n"
-        "@pipeline_def(batch_size=1, num_threads=1, device_id=0)\n"
-        "def pipe():\n"
-        "    return fn.experimental.readers.video(\n"
-        f"        device='gpu', filenames=[{VIDEO_0!r}], sequence_length=3, lazy_init=True,\n"
-        "        name='reader')\n"
-        "p = pipe()\n"
-        "p.build()\n"
-        "print('EPOCH', p.reader_meta('reader')['epoch_size'])\n"
+    A fresh process is needed, as a context made by any earlier test would hide the problem: the
+    check runs in a spawned process. That process imports this module to find the function, so
+    the module-level code must not create a CUDA context."""
+    proc = multiprocessing.get_context("spawn").Process(
+        target=_lazy_init_reader_meta_before_the_first_run
     )
-    res = subprocess.run(
-        [sys.executable, "-c", script], capture_output=True, text=True, timeout=120
-    )
-    assert (
-        res.returncode == 0 and "EPOCH" in res.stdout
-    ), f"returncode={res.returncode}, stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
-    assert int(res.stdout.split("EPOCH")[1].split()[0]) > 0
+    proc.start()
+    proc.join(timeout=120)
+    if proc.is_alive():
+        proc.kill()
+        proc.join()
+        raise AssertionError("The child process did not finish in 120 s")
+    assert proc.exitcode == 0, f"The child process failed with exit code {proc.exitcode}"
