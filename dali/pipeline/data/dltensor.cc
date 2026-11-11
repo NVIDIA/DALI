@@ -14,6 +14,7 @@
 
 #include <cuda_runtime_api.h>
 #include <chrono>
+#include <complex>
 #include <condition_variable>
 #include <list>
 #include <mutex>
@@ -138,7 +139,8 @@ void EnqueueForDeletion(std::shared_ptr<void> data, int device_id) {
 
 DLDataType ToDLType(DALIDataType type) {
   DLDataType dl_type{};
-  TYPE_SWITCH(type, type2id, T, (DALI_NUMERIC_TYPES_FP16, bool), (
+  TYPE_SWITCH(type, type2id, T,
+              (DALI_NUMERIC_TYPES_FP16, bool, std::complex<float>, std::complex<double>), (
     dl_type.bits = sizeof(T) * 8;
       dl_type.lanes = 1;
       if constexpr (dali::is_fp_or_half<T>::value) {
@@ -149,6 +151,10 @@ DLDataType ToDLType(DALIDataType type) {
         dl_type.code = kDLUInt;
       } else if constexpr (std::is_integral_v<T>) {
         dl_type.code = kDLInt;
+      } else if constexpr (
+        std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>
+      ) {
+        dl_type.code = kDLComplex;
       } else {
         DALI_FAIL(make_string("This data type (", type, ") cannot be handled by DLTensor."));
       }
@@ -194,6 +200,13 @@ DALIDataType ToDALIType(const DLDataType &dl_type) {
     }
     case kDLBool: {
       return DALI_BOOL;
+      break;
+    }
+    case kDLComplex: {
+      switch (dl_type.bits) {
+        case 64: return DALI_COMPLEX64;
+        case 128: return DALI_COMPLEX128;
+      }
       break;
     }
   }

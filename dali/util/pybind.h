@@ -18,8 +18,10 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
-#include <utility>
+#include <bit>
+#include <complex>
 #include <string>
+#include <utility>
 #include "dali/pipeline/data/types.h"
 #include "dali/pipeline/data/dltensor.h"
 #include "dali/pipeline/operator/error_reporting.h"
@@ -55,6 +57,10 @@ static std::string FormatStrFromType(DALIDataType type) {
       return "=d";
     case DALI_BOOL:
      return "=?";
+    case DALI_COMPLEX64:
+      return "=Zf";
+    case DALI_COMPLEX128:
+      return "=Zd";
     case DALI_DATA_TYPE:
     case DALI_IMAGE_TYPE:
     case DALI_INTERP_TYPE:
@@ -102,6 +108,10 @@ static std::string FormatStrFromType(DALIDataType type) {
     return "=f";
   } else if (IsType<double>(type)) {
     return "=d";
+  } else if (IsType<std::complex<float>>(type)) {
+    return "=Zf";
+  } else if (IsType<std::complex<double>>(type)) {
+    return "=Zd";
   } else if (IsType<bool>(type)) {
     return "=?";
   } else if (IsType<float16>(type)) {
@@ -115,12 +125,54 @@ static std::string FormatStrFromType(DALIDataType type) {
   }
 }
 
+inline std::string ArrayInterfaceTypestrFromType(DALIDataType type) {
+  switch (type) {
+    case DALI_COMPLEX64:
+      return "=c8";
+    case DALI_COMPLEX128:
+      return "=c16";
+    default:
+      return FormatStrFromType(type);
+  }
+}
+
+inline bool IsNativeByteOrder(char byte_order) {
+  if (byte_order == '@' || byte_order == '=') {
+    return true;
+  }
+  if constexpr (std::endian::native == std::endian::little) {
+    return byte_order == '<';
+  } else if constexpr (std::endian::native == std::endian::big) {
+    return byte_order == '>' || byte_order == '!';
+  } else {
+    return false;
+  }
+}
+
+inline void EnforceNativeComplexByteOrder(const std::string &format) {
+  DALI_ENFORCE(
+      IsNativeByteOrder(format[0]),
+      make_string("Non-native byte order is not supported for complex format string: ",
+                  format, "."));
+}
+
 static const TypeInfo &TypeFromFormatStr(const std::string &format) {
   char format_letter;
   int format_number = -1;
   if (format.size() == 1) {
     format_letter = format[0];
   } else if (format.size() > 1) {
+    if (format == "Zf") {
+      return TypeTable::GetTypeInfo<std::complex<float>>();
+    }
+    if (format == "Zd") {
+      return TypeTable::GetTypeInfo<std::complex<double>>();
+    }
+    if (format.size() == 3 && format[1] == 'Z' && (format[2] == 'f' || format[2] == 'd')) {
+      EnforceNativeComplexByteOrder(format);
+      return format[2] == 'f' ? TypeTable::GetTypeInfo<std::complex<float>>()
+                              : TypeTable::GetTypeInfo<std::complex<double>>();
+    }
     format_letter = format[1];
     if (format.size() > 2) {
       format_number = std::stoi(format.substr(2));
@@ -136,6 +188,13 @@ static const TypeInfo &TypeFromFormatStr(const std::string &format) {
 
   switch (format_letter) {
     case 'c':
+      if (format_number == sizeof(std::complex<float>) ||
+          format_number == sizeof(std::complex<double>)) {
+        EnforceNativeComplexByteOrder(format);
+        return format_number == sizeof(std::complex<float>)
+                   ? TypeTable::GetTypeInfo<std::complex<float>>()
+                   : TypeTable::GetTypeInfo<std::complex<double>>();
+      }
       return TypeTable::GetTypeInfo<char>();
     // type supported by cupy
     case 'u':

@@ -14,6 +14,7 @@
 
 #include "dali/util/numpy.h"
 #include <cerrno>
+#include <complex>
 #include <limits>
 #include <string>
 #include <vector>
@@ -39,6 +40,8 @@ const TypeInfo &TypeFromNumpyStr(const std::string &format) {
   if (format == "f2") return TypeTable::GetTypeInfo<float16>();
   if (format == "f4") return TypeTable::GetTypeInfo<float>();
   if (format == "f8") return TypeTable::GetTypeInfo<double>();
+  if (format == "c8") return TypeTable::GetTypeInfo<std::complex<float>>();
+  if (format == "c16") return TypeTable::GetTypeInfo<std::complex<double>>();
   DALI_FAIL(make_string("Unknown Numpy type string: ", format));
 }
 
@@ -289,9 +292,17 @@ void FromFortranOrder(SampleView<CPUBackend> output, ConstSampleView<CPUBackend>
   perm.resize(n_dims);
   for (int i = 0; i < n_dims; ++i)
     perm[i] = n_dims - i - 1;
-  TYPE_SWITCH(input.type(), type2id, T, NUMPY_ALLOWED_TYPES, (
-    kernels::TransposeGrouped(view<T>(output), view<const T>(input), make_cspan(perm));
-  ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
+  if (input.type() == DALI_COMPLEX64) {
+    kernels::TransposeGrouped(view<std::complex<float>>(output),
+                              view<const std::complex<float>>(input), make_cspan(perm));
+  } else if (input.type() == DALI_COMPLEX128) {
+    kernels::TransposeGrouped(view<std::complex<double>>(output),
+                              view<const std::complex<double>>(input), make_cspan(perm));
+  } else {
+    TYPE_SWITCH(input.type(), type2id, T, NUMPY_ALLOWED_TYPES, (
+      kernels::TransposeGrouped(view<T>(output), view<const T>(input), make_cspan(perm));
+    ), DALI_FAIL(make_string("Unsupported input type: ", input.type())));  // NOLINT
+  }
 }
 
 DALIDataType HeaderData::type() const {

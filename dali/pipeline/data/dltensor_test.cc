@@ -26,6 +26,7 @@ TEST(DLPackTest, DLType) {
   for (DALIDataType dali : {
       DALI_BOOL,
       DALI_FLOAT16, DALI_FLOAT, DALI_FLOAT64,
+      DALI_COMPLEX64, DALI_COMPLEX128,
       DALI_INT8, DALI_UINT8,
       DALI_INT16, DALI_UINT16,
       DALI_INT32, DALI_UINT32,
@@ -40,6 +41,8 @@ TEST(DLPackTest, DLType) {
       EXPECT_EQ(dl.code, kDLInt);
     } else if (info.name().find("float") == 0) {
       EXPECT_EQ(dl.code, kDLFloat);
+    } else if (info.name().find("complex") == 0) {
+      EXPECT_EQ(dl.code, kDLComplex);
     } else if (info.name().find("bool") == 0) {
       EXPECT_EQ(dl.code, kDLBool);
     }
@@ -52,6 +55,8 @@ TEST(DLPackTest, DLTypeToString) {
   EXPECT_EQ(to_string(DLDataType{ kDLBool, 8, 1 }), "b8");
   EXPECT_EQ(to_string(DLDataType{ kDLBfloat, 16, 1 }), "bf16");
   EXPECT_EQ(to_string(DLDataType{ kDLFloat, 32, 4 }), "f32x4");
+  EXPECT_EQ(to_string(DLDataType{ kDLComplex, 64, 1 }), "c64");
+  EXPECT_EQ(to_string(DLDataType{ kDLComplex, 128, 1 }), "c128");
   EXPECT_EQ(to_string(DLDataType{ kDLUInt, 16, 2 }), "u16x2");
   EXPECT_EQ(to_string(DLDataType{ kDLInt, 64, 1 }), "i64");
   EXPECT_EQ(to_string(DLDataType{ 123, 8, 16 }), "<unknown:123>8x16");

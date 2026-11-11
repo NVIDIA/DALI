@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <complex>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -113,6 +114,7 @@ constexpr auto IsIntegral = daliDataTypeIsIntegral;
 constexpr auto IsSigned = daliDataTypeIsSigned;
 constexpr auto IsUnsigned = daliDataTypeIsUnsigned;
 constexpr auto IsEnum = daliDataTypeIsEnum;
+constexpr auto IsComplex = daliDataTypeIsComplex;
 
 
 template <DALIDataType id>
@@ -475,6 +477,8 @@ DALI_REGISTER_TYPE(float16,        DALI_FLOAT16);
 DALI_REGISTER_TYPE(float,          DALI_FLOAT);
 DALI_REGISTER_TYPE(double,         DALI_FLOAT64);
 DALI_REGISTER_TYPE(bool,           DALI_BOOL);
+DALI_REGISTER_TYPE(std::complex<float>,  DALI_COMPLEX64);
+DALI_REGISTER_TYPE(std::complex<double>, DALI_COMPLEX128);
 DALI_REGISTER_TYPE(string,         DALI_STRING);
 DALI_REGISTER_TYPE(DALIImageType,  DALI_IMAGE_TYPE);
 DALI_REGISTER_TYPE(DALIDataType,   DALI_DATA_TYPE);

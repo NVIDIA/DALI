@@ -14,6 +14,7 @@
 
 #include "dali/pipeline/data/types.h"
 #include <gtest/gtest.h>
+#include <complex>
 #include <string>
 #include <typeinfo>
 #include <utility>
@@ -49,6 +50,8 @@ static std::pair<DALIDataType, const TypeInfo *> g_types[] = {
   GetTypeInfo<bool>(),
   GetTypeInfo<float>(),
   GetTypeInfo<double>(),
+  GetTypeInfo<std::complex<float>>(),
+  GetTypeInfo<std::complex<double>>(),
   GetTypeInfo<string>(),
   GetTypeInfo<DALIDataType>()
 };
@@ -79,6 +82,8 @@ TYPENAME_FUNC(float16, float16);
 TYPENAME_FUNC(float, float);
 TYPENAME_FUNC(double, double);
 TYPENAME_FUNC(bool, bool);
+TYPENAME_FUNC(std::complex<float>, complex64);
+TYPENAME_FUNC(std::complex<double>, complex128);
 
 template <>
 std::string TypesTest<std::vector<uint8_t>>::TypeName() {
@@ -91,7 +96,8 @@ std::string TypesTest<std::array<std::vector<uint8_t>, DUMMY_ARRAY_SIZE>>::TypeN
 }
 
 typedef ::testing::Types<uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t,
-                         float16, float, double, bool, std::vector<uint8_t>,
+                         float16, float, double, bool, std::complex<float>, std::complex<double>,
+                         std::vector<uint8_t>,
                          std::array<std::vector<uint8_t>, DUMMY_ARRAY_SIZE>>
     TestTypes;
 
@@ -153,6 +159,21 @@ TEST(ListTypeNames, ListTypeNames) {
   auto expected_str1 =
       "uint8, int8, uint16, int16, uint32, int32, uint64, int64, float, double, float16";
   ASSERT_EQ(str1, expected_str1);
+}
+
+TEST(TypeTableTest, ComplexTypePredicates) {
+  for (DALIDataType t : {DALI_COMPLEX64, DALI_COMPLEX128}) {
+    EXPECT_TRUE(IsComplex(t));
+    EXPECT_FALSE(IsFloatingPoint(t));
+    EXPECT_FALSE(IsIntegral(t));
+    EXPECT_FALSE(IsSigned(t));
+    EXPECT_FALSE(IsUnsigned(t));
+    EXPECT_FALSE(IsEnum(t));
+  }
+  EXPECT_FALSE(IsComplex(DALI_FLOAT));
+  EXPECT_FALSE(IsComplex(DALI_FLOAT64));
+  EXPECT_EQ(TypeTable::GetTypeInfo<std::complex<float>>().size(), 8u);
+  EXPECT_EQ(TypeTable::GetTypeInfo<std::complex<double>>().size(), 16u);
 }
 
 // The following disabled code tests the scenario when we need to grow the type table

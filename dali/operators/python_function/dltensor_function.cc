@@ -233,7 +233,7 @@ PYBIND11_MODULE(python_function_plugin, m, py::mod_gil_not_used()) {
     auto dlm_tensor_ptr = DLMTensorPtrFromCapsule(dl_capsule);
     const auto &dl_tensor = dlm_tensor_ptr->dl_tensor;
     auto dali_type = ToDALIType(dl_tensor.dtype);
-    py::dtype dtype(FormatStrFromType(dali_type));
+    py::dtype dtype(ArrayInterfaceTypestrFromType(dali_type));
     auto shape = make_span(dl_tensor.shape, dl_tensor.ndim);
     py::array array;
     if (dl_tensor.strides) {
