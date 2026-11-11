@@ -49,6 +49,7 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
                        cuda-cccl-cross-aarch64-${CUDA_CROSS_VERSION} \
                        cuda-nvcc-cross-aarch64-${CUDA_CROSS_VERSION} \
                        libnpp-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       cuda-nvtx-cross-aarch64-${CUDA_CROSS_VERSION} \
     && \
     rm -rf /var/lib/apt/lists/* && \
     rm /usr/bin/python3 && ln -s python3.10 /usr/bin/python3 && \
