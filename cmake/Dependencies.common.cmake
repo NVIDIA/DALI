@@ -352,8 +352,8 @@ endif()
 ##################################################################
 set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
 if(BUILD_NVIMAGECODEC)
-  set(NVIMGCODEC_MIN_VERSION "0.10.0")
-  set(NVIMGCODEC_MAX_VERSION "0.11.0")
+  set(NVIMGCODEC_MIN_VERSION "0.9.0")
+  set(NVIMGCODEC_MAX_VERSION "0.10.0")
   message(STATUS "nvImageCodec - requires version >=${NVIMGCODEC_MIN_VERSION}, <${NVIMGCODEC_MAX_VERSION}")
   if (WITH_DYNAMIC_NVIMGCODEC)
     message(STATUS "nvImageCodec - dynamic load")
@@ -371,14 +371,14 @@ if(BUILD_NVIMAGECODEC)
       if ("${CUDA_VERSION_MAJOR}" EQUAL "13")
         FetchContent_Declare(
             nvimgcodec_headers
-            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.10.0.9_cuda13-archive.tar.xz
-            URL_HASH SHA512=66fa44280a327f1c876b0329cd5f823fad857aa786f970b611181146913c36331df50ba2ceb824a1e4c2648c3ab2dd9d1cdbe9f557b5e1bdbcd4a1a94597d213
+            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.9.0.20_cuda13-archive.tar.xz
+            URL_HASH SHA512=a7a07e8f297eaeb41c51769dba57bd56773a88c2612df8bc7c563c8679ffb2da137106589af48f4448a1481764ca62bf5e1250dbfd017e3acbf394b1680e92c1
         )
       elseif ("${CUDA_VERSION_MAJOR}" EQUAL "12")
         FetchContent_Declare(
             nvimgcodec_headers
-            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.10.0.9_cuda12-archive.tar.xz
-            URL_HASH SHA512=3adada7a49fc60eed735853b453d82a3dc5e6edb8bf7d462e3db1b68c8d509e5be5b4a6e85fe2ed4fedc0e2b01b033b3ad10749d86cafa3f07b6775aec1bbd5d
+            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.9.0.20_cuda12-archive.tar.xz
+            URL_HASH SHA512=687e88cd850574bcfd7dbd5b728580ac4a8bd00ba64ed27f1866efa2b01c7ae0743617daddc3f3b743089484cfdd7fff85d1dc3c0fd99e016988171fbaf83363
         )
       else()
         message(FATAL_ERROR "Unsupported CUDA major version: ${CUDA_VERSION_MAJOR}")
@@ -422,7 +422,7 @@ if(BUILD_NVIMAGECODEC)
     ExternalProject_Add(
       nvImageCodec
       GIT_REPOSITORY    https://github.com/NVIDIA/nvImageCodec.git
-      GIT_TAG           v${NVIMGCODEC_MIN_VERSION}
+      GIT_TAG           v0.9.0
       GIT_SUBMODULES    "external/pybind11"
                         "external/NVTX"
                         "external/googletest"

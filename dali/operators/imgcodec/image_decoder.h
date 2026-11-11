@@ -516,8 +516,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
   bool version_at_least(int req_major, int req_minor, int req_patch) {
     int major = -1, minor = -1, patch = -1;
     get_nvimgcodec_version(&major, &minor, &patch);
-    return NVIMGCODEC_MAKE_SEMANTIC_VERSION(major, minor, patch) >=
-           NVIMGCODEC_MAKE_SEMANTIC_VERSION(req_major, req_minor, req_patch);
+    return MAKE_SEMANTIC_VERSION(major, minor, patch) >=
+           MAKE_SEMANTIC_VERSION(req_major, req_minor, req_patch);
   }
 
   /**

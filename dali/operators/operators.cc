@@ -66,7 +66,7 @@ DLL_PUBLIC void EnforceMinimumNvimgcodecVersion() {
   int minor = NVIMGCODEC_MINOR_FROM_SEMVER(version);
   int patch = NVIMGCODEC_PATCH_FROM_SEMVER(version);
 
-  if (version < static_cast<int>(NVIMGCODEC_VER)) {
+  if (version < NVIMGCODEC_VER) {
     std::stringstream ss;
     ss << "DALI requires nvImageCodec at minimum version " << NVIMGCODEC_VER_MAJOR << "."
        << NVIMGCODEC_VER_MINOR << "." << NVIMGCODEC_VER_PATCH << ", but got " << major << "."
