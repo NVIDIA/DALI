@@ -422,7 +422,7 @@ if(BUILD_NVIMAGECODEC)
     ExternalProject_Add(
       nvImageCodec
       GIT_REPOSITORY    https://github.com/NVIDIA/nvImageCodec.git
-      GIT_TAG           v0.9.0
+      GIT_TAG           v${NVIMGCODEC_MIN_VERSION}
       GIT_SUBMODULES    "external/pybind11"
                         "external/NVTX"
                         "external/googletest"
