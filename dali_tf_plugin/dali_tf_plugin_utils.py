@@ -105,10 +105,14 @@ def get_tf_version():
 # Get C++ compiler
 
 
+def tf_uses_libcpp(tf_cflags):
+    return "-stdlib=libc++" in tf_cflags.split()
+
+
 def get_cpp_compiler(tf_cflags=""):
     if os.environ.get("CXX"):
         return os.environ["CXX"]
-    if "-stdlib=libc++" in tf_cflags.split():
+    if tf_uses_libcpp(tf_cflags):
         if which("clang++") is None:
             raise ImportError(
                 "TensorFlow requests -stdlib=libc++, but clang++ was not found. "
@@ -122,8 +126,8 @@ def get_cpp_compiler(tf_cflags=""):
 # Get C++ compiler version
 
 
-def get_cpp_compiler_version(compiler=None):
-    cmd = [compiler or get_cpp_compiler(), "--version"]
+def get_cpp_compiler_version(compiler):
+    cmd = [compiler, "--version"]
     output = subprocess.check_output(cmd, text=True)  # nosec B603
     # GCC prints the version after the vendor parentheses; Clang uses "clang version".
     version = re.search(r"(?:clang version\s+|\)\s*)(\d+\.\d+)", output.partition("\n")[0])

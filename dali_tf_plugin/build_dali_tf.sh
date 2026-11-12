@@ -23,24 +23,36 @@ INCL_DIRS="-I/usr/local/cuda/include/"
 DALI_CFLAGS="-I../include -I.."
 DALI_LFLAGS="-L${DALI_STUB_DIR} -ldali"
 
-TF_CFLAGS=( $($PYTHON -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))') )
-COMPILER=$($PYTHON -c '
+TF_CONFIG=$($PYTHON - <<'PY'
+import shlex
 import tensorflow as tf
+from packaging.version import Version
 from dali_tf_plugin_utils import get_cpp_compiler
-print(get_cpp_compiler(" ".join(tf.sysconfig.get_compile_flags())))
-') || exit 1
-TF_LFLAGS=( $($PYTHON -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))') )
-TF_VERSION=( $($PYTHON -c 'import tensorflow as tf; print(tf.__version__)') )
-TF_VERSION=$(echo $TF_VERSION | tr "." "\n")
-TF_VERSION_MAJOR=$(echo $TF_VERSION | cut -d' ' -f1)
-TF_VERSION_MINOR=$(echo $TF_VERSION | cut -d' ' -f2)
-TF_VERSION_PATCH=$(echo $TF_VERSION | cut -d' ' -f3)
 
-CPP_VER=( $($PYTHON -c "import tensorflow as tf; from packaging.version import Version; print('--std=c++14' if Version(tf.__version__) < Version('2.10') else '--std=c++17')") )
+tf_cflags = tf.sysconfig.get_compile_flags()
+tf_lflags = tf.sysconfig.get_link_flags()
+compiler = get_cpp_compiler(" ".join(tf_cflags))
+cpp_ver = "--std=c++14" if Version(tf.__version__) < Version("2.10") else "--std=c++17"
+major, minor, patch = tf.__version__.split(".")[:3]
+
+# Quote every value before emitting shell assignments.
+print(f"TF_CFLAGS=({shlex.join(tf_cflags)})")
+print(f"TF_LFLAGS=({shlex.join(tf_lflags)})")
+for name, value in (
+    ("COMPILER", compiler),
+    ("CPP_VER", cpp_ver),
+    ("TF_VERSION_MAJOR", major),
+    ("TF_VERSION_MINOR", minor),
+    ("TF_VERSION_PATCH", patch),
+):
+    print(f"{name}={shlex.quote(value)}")
+PY
+) || exit 1
+eval "$TF_CONFIG"
 
 # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
 # https://github.com/tensorflow/tensorflow/issues/17316
 # Do not remove it.
-$COMPILER -Wl,-rpath,\$ORIGIN ${CPP_VER} -DNDEBUG -O2 -shared -fPIC ${SRCS} \
-    -o ${LIB_NAME} ${INCL_DIRS} ${DALI_CFLAGS} ${DALI_LFLAGS} ${TF_CFLAGS[@]} ${TF_LFLAGS[@]} \
+"$COMPILER" -Wl,-rpath,\$ORIGIN ${CPP_VER} -DNDEBUG -O2 -shared -fPIC ${SRCS} \
+    -o ${LIB_NAME} ${INCL_DIRS} ${DALI_CFLAGS} ${DALI_LFLAGS} "${TF_CFLAGS[@]}" "${TF_LFLAGS[@]}" \
     -DTF_MAJOR_VERSION=${TF_VERSION_MAJOR} -DTF_MINOR_VERSION=${TF_VERSION_MINOR} -DTF_PATCH_VERSION=${TF_VERSION_PATCH}

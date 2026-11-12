@@ -26,6 +26,7 @@ from dali_tf_plugin_utils import (
     find_available_prebuilt_tf,
     get_cuda_build_flags,
     get_tf_build_flags,
+    tf_uses_libcpp,
 )
 import os
 from packaging.version import Version
@@ -100,10 +101,10 @@ class InstallerHelper:
         )
         self.is_conda = is_conda_env()
         self.tf_version = get_tf_version()
-        tf_cflags = get_tf_build_flags()[0] if self.tf_version else ""
-        self.tf_uses_libcpp = "-stdlib=libc++" in tf_cflags.split()
+        self.tf_cflags, self.tf_lflags = get_tf_build_flags() if self.tf_version else ("", "")
+        self.tf_uses_libcpp = tf_uses_libcpp(self.tf_cflags)
         self.tf_compiler = get_tf_compiler_version()
-        self.cpp_compiler = get_cpp_compiler(tf_cflags)
+        self.cpp_compiler = get_cpp_compiler(self.tf_cflags)
         self.default_cpp_version = get_cpp_compiler_version(self.cpp_compiler)
         self.alt_compiler = "g++-{}".format(self.tf_compiler)
         self.has_alt_compiler = which(self.alt_compiler) is not None
@@ -159,7 +160,6 @@ class InstallerHelper:
         # - Both TF and default compilers are >= 5.0
         self.can_default_compile = (
             self.always_build
-            or self.tf_uses_libcpp
             or self.default_cpp_version == self.tf_compiler
             or not bool(self.tf_compiler)
             or (
@@ -185,9 +185,13 @@ class InstallerHelper:
         s += "\n TF version installed:                 {}".format(self.tf_version or "Unknown")
         if self.tf_version:
             s += "\n GCC version found in TF library:      {}".format(self.tf_compiler or "Unknown")
-            s += "\n Is {} present in the system?     {}".format(
-                self.alt_compiler, "Yes" if self.has_alt_compiler else "No"
+            s += "\n TF requests libc++?                   {}".format(
+                "Yes" if self.tf_uses_libcpp else "No"
             )
+            if not self.tf_uses_libcpp:
+                s += "\n Is {} present in the system?     {}".format(
+                    self.alt_compiler, "Yes" if self.has_alt_compiler else "No"
+                )
             s += "\n Can install prebuilt plugin?          {}".format(
                 "Yes" if self.can_install_prebuilt else "No"
             )
@@ -203,12 +207,15 @@ class InstallerHelper:
             s += "\n Prebuilt DALI stub available:         {}".format(
                 self.prebuilt_dali_stub or "N/A"
             )
-            s += "\n Can compile with default compiler?    {}".format(
-                "Yes" if self.can_default_compile else "No"
-            )
-            s += "\n Can compile with alt compiler?        {}".format(
-                "Yes" if self.has_alt_compiler else "No"
-            )
+            if self.tf_uses_libcpp:
+                s += "\n Compiler compatibility:               Checked by libc++ compile/link probe"
+            else:
+                s += "\n Can compile with default compiler?    {}".format(
+                    "Yes" if self.can_default_compile else "No"
+                )
+                s += "\n Can compile with alt compiler?        {}".format(
+                    "Yes" if self.has_alt_compiler else "No"
+                )
         s += "\n-----------------------------------------------------------------------------------"
 
         return s
@@ -296,8 +303,6 @@ class InstallerHelper:
             with tempfile.TemporaryDirectory(prefix="dali_tf_libcpp_") as tmpdir:
                 cmd = [
                     compiler,
-                    "-std=c++20",
-                    "-stdlib=libc++",
                     "-shared",
                     "-fPIC",
                     "-x",
@@ -306,6 +311,7 @@ class InstallerHelper:
                     "-o",
                     os.path.join(tmpdir, "check.so"),
                 ]
+                cmd += self.tf_cflags.split()
                 result = subprocess.run(  # nosec B603
                     cmd,
                     input='#include <string>\nstd::string check() { return "DALI"; }\n',
@@ -315,8 +321,8 @@ class InstallerHelper:
                 )
                 if result.returncode != 0:
                     raise ImportError(
-                        f"TensorFlow requests -stdlib=libc++, but {compiler} cannot build "
-                        "with C++20 and libc++. Install a compatible Clang toolchain and "
+                        f"{compiler} cannot build with TensorFlow's compile flags "
+                        f"{self.tf_cflags!r}. Install a compatible Clang toolchain and "
                         "libc++/libc++abi development headers and libraries, and set CXX "
                         f"to its clang++ executable.\n{result.stderr}"
                     )
@@ -389,8 +395,6 @@ class InstallerHelper:
             print("Building DALI stub lib:\n\n " + " ".join(cmd) + "\n\n")
             subprocess.check_call(cmd, cwd=self.src_path, shell=False)  # nosec B603
 
-            tf_cflags, tf_lflags = get_tf_build_flags()
-
             filenames = ["daliop.cc", "dali_dataset_op.cc"]
             plugin_src = ""
             for filename in filenames:
@@ -419,11 +423,11 @@ class InstallerHelper:
             cmd += lib_path.split()
             cmd += ["-fPIC"]
             cmd += dali_cflags.split()
-            cmd += tf_cflags.split()
+            cmd += self.tf_cflags.split()
             cmd += root_include.split()
             cmd += cuda_cflags.split()
             cmd += dali_lflags.split()
-            cmd += tf_lflags.split()
+            cmd += self.tf_lflags.split()
             cmd += cuda_lflags.split()
             tf_versions = dict(
                 zip(
