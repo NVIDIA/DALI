@@ -24,6 +24,8 @@ import functools
 import itertools
 import random
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 import uuid
@@ -846,3 +848,363 @@ def test_file_url_can_be_opened(device):
     p.build()
     assert p.reader_meta("r")["epoch_size"] == 50
     p.run()
+
+
+def _reflect_index(idx, start, end, mode):
+    """Reference for reflecting `idx` into [start, end); `mode` is the DALI pad_mode name."""
+    n = end - start
+    off = idx - start
+    if n == 1:
+        return start
+    if mode == "reflect_101":
+        period = 2 * (n - 1)
+        off %= period
+        off = period - off if off >= n else off
+    else:
+        period = 2 * n
+        off %= period
+        off = period - 1 - off if off >= n else off
+    return start + off
+
+
+@cartesian_params(devices, ["reflect_101", "reflect_1001"])
+def test_reflect_padding_stays_within_file_list_roi(device, pad_mode):
+    # Frames 10..13 of the video, sequence_length=4, stride=5: the first sequence starts at the
+    # beginning of the range and is padded by reflecting within it. The requested frames
+    # 10, 15, 20, 25 must come out as frames of the range: reflecting only off its end instead
+    # gives 10, 11, 6, 1 for reflect_101, i.e. frames before the start of the range.
+    roi_start, roi_end = 10, 14
+    list_file = _write_file_list([f"{VIDEO_0} 0 {roi_start} {roi_end}"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        _, _, frame_num = fn.experimental.readers.video(
+            device=device,
+            name="reader",
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=4,
+            stride=5,
+            step=1,
+            pad_mode=pad_mode,
+            enable_frame_num="sequence",
+        )
+        return frame_num
+
+    p = pipe()
+    p.build()
+    (frame_num,) = p.run()
+    frame_nums = [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()]
+    expected = [_reflect_index(roi_start + 5 * i, roi_start, roi_end, pad_mode) for i in range(4)]
+    assert frame_nums == expected, (
+        f"pad_mode={pad_mode}: got frames {frame_nums}, expected {expected} "
+        f"(file_list range [{roi_start}, {roi_end}))"
+    )
+
+
+@cartesian_params(
+    devices,
+    ["reflect_101", "reflect_1001"],
+    [
+        # (file_list entry, stride, file_list_include_end, effective range)
+        ("45 60", 6, False, (45, 50)),  # end past the last frame
+        ("-60 10", 5, False, (0, 10)),  # start before the first frame (after wrapping)
+        ("-60 10", 5, True, (0, 10)),
+    ],
+)
+def test_reflect_padding_with_range_beyond_the_video(device, pad_mode, case):
+    # The padded indices may only leave the frames of the file_list range, and the range must be
+    # a subset of the frames of the file (50): otherwise the reflected indices are outside of it.
+    entry, stride, include_end, (roi_start, roi_end) = case
+    list_file = _write_file_list([f"{CFR_VP9_60FPS_FILE} 0 {entry}"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        _, _, frame_num = fn.experimental.readers.video(
+            device=device,
+            name="reader",
+            file_list=list_file,
+            file_list_format="frames",
+            file_list_include_end=include_end,
+            sequence_length=4,
+            stride=stride,
+            step=1,
+            pad_mode=pad_mode,
+            enable_frame_num="sequence",
+        )
+        return frame_num
+
+    p = pipe()
+    p.build()
+    (frame_num,) = p.run()
+    frame_nums = [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()]
+    expected = [
+        _reflect_index(roi_start + stride * i, roi_start, roi_end, pad_mode) for i in range(4)
+    ]
+    assert frame_nums == expected, (
+        f"{entry!r}, pad_mode={pad_mode}: got frames {frame_nums}, expected {expected} "
+        f"(range [{roi_start}, {roi_end}))"
+    )
+
+
+def _first_sample_frame_nums(device, entry, **kwargs):
+    """The frame numbers of the first sample of a reader over the file_list entry (frames) of
+    CFR_VP9_60FPS_FILE (50 frames) and the epoch size."""
+    list_file = _write_file_list([f"{CFR_VP9_60FPS_FILE} 0 {entry}"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        _, _, frame_num = fn.experimental.readers.video(
+            device=device,
+            name="reader",
+            file_list=list_file,
+            file_list_format="frames",
+            enable_frame_num="sequence",
+            **kwargs,
+        )
+        return frame_num
+
+    p = pipe()
+    p.build()
+    epoch_size = p.reader_meta("reader")["epoch_size"]
+    (frame_num,) = p.run()
+    return [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()], epoch_size
+
+
+@cartesian_params(
+    devices,
+    [
+        # (file_list entry, pad_mode, stride, expected frame numbers of the first sample)
+        ("45 60", "edge", 6, [45, 49, 49, 49]),  # end past the last frame
+        ("45 60", "constant", 6, [45, -1, -1, -1]),
+        ("-60 10", "edge", 5, [0, 5, 9, 9]),  # start before the first frame (after wrapping)
+        ("-60 10", "constant", 5, [0, 5, -1, -1]),
+        ("10 11", "edge", 1, [10, 10, 10, 10]),  # a single frame
+        ("10 11", "constant", 1, [10, -1, -1, -1]),
+        ("10 11", "reflect_101", 1, [10, 10, 10, 10]),
+        ("10 11", "reflect_1001", 1, [10, 10, 10, 10]),
+    ],
+)
+def test_pad_modes_stay_within_file_list_range_beyond_the_video(device, case):
+    # The file_list range is clamped to the frames of the video for every pad mode
+    entry, pad_mode, stride, expected = case
+    frame_nums, _ = _first_sample_frame_nums(
+        device, entry, sequence_length=4, stride=stride, step=1, pad_mode=pad_mode
+    )
+    assert frame_nums == expected, f"{entry!r}, {pad_mode}: got {frame_nums}, expected {expected}"
+
+
+@cartesian_params(devices)
+def test_no_padding_with_range_before_the_video(device):
+    # '-60 10' is the range [0, 10) of the 50 frames: 7 samples of 4 frames (without clamping the
+    # start, the range would start before the video and have 17)
+    frame_nums, epoch_size = _first_sample_frame_nums(
+        device, "-60 10", sequence_length=4, stride=1, step=1, pad_mode="none"
+    )
+    assert (frame_nums, epoch_size) == ([0, 1, 2, 3], 7)
+
+
+@cartesian_params(devices)
+def test_uniform_sample_with_range_before_the_video(device):
+    # linspace(0, 9, 4) of the range [0, 10)
+    frame_nums, _ = _first_sample_frame_nums(
+        device, "-60 10", sequence_length=4, uniform_sample=True
+    )
+    assert frame_nums == [0, 3, 6, 9]
+
+
+# Builds an experimental.readers.video pipeline in a child process whose address space
+# is capped, so that an infinite sample-generation loop cannot exhaust the machine's memory.
+_BOUNDED_BUILD_CHILD = r"""
+import resource
+import sys
+
+limit = 6 * 1024**3
+resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+
+from nvidia.dali import fn, pipeline_def
+
+
+device = sys.argv[4]
+
+
+@pipeline_def(batch_size=1, num_threads=1, device_id=None if device == "cpu" else 0)
+def pipe():
+    return fn.experimental.readers.video(
+        device=device,
+        filenames=[sys.argv[1]],
+        sequence_length=int(sys.argv[2]),
+        stride=int(sys.argv[3]),
+    )
+
+
+try:
+    pipe().build()
+except Exception as e:
+    print("RAISED:", e)
+    sys.exit(0)
+print("BUILT")
+"""
+
+
+def _build_reader_in_bounded_subprocess(device, sequence_length, stride, timeout=120):
+    try:
+        return subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                _BOUNDED_BUILD_CHILD,
+                VIDEO_0,
+                str(sequence_length),
+                str(stride),
+                device,
+            ],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        raise AssertionError(
+            f"build() with device={device}, sequence_length={sequence_length}, "
+            f"stride={stride} did not return within {timeout} s "
+            f"(sample-generation loop not advancing?)"
+        )
+
+
+@cartesian_params(devices)
+def test_stride_zero_raises_instead_of_hanging(device):
+    res = _build_reader_in_bounded_subprocess(device, sequence_length=3, stride=0)
+    assert "RAISED:" in res.stdout and "stride" in res.stdout, (
+        f"Expected a prompt error mentioning `stride`; returncode={res.returncode}, "
+        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
+    )
+
+
+@cartesian_params(devices)
+def test_sequence_length_zero_raises_instead_of_hanging(device):
+    res = _build_reader_in_bounded_subprocess(device, sequence_length=0, stride=1)
+    assert "RAISED:" in res.stdout and "sequence_length" in res.stdout, (
+        f"Expected a prompt error mentioning `sequence_length`; returncode={res.returncode}, "
+        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
+    )
+
+
+@cartesian_params(devices)
+def test_huge_stride_times_sequence_length_raises_instead_of_hanging(device):
+    # 65536 * 65536 overflows int: the default step (stride * sequence_length) used to wrap to 0.
+    res = _build_reader_in_bounded_subprocess(device, sequence_length=65536, stride=65536)
+    assert "RAISED:" in res.stdout and "sequence_length" in res.stdout, (
+        f"Expected a prompt error mentioning `sequence_length`; returncode={res.returncode}, "
+        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
+    )
+
+
+@cartesian_params(devices)
+def test_huge_stride_and_step_decode_one_frame(device):
+    """stride and step of INT_MAX are valid: one single-frame sample per file, padded from the
+    video, must be decoded without integer overflow in the frame count arithmetic."""
+    int_max = 2**31 - 1
+
+    # The first frame of this file is not black (unlike the first frames of VIDEO_0), so a sample
+    # that was never decoded cannot match it. No file_list ROI either: it would take the explicit
+    # frame index path and bypass the full-video decoding that this test is about.
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        return _experimental_reader(device)(
+            filenames=[CFR_VP9_60FPS_FILE],
+            sequence_length=1,
+            stride=int_max,
+            step=int_max,
+            pad_mode="constant",
+            name="r",
+        )
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def ref_pipe():
+        return _experimental_reader(device)(
+            filenames=[CFR_VP9_60FPS_FILE], sequence_length=1, name="r"
+        )
+
+    p = pipe()
+    p.build()
+    assert p.reader_meta("r")["epoch_size"] == 1
+    (out,) = p.run()
+    if device == "gpu":
+        out = out.as_cpu()
+    out = out.as_array()
+    assert out.shape[:2] == (1, 1)
+
+    # The only sample starts at frame 0: it must be the first frame of the video, not just
+    # something of the right shape
+    ref = ref_pipe()
+    ref.build()
+    (ref_out,) = ref.run()
+    if device == "gpu":
+        ref_out = ref_out.as_cpu()
+    ref_frame = ref_out.as_array()[0, 0]
+    # guard against the reference going vacuous (an all-black frame matches an undecoded one)
+    assert ref_frame.mean() > 10, "The reference frame is (almost) black"
+    compare_frames(out[0, 0], ref_frame, 0, 0, 0)
+
+
+@cartesian_params(devices)
+def test_strided_sequence_fits_when_its_last_frame_exists(device):
+    # sequence_length=3, stride=4 uses the frames s, s+4 and s+8: a span of 9 frames. A 9-frame
+    # range holds exactly one sequence, as for the legacy reader. The second, longer entry keeps
+    # the dataset non-empty without the change.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 9", f"{VIDEO_0} 1 0 30"])
+    kwargs = dict(file_list=list_file, sequence_length=3, stride=4)
+    experimental = _collect_samples(
+        functools.partial(fn.experimental.readers.video, device=device, file_list_format="frames"),
+        **kwargs,
+    )
+    legacy = _collect_samples(
+        functools.partial(fn.readers.video, device="gpu", file_list_frame_num=True), **kwargs
+    )
+    expected = (3, [(0, 0, 3), (1, 0, 3), (1, 12, 3)])
+    assert legacy == expected, f"legacy: {legacy}"
+    assert experimental == expected, f"experimental: {experimental}, legacy: {legacy}"
+
+
+@cartesian_params(devices, [1, 3, 7])
+def test_epoch_size_with_sequences_of_one_frame_does_not_depend_on_the_stride(device, stride):
+    # a sequence of one frame spans one frame, whatever the stride is: every frame of the video
+    # starts a sample (the epoch depended on the stride, and lost stride - 1 frames at the end)
+    list_file = _write_file_list([f"{CFR_VP9_60FPS_FILE} 0 0 50"])
+    epoch_size, samples = _collect_samples(
+        functools.partial(fn.experimental.readers.video, device=device, file_list_format="frames"),
+        file_list=list_file,
+        sequence_length=1,
+        stride=stride,
+        step=1,
+    )
+    assert epoch_size == 50, f"stride {stride}: {epoch_size} samples"
+    assert [first for _, first, _ in samples] == list(range(50))
+
+
+@cartesian_params(devices, [1, 2], ["constant", "edge"])
+def test_padding_emits_a_sample_at_every_remaining_step(device, stride, pad_mode):
+    # a 10-frame range, sequence_length=3, step=1: the sequences that fit start at 0..7 (stride 1)
+    # or at 0..5 (stride 2). With padding, the legacy reader also has a padded sample at every
+    # start that remains: one per frame of the range.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 10"])
+    kwargs = dict(file_list=list_file, sequence_length=3, stride=stride, step=1)
+    expected = (10, [(0, s, 3) for s in range(10)])
+    experimental = _collect_samples(
+        functools.partial(
+            fn.experimental.readers.video,
+            device=device,
+            file_list_format="frames",
+            pad_mode=pad_mode,
+        ),
+        **kwargs,
+    )
+    assert experimental == expected, f"experimental: {experimental}"
+    if pad_mode == "constant":
+        legacy = _collect_samples(
+            functools.partial(
+                fn.readers.video, device="gpu", file_list_frame_num=True, pad_sequences=True
+            ),
+            **kwargs,
+        )
+        assert legacy == expected, f"legacy: {legacy}"
