@@ -25,13 +25,13 @@ from ._eval_mode import EvalMode
 from ._exceptions import CallStack, rethrow_exception
 
 _executors: "weakref.WeakSet[_AsyncExecutor]" = weakref.WeakSet()
-_lock = threading.Lock()
+_executors_lock = threading.Lock()
 
 
 def _join_executors():
     """Stop the other worker threads before a fork, or at exit so they don't race shutdown"""
     current = threading.current_thread()
-    executors = [e for e in _executors if e._thread is not current]
+    executors = [e for e in _executors if e._thread is not None and e._thread is not current]
     for executor in executors:
         executor.shutdown()
     for executor in executors:
@@ -39,20 +39,25 @@ def _join_executors():
 
 
 def _before_fork():
-    _lock.acquire()
+    _executors_lock.acquire()
+    for executor in _executors:
+        executor._lock.acquire()
     _join_executors()
 
 
+def _after_fork():
+    for executor in _executors:
+        executor._lock.release()
+    _executors_lock.release()
+
+
 # With free-threading, an idle worker would leave the frees it owns to the forked child
-os.register_at_fork(
-    before=_before_fork,
-    after_in_parent=_lock.release,
-    after_in_child=_lock.release,
-)
+os.register_at_fork(before=_before_fork, after_in_parent=_after_fork, after_in_child=_after_fork)
 
 
 def _register_executor(executor: "_AsyncExecutor"):
-    _executors.add(executor)
+    with _executors_lock:
+        _executors.add(executor)
     atexit.unregister(_join_executors)
     atexit.register(_join_executors)
 
@@ -110,9 +115,11 @@ class _AsyncExecutor:
         self._completed_seq = -1
 
         self._condition = threading.Condition()
+        self._lock = threading.Lock()
         self._queue = queue.SimpleQueue[Optional[_Future]]()
         self._thread: Optional[threading.Thread] = None
         self._event = threading.Event()
+        _register_executor(self)
 
     def _worker(self):
         while True:
@@ -130,12 +137,12 @@ class _AsyncExecutor:
                 self._condition.notify_all()
 
     def submit(self, callable: Callable[[], None], call_stack: CallStack):
-        with _lock:
+        with self._lock:
             if self._thread is None or not self._thread.is_alive():
+                # Drop stop signals queued after the worker exited (e.g. by a second fork)
                 self._queue = queue.SimpleQueue[Optional[_Future]]()
                 self._thread = threading.Thread(target=self._worker, daemon=True)
                 self._thread.start()
-                _register_executor(self)
 
             # Since the executor is bound to a single eval context, there's no race condition
             self._submitted_seq += 1
