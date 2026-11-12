@@ -53,6 +53,7 @@ eval "$TF_CONFIG"
 # Note: DNDEBUG flag is needed due to issue with TensorFlow custom ops:
 # https://github.com/tensorflow/tensorflow/issues/17316
 # Do not remove it.
-"$COMPILER" -Wl,-rpath,\$ORIGIN ${CPP_VER} -DNDEBUG -O2 -shared -fPIC ${SRCS} \
+# Keep word splitting for CXX values with wrappers or arguments, e.g. "ccache g++".
+$COMPILER -Wl,-rpath,\$ORIGIN ${CPP_VER} -DNDEBUG -O2 -shared -fPIC ${SRCS} \
     -o ${LIB_NAME} ${INCL_DIRS} ${DALI_CFLAGS} ${DALI_LFLAGS} "${TF_CFLAGS[@]}" "${TF_LFLAGS[@]}" \
     -DTF_MAJOR_VERSION=${TF_VERSION_MAJOR} -DTF_MINOR_VERSION=${TF_VERSION_MINOR} -DTF_PATCH_VERSION=${TF_VERSION_PATCH}

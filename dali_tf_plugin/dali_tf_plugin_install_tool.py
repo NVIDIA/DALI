@@ -104,8 +104,15 @@ class InstallerHelper:
         self.tf_cflags, self.tf_lflags = get_tf_build_flags() if self.tf_version else ("", "")
         self.tf_uses_libcpp = tf_uses_libcpp(self.tf_cflags)
         self.tf_compiler = get_tf_compiler_version()
-        self.cpp_compiler = get_cpp_compiler(self.tf_cflags)
-        self.default_cpp_version = get_cpp_compiler_version(self.cpp_compiler)
+        # A prebuilt plugin can be installed without a working compiler.
+        self.cpp_compiler = None
+        self.default_cpp_version = ""
+        self.compiler_error = None
+        try:
+            self.cpp_compiler = get_cpp_compiler(self.tf_cflags)
+            self.default_cpp_version = get_cpp_compiler_version(self.cpp_compiler)
+        except (ImportError, OSError, subprocess.CalledProcessError) as error:
+            self.compiler_error = error
         self.alt_compiler = "g++-{}".format(self.tf_compiler)
         self.has_alt_compiler = which(self.alt_compiler) is not None
         self.platform_system = platform.system()
@@ -158,7 +165,7 @@ class InstallerHelper:
         # - The default C++ compiler version matches the one used to build TF
         # - The compiler used to build TF is unknown
         # - Both TF and default compilers are >= 5.0
-        self.can_default_compile = (
+        self.can_default_compile = bool(self.default_cpp_version) and (
             self.always_build
             or self.default_cpp_version == self.tf_compiler
             or not bool(self.tf_compiler)
@@ -180,8 +187,10 @@ class InstallerHelper:
         s += "\n DALI TF plugin destination directory: {}".format(self.plugin_dest_dir)
         s += "\n Is Conda environment?                 {}".format("Yes" if self.is_conda else "No")
         s += '\n Using compiler:                       "{}", version {}'.format(
-            self.cpp_compiler, self.default_cpp_version or "Unknown"
+            self.cpp_compiler or "Unavailable", self.default_cpp_version or "Unknown"
         )
+        if self.compiler_error is not None:
+            s += "\n Compiler discovery error:             {}".format(self.compiler_error)
         s += "\n TF version installed:                 {}".format(self.tf_version or "Unknown")
         if self.tf_version:
             s += "\n GCC version found in TF library:      {}".format(self.tf_compiler or "Unknown")
@@ -296,6 +305,12 @@ class InstallerHelper:
             return False
 
     def get_compiler(self):
+        if self.compiler_error is not None:
+            raise ImportError(
+                f"Cannot build the TensorFlow plugin from source: {self.compiler_error} "
+                "Install a compatible C++ compiler and set CXX to its executable.\n"
+                + self.debug_str()
+            ) from self.compiler_error
         compiler = self.cpp_compiler
         if self.tf_uses_libcpp:
             # GCC version strings embedded in TF do not describe its libc++ toolchain.

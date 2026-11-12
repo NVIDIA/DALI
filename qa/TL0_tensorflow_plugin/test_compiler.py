@@ -1,0 +1,128 @@
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+import contextlib
+import io
+import os
+import subprocess  # nosec B404
+import unittest
+from unittest.mock import patch
+
+import dali_tf_plugin_utils as utils
+import dali_tf_plugin_install_tool as installer
+
+
+class CompilerTest(unittest.TestCase):
+    def test_libcpp_flags(self):
+        for flags, expected in (
+            ("", False),
+            ("-std=c++17 -stdlib=libstdc++", False),
+            ("-std=c++20 -stdlib=libc++", True),
+            ("-DVALUE=-stdlib=libc++", False),
+        ):
+            with self.subTest(flags=flags):
+                self.assertEqual(utils.tf_uses_libcpp(flags), expected)
+
+    def test_selection(self):
+        with patch.dict(os.environ, {}, clear=True), patch.object(utils, "which") as which:
+            self.assertEqual(utils.get_cpp_compiler(), "g++")
+            which.assert_not_called()
+            which.return_value = b"/usr/bin/clang++"
+            self.assertEqual(utils.get_cpp_compiler("-stdlib=libc++"), "clang++")
+            which.return_value = None
+            with self.assertRaisesRegex(ImportError, "Install a compatible Clang toolchain"):
+                utils.get_cpp_compiler("-stdlib=libc++")
+
+    def test_cxx_override(self):
+        for compiler in ("/opt/clang++-22", "ccache g++", "g++ -m64"):
+            with self.subTest(compiler=compiler), patch.dict(os.environ, {"CXX": compiler}):
+                with patch.object(utils, "which") as which:
+                    self.assertEqual(utils.get_cpp_compiler(), compiler)
+                    self.assertEqual(utils.get_cpp_compiler("-stdlib=libc++"), compiler)
+                    which.assert_not_called()
+
+    def test_version_banners(self):
+        for banner, expected in (
+            ("g++ (Ubuntu 11.4.0-1ubuntu1~22.04) 11.4.0", "11.4"),
+            ("Ubuntu clang version 18.1.3 (1ubuntu1)", "18.1"),
+            ("clang version 22.1.0\nTarget: x86_64-unknown-linux-gnu", "22.1"),
+        ):
+            with self.subTest(banner=banner):
+                with patch.object(utils.subprocess, "check_output", return_value=banner):
+                    self.assertEqual(utils.get_cpp_compiler_version("c++"), expected)
+
+    def test_invalid_version_banner(self):
+        for banner in ("", "unrecognized compiler"):
+            with self.subTest(banner=banner):
+                with patch.object(utils.subprocess, "check_output", return_value=banner):
+                    with self.assertRaisesRegex(ImportError, "Set CXX"):
+                        utils.get_cpp_compiler_version("c++")
+
+
+class InstallerCompilerTest(unittest.TestCase):
+    def make_helper(self, compiler_error, prebuilt_version="2.23"):
+        with contextlib.ExitStack() as stack:
+            overrides = {
+                "get_module_path": "/installed",
+                "get_tf_version": "2.23",
+                "get_tf_build_flags": ("-std=c++20 -stdlib=libc++", "-ltensorflow_framework"),
+                "get_tf_compiler_version": "11.4",
+                "which": None,
+                "find_available_prebuilt_tf": prebuilt_version,
+            }
+            for name, value in overrides.items():
+                stack.enter_context(patch.object(installer, name, return_value=value))
+            stack.enter_context(patch.dict(os.environ, {"DALI_TF_ALWAYS_BUILD": "0"}))
+            stack.enter_context(patch.object(installer.platform, "system", return_value="Linux"))
+            stack.enter_context(patch.object(installer.platform, "machine", return_value="x86_64"))
+            stack.enter_context(
+                patch.object(installer, "find", side_effect=[["libdali.so"], ["plugin.so"]])
+            )
+            if isinstance(compiler_error, ImportError):
+                stack.enter_context(
+                    patch.object(installer, "get_cpp_compiler", side_effect=compiler_error)
+                )
+            else:
+                stack.enter_context(patch.object(installer, "get_cpp_compiler", return_value="c++"))
+                stack.enter_context(
+                    patch.object(installer, "get_cpp_compiler_version", side_effect=compiler_error)
+                )
+            return installer.InstallerHelper()
+
+    def test_prebuilt_without_compiler(self):
+        for error in (
+            ImportError("clang++ was not found"),
+            FileNotFoundError("c++ was not found"),
+            subprocess.CalledProcessError(1, ["c++", "--version"]),
+        ):
+            for version in ("2.23", "2.22"):
+                with self.subTest(error=error, version=version):
+                    helper = self.make_helper(error, version)
+                    self.assertTrue(helper.can_install_prebuilt)
+                    with patch.object(helper, "check_install_env"):
+                        with patch.object(helper, "check_plugin", return_value=True):
+                            with patch.object(installer, "copyfile") as copy:
+                                with contextlib.redirect_stdout(io.StringIO()):
+                                    helper.install()
+                                copy.assert_called_once()
+
+    def test_source_build_reports_environment(self):
+        helper = self.make_helper(ImportError("clang++ was not found"))
+        self.assertFalse(helper.can_default_compile)
+        with self.assertRaisesRegex(ImportError, r"(?s)clang\+\+ was not found.*Environment:"):
+            helper.get_compiler()
+
+
+if __name__ == "__main__":
+    unittest.main()
