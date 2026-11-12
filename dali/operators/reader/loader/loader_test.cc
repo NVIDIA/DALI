@@ -395,7 +395,7 @@ TEST_P(NumpyLoaderCacheTest, RejectChangedFileWithCachedHeader) {
       sample.filename = path;
       sample.file_stream_ = std::make_unique<NumpyHeaderCUFileStream>(path);
       sample.ReadHeader(gpu_cache);
-      EXPECT_EQ(sample.shape, TensorShape<>({8}));
+      EXPECT_EQ(sample.shape, TensorShape<>(8));
       EXPECT_EQ(sample.type, DALI_FLOAT64);
       data_offset = sample.data_offset;
       return;
