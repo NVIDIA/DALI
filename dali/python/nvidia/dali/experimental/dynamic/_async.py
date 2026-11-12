@@ -55,13 +55,6 @@ def _after_fork():
 os.register_at_fork(before=_before_fork, after_in_parent=_after_fork, after_in_child=_after_fork)
 
 
-def _register_executor(executor: "_AsyncExecutor"):
-    with _executors_lock:
-        _executors.add(executor)
-    atexit.unregister(_join_executors)
-    atexit.register(_join_executors)
-
-
 class _Future:
     """Lightweight future created by _AsyncExecutor to track tasks"""
 
@@ -119,7 +112,8 @@ class _AsyncExecutor:
         self._queue = queue.SimpleQueue[Optional[_Future]]()
         self._thread: Optional[threading.Thread] = None
         self._event = threading.Event()
-        _register_executor(self)
+        with _executors_lock:
+            _executors.add(self)
 
     def _worker(self):
         while True:
@@ -143,6 +137,8 @@ class _AsyncExecutor:
                 self._queue = queue.SimpleQueue[Optional[_Future]]()
                 self._thread = threading.Thread(target=self._worker, daemon=True)
                 self._thread.start()
+                atexit.unregister(_join_executors)
+                atexit.register(_join_executors)
 
             # Since the executor is bound to a single eval context, there's no race condition
             self._submitted_seq += 1
