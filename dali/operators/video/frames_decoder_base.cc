@@ -642,6 +642,7 @@ void FramesDecoderBase::BuildIndex() {
 
   // Initialize frame index
   index_.index.clear();
+  index_.end_pts = -1;
   index_.filename = Filename();
   index_.timebase = ctx_->streams[stream_id_]->time_base;
   index_.decode_order_timestamps = HasDecodeOrderTimestamps();
@@ -773,6 +774,10 @@ void FramesDecoderBase::BuildIndex() {
       has_hidden_packets = true;
       continue;
     }
+
+    // Stream end, from the packet durations, for FrameIndex::EndPts
+    if (packet->duration > 0)
+      index_.end_pts = std::max<int64_t>(index_.end_pts, entry.pts + packet->duration);
 
     // Update last keyframe position if this is a keyframe
     if (entry.is_keyframe) {
@@ -1034,7 +1039,8 @@ void FramesDecoderBase::AddDecodeWork(const FrameIndex &index, DecodePosition &p
   pos.next_frame = frame + 1 < n ? frame + 1 : -1;
 }
 
-int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id, int roi_start, int roi_end) {
+int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
+                                      int roi_start, int roi_end) {
   DALI_ENFORCE(boundary_type == boundary::BoundaryType::CLAMP ||
                    boundary_type == boundary::BoundaryType::CONSTANT ||
                    boundary_type == boundary::BoundaryType::REFLECT_1001 ||
@@ -1049,10 +1055,11 @@ int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int 
       return std::clamp(frame_id, roi_start, roi_end - 1);
     case boundary::BoundaryType::CONSTANT:
       return -1;
+    // Reflect within [roi_start, roi_end), so that padded indices never leave the ROI
     case boundary::BoundaryType::REFLECT_1001:
-      return boundary::idx_reflect_1001(frame_id, roi_end);
+      return boundary::idx_reflect_1001(frame_id, roi_start, roi_end);
     case boundary::BoundaryType::REFLECT_101:
-      return boundary::idx_reflect_101(frame_id, roi_end);
+      return boundary::idx_reflect_101(frame_id, roi_start, roi_end);
     case boundary::BoundaryType::ISOLATED:
     default:
       DALI_FAIL(make_string(
