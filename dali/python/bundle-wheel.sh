@@ -226,7 +226,7 @@ patch_hashed_names() {
         patchedname=${patched[j]}
         if [[ "$origname" != "$patchedname" ]]; then
             set +e
-            echo $needed_so_files | grep $origname 2>&1 >/dev/null
+            printf '%s\n' "$needed_so_files" | grep -qxF -- "$origname"
             ERRCODE=$?
             set -e
             if [ "$ERRCODE" -eq "0" ]; then
