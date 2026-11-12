@@ -62,6 +62,7 @@ test_body() {
     ${python_new_invoke_test} test_video_reader_resize
     ${python_new_invoke_test} test_video_reader
     ${python_new_invoke_test} test_video_reader_index
+    ${python_new_invoke_test} test_video_reader_output_buffers
 
     popd
 }
