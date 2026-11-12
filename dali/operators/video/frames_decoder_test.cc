@@ -23,6 +23,7 @@
 #include <numeric>
 #include <random>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -43,6 +44,22 @@
 #include "dali/pipeline/pipeline.h"
 
 namespace dali {
+
+// Reads the counters of the decoders that are not part of their interface (a friend of
+// FramesDecoderBase)
+struct FramesDecoderTestAccess {
+  // The pictures that the decoder did not decode at all
+  static int64_t NotDecodedPictures(const FramesDecoderBase &decoder) {
+    return decoder.not_decoded_pictures_;
+  }
+
+  // The pictures that the decoder went through: those it decoded and those it left out (what
+  // AddDecodeWork estimates)
+  static int64_t ParsedPictures(const FramesDecoderBase &decoder) {
+    return decoder.decoded_pictures_ + decoder.not_decoded_pictures_;
+  }
+};
+
 class FramesDecoderTestBase : public VideoTestBase {
  public:
   virtual void RunSequentialForwardTest(
@@ -414,7 +431,7 @@ struct DecodeLead {
 
 /**
  * @brief Decodes `frame_ids` as the reader does (padded by clamping) and checks that the decoder
- * goes through the pictures that AddDecodeWork estimates from `pos` (ParsedPictures: those it
+ * goes through the pictures that AddDecodeWork estimates from `pos` (those it
  * decodes and those it leaves out), reopens the file as estimated, and ends where `pos` does.
  *
  * The decoder may be ahead of the estimate by the pictures of the next `lookahead` frames (see
@@ -462,10 +479,10 @@ void CheckDecodeWork(FramesDecoderBase &decoder, FramesDecoderBase::DecodePositi
   int64_t end_allowed = LeadAllowance(index, pos, lookahead);
   allowed += end_allowed;
 
-  int64_t before = decoder.ParsedPictures();
+  int64_t before = FramesDecoderTestAccess::ParsedPictures(decoder);
   int64_t reopens_before = decoder.Reopens();
   decoder.DecodeFrames(buffer, make_cspan(frame_ids), boundary::BoundaryType::CLAMP);
-  int64_t ahead = decoder.ParsedPictures() - before - work.pictures;
+  int64_t ahead = FramesDecoderTestAccess::ParsedPictures(decoder) - before - work.pictures;
   EXPECT_GE(ahead, -lead.max) << what << ": the decoder is behind the estimate by more than it "
                               << "was ahead";
   EXPECT_LE(ahead, allowed - lead.min)
@@ -532,7 +549,7 @@ void CheckDecodeWorkScenarios(FramesDecoderBase &decoder, uint8_t *buffer, int l
 
 /**
  * @brief Reads the frames in a row and checks that, from PositionAt, AddDecodeWork estimates the
- * pictures gone through (ParsedPictures) for each frame: in total, the decoder is never behind the
+ * pictures gone through (FramesDecoderTestAccess::ParsedPictures) for each frame: in total, the decoder is never behind the
  * estimate and at most the pictures of the next `lookahead` frames ahead of it (see kPacketLag).
  * Returns the number of frames that cost nothing (decoded earlier, for a frame shown before them).
  */
@@ -540,7 +557,7 @@ int CheckPositionAt(FramesDecoderBase &decoder, uint8_t *frame, int lookahead,
                     const std::string &path) {
   auto &index = decoder.GetIndex();
   int free_frames = 0;
-  int64_t start = decoder.ParsedPictures(), estimate = 0;
+  int64_t start = FramesDecoderTestAccess::ParsedPictures(decoder), estimate = 0;
   for (int k = 0; k < static_cast<int>(index.size()); k++) {
     auto pos = FramesDecoderBase::PositionAt(index, k);
     FramesDecoderBase::DecodeWork work;
@@ -548,7 +565,7 @@ int CheckPositionAt(FramesDecoderBase &decoder, uint8_t *frame, int lookahead,
     estimate += work.pictures;
     EXPECT_EQ(decoder.NextFrameIdx(), k) << path;
     decoder.ReadNextFrame(frame);
-    int64_t ahead = decoder.ParsedPictures() - start - estimate;
+    int64_t ahead = FramesDecoderTestAccess::ParsedPictures(decoder) - start - estimate;
     EXPECT_GE(ahead, 0) << path << ": frame " << k;
     EXPECT_LE(ahead, LeadAllowance(index, pos, lookahead)) << path << ": frame " << k;
     free_frames += work.pictures == 0;
@@ -961,7 +978,7 @@ ScenarioResult RunScenario(const std::string &path, const FrameIndex &index,
   ScenarioResult result;
   result.frames = scenario(decoder);
   result.decoded = decoder.DecodedPictures();
-  result.not_decoded = decoder.NotDecodedPictures();
+  result.not_decoded = FramesDecoderTestAccess::NotDecodedPictures(decoder);
   result.mapped = decoder.MappedPictures();
   return result;
 }
@@ -1134,7 +1151,7 @@ TEST_F(FramesDecoderGpuTest, PicturesNotReadAreNotMapped) {
   auto check = [&](const std::string &what, const std::vector<int> &frame_ids) {
     auto run = CheckSameFramesAsMappingAll(path, index, what, [&](FramesDecoderGpu &d) {
       auto frames = DecodeAndHash(d, frame_ids);
-      EXPECT_GT(d.ParsedPictures(), 188);
+      EXPECT_GT(FramesDecoderTestAccess::ParsedPictures(d), 188);
       if (dynamic_cast<GpuDecoderMappingAll *>(&d)) {
         // one for each picture hidden by the edit list (the frames read are returned as the
         // parser displays them, unless it displays one with the frame before it)
@@ -1144,7 +1161,7 @@ TEST_F(FramesDecoderGpuTest, PicturesNotReadAreNotMapped) {
         // the hidden pictures are never read: they do not take a place in the buffer either
         EXPECT_LE(d.NumBufferSlots(), 10);
         // 86 of the 188 hidden pictures are H.264 non-reference pictures
-        EXPECT_GE(d.NotDecodedPictures(), 80);
+        EXPECT_GE(FramesDecoderTestAccess::NotDecodedPictures(d), 80);
       }
       return frames;
     });
@@ -1381,6 +1398,19 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
   RunFailureTest([&]() -> void {
     decoder.SeekFrame(60);},
     "Invalid seek frame id. frame_id = 60, num_frames = 50");
+}
+
+// An index that is not sorted by timestamp is refused (also in a release build): the GPU decoder
+// searches it by timestamp
+TEST_F(FramesDecoderTest_CpuOnlyTests, SetIndexRejectsUnsortedIndex) {
+  FramesDecoderCpu indexed(cfr_videos_paths_[0]);
+  indexed.BuildIndex();
+  FrameIndex index = indexed.GetIndex();
+  ASSERT_GE(index.size(), 2u);
+  FramesDecoderCpu decoder(cfr_videos_paths_[0]);
+  decoder.SetIndex(index);  // a sorted index is accepted
+  std::swap(index.index.front(), index.index.back());
+  EXPECT_THROW(decoder.SetIndex(index), std::invalid_argument);
 }
 
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {

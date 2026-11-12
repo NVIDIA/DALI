@@ -25,6 +25,7 @@ extern "C" {
 
 #include <algorithm>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -367,7 +368,7 @@ class DLL_PUBLIC FramesDecoderBase {
   };
 
   /**
-   * @brief Estimated work of a decoder: the pictures it goes through (ParsedPictures: those it
+   * @brief Estimated work of a decoder: the pictures it goes through (those it
    * decodes and those it leaves out) and the times it reopens the file.
    *
    * A picture is a packet of the stream (see IndexEntry::decode_idx). The GPU decoder goes through
@@ -395,8 +396,8 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Adds the work of returning `frame` from `pos` and advances `pos`.
    *
    * Follows SeekFrame (through SeekTarget) and ReadNextFrame, counting the pictures gone through
-   * (see ParsedPictures), also the hidden ones (see IndexEntry::decode_idx), and a Reset as a
-   * reopening. A `frame` out of range (e.g. -1, a constant frame from HandleBoundary) is not
+   * (decoded_pictures_ + not_decoded_pictures_), also the hidden ones (see IndexEntry::decode_idx),
+   * and a Reset as a reopening. A `frame` out of range (e.g. -1, a constant frame from HandleBoundary) is not
    * decoded: it adds nothing and leaves `pos` as it is. Not modelled: a failed av_seek_frame
    * (after which every seek resets the decoder), and the RASL pictures of an HEVC CRA, which are
    * counted after a seek to it although a decoder skips them there (they reference pictures
@@ -527,9 +528,12 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
   void SetIndex(const FrameIndex& index) {
-    // sorted by timestamp, as BuildIndex makes it (the GPU decoder searches it)
-    assert(std::is_sorted(index.index.begin(), index.index.end(),
-                          [](const IndexEntry &a, const IndexEntry &b) { return a.pts < b.pts; }));
+    // sorted by timestamp, as BuildIndex makes it (the GPU decoder searches it). Checked in release
+    // builds too: an unsorted index makes the decoder drop frames it should read.
+    if (!std::is_sorted(index.index.begin(), index.index.end(),
+                        [](const IndexEntry &a, const IndexEntry &b) { return a.pts < b.pts; })) {
+      throw std::invalid_argument("The frame index must be sorted by timestamp.");
+    }
     index_ = index;
     num_frames_ = index.size();
   }
@@ -556,21 +560,10 @@ class DLL_PUBLIC FramesDecoderBase {
    * The CPU decoder counts the packets it sends to FFmpeg, the GPU decoder the pictures that
    * NVDEC decodes: more than the packets when a packet holds several pictures (see DecodeWork).
    * The pictures that the GPU decoder does not decode at all are not counted (see
-   * NotDecodedPictures); DecodeWork estimates both (see ParsedPictures).
+   * not_decoded_pictures_); DecodeWork estimates both.
    */
   int64_t DecodedPictures() const {
     return decoded_pictures_;
-  }
-
-  /**
-   * @brief Number of pictures not decoded at all so far (for tests and diagnostics).
-   *
-   * The GPU decoder does not decode the H.264 non-reference frame pictures that cannot be read
-   * with their data when they are decoded (no other picture refers to them, see
-   * FramesDecoderGpu::IsPictureReadWithData). The CPU decoder decodes every picture: 0.
-   */
-  int64_t NotDecodedPictures() const {
-    return not_decoded_pictures_;
   }
 
   /**
@@ -580,15 +573,6 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   int64_t Reopens() const {
     return reopens_;
-  }
-
-  /**
-   * @brief Number of pictures that the decoder went through so far: those decoded
-   *        (DecodedPictures), and those it left out as no other picture needs them
-   *        (NotDecodedPictures). AddDecodeWork estimates this number.
-   */
-  int64_t ParsedPictures() const {
-    return decoded_pictures_ + not_decoded_pictures_;
   }
 
  protected:
@@ -638,7 +622,11 @@ class DLL_PUBLIC FramesDecoderBase {
 
   int64_t decoded_pictures_ = 0;  // see DecodedPictures
   int64_t reopens_ = 0;  // see Reopens
-  int64_t not_decoded_pictures_ = 0;  // see NotDecodedPictures
+  // The pictures that the GPU decoder goes through without decoding: H.264 non-reference pictures
+  // that are never read with their pixels (see FramesDecoderGpu::ShouldDecodePicture). The CPU
+  // decoder decodes every picture: 0. Together with decoded_pictures_, the pictures that DecodeWork
+  // estimates. Read by tests through FramesDecoderTestAccess.
+  int64_t not_decoded_pictures_ = 0;
 
   /**
    * @brief The frames read with their data next, in order, when known: DecodeFrames sets those it
@@ -648,7 +636,39 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   span<const int> frames_to_read_;
 
+  /**
+   * @brief Declares the frames read with their data next (frames_to_read_) for the lifetime of the
+   *        object, and clears the declaration when the outermost scope ends.
+   *
+   * A scope created while another one is alive (SeekFrame called by DecodeFrames) leaves the
+   * declaration of the outer one alone. The frames passed to Declare must outlive the scope.
+   */
+  class FramesToReadScope {
+   public:
+    explicit FramesToReadScope(FramesDecoderBase &decoder)
+    : decoder_(decoder), outermost_(decoder.frames_to_read_.empty()) {}
+
+    ~FramesToReadScope() {
+      if (outermost_)
+        decoder_.frames_to_read_ = {};
+    }
+
+    FramesToReadScope(const FramesToReadScope &) = delete;
+    FramesToReadScope &operator=(const FramesToReadScope &) = delete;
+
+    void Declare(span<const int> frames) {
+      if (outermost_)
+        decoder_.frames_to_read_ = frames;
+    }
+
+   private:
+    FramesDecoderBase &decoder_;
+    bool outermost_;
+  };
+
  private:
+  friend struct FramesDecoderTestAccess;  // reads the counters of the pictures (in tests)
+
   void DetectVariableFrameRate();
 
   bool CheckDimensions();

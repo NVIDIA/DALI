@@ -560,7 +560,7 @@ void FramesDecoderGpu::InitGpuParser() {
 
   // The frame buffers are allocated as frames are buffered (see AttachFrameBuffer)
   for (auto &frame : frame_buffer_)
-    frame.pts_ = -1;
+    frame.Clear();
 }
 
 FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t stream, DALIImageType image_type)
@@ -610,7 +610,7 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   // A non-reference picture that is not read with its data (e.g. one hidden by an edit list, or one
   // only skipped on the way to the frames to read) is not decoded at all: no other picture refers
   // to it, and only its timestamp is kept, with its surface, for the display callback. Whether it
-  // is read with its data is decided now, for when it is displayed (see IsPictureReadWithData).
+  // is read with its data is decided now, for when it is displayed (see ShouldDecodePicture).
   // This is done only for H.264 frame pictures. In H.264, a reference picture (ref_pic_flag: "This
   // picture is a reference picture", cuviddec.h) is one with a nonzero nal_ref_idc, and the others
   // are not used for inter prediction by any picture. The two fields of a field pair are decoded
@@ -624,7 +624,7 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   // is read: all of them are decoded.
   bool decode = picture_params->ref_pic_flag || picture_params->field_pic_flag ||
                 codec_params_->codec_id != AV_CODEC_ID_H264 || labels_from_parser_ ||
-                IsPictureReadWithData(pts);
+                ShouldDecodePicture(pts);
   if (decode) {
     CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
     decoded_pictures_++;
@@ -738,16 +738,16 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       return 1;
     }
     auto &slot = FindEmptySlot();
-    slot.pts_ = current_pts_;
+    slot.SetTimestamp(current_pts_);
     // A frame that is only skipped on the way to the frames to read, or whose picture was not
     // decoded, keeps its place in the buffer, but it is neither mapped nor converted.
-    slot.has_data_ = surface_decoded_[picture_display_info->picture_index] &&
-                     ShouldKeepBufferedData(current_pts_);
-    if (!slot.has_data_) {
+    if (!surface_decoded_[picture_display_info->picture_index] ||
+        !ShouldBufferPixels(current_pts_)) {
       LOG_LINE << "Not mapping frame with timestamp " << slot.pts_
                << ": it is not read with its data" << std::endl;
       return 1;
     }
+    slot.MarkPixelsValid();
     AttachFrameBuffer(slot);
     frame_output = slot.frame_.data();
   }
@@ -839,7 +839,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
         KeepAsLastFrame(frame.frame_.data());
       LOG_LINE << "Found buffered frame with pts=" << frame.pts_ << std::endl;
 
-      frame.pts_ = -1;
+      frame.Clear();
       next_frame_idx_ = next_frame_idx_ == NumFrames() - 1 ? -1 : next_frame_idx_ + 1;
       return true;
     }
@@ -1060,7 +1060,7 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
     if (dtype_ == DALI_FLOAT) {
       total_size *= 4;
     }
-    // without an index, every buffered frame keeps its data (see CanBeReadWithData)
+    // without an index, every buffered frame keeps its data (see MayNeedPixelsLater)
     if (!frame_buffer_[frame_to_return_index].has_data_) {
       throw std::logic_error(make_string("Internal error: frame ", next_frame_idx_, " of \"",
                                          Filename(), "\" is read, but only its timestamp was "
@@ -1082,7 +1082,7 @@ bool FramesDecoderGpu::ReadNextFrameWithoutIndex(uint8_t *data) {
 
   ++next_frame_idx_;
 
-  frame_buffer_[frame_to_return_index].pts_ = -1;
+  frame_buffer_[frame_to_return_index].Clear();
 
   if (IsBufferEmpty()) {
     next_frame_idx_ = -1;
@@ -1143,7 +1143,7 @@ void FramesDecoderGpu::SendLastPacket(bool flush) {
         if (frame.pts_ != -1 && HasIndex() && frame.pts_ == index_[next_frame_idx_].pts) {
           LOG_LINE << "Processing remaining buffered frame pts=" << frame.pts_ << " for index "
                    << next_frame_idx_ << std::endl;
-          frame.pts_ = -1;
+          frame.Clear();
           ++next_frame_idx_;
           found_frame = true;
           break;
@@ -1158,7 +1158,7 @@ void FramesDecoderGpu::SendLastPacket(bool flush) {
     LOG_LINE << "Flushing decoder state" << std::endl;
     // Clear frames buffer
     for (size_t i = 0; i < frame_buffer_.size(); ++i) {
-      frame_buffer_[i].pts_ = -1;
+      frame_buffer_[i].Clear();
     }
 
     // Clear piped pts
@@ -1191,7 +1191,7 @@ BufferedFrame& FramesDecoderGpu::FindEmptySlot() {
   }
   frame_buffer_ = std::move(new_frame_buffer);
   auto &new_frame = frame_buffer_.back();
-  new_frame.pts_ = -1;  // its frame buffer is attached if the frame keeps its data
+  new_frame.Clear();  // its frame buffer is attached if the frame keeps its data
   return new_frame;
 }
 
@@ -1209,22 +1209,29 @@ void FramesDecoderGpu::AttachFrameBuffer(BufferedFrame &slot) {
   slot.frame_.resize(FrameSize());
 }
 
-bool FramesDecoderGpu::IsPictureReadWithData(int64_t pts) const {
+bool FramesDecoderGpu::ShouldDecodePicture(int64_t pts) const {
   // The decision that HandlePictureDisplay takes when the parser displays the picture: the next
   // frame, read with its data, or a buffered frame that keeps its data. A picture that is the next
   // frame now, but only skipped, takes the decision of a buffered one: the frame after it may have
   // the same timestamp, and be read with its data.
+  //
+  // Taking it at decode time is sound because, until the decoder is flushed (SendLastPacket(true)),
+  // the inputs of MayNeedPixelsLater only change in one direction: next_frame_idx_ moves forward,
+  // and frames_to_read_ loses frames from its front. So a frame that is not among the next ones
+  // stays out of them, and a frame that is only skipped on the way to the frames to read is
+  // displayed before the last of them is read. Timestamps are compared: a frame with the timestamp
+  // of a frame to read is taken as that frame.
   if (current_copy_to_output_ && HasIndex() && next_frame_idx_ >= 0 &&
       next_frame_idx_ < static_cast<int>(index_.size()) && pts == index_[next_frame_idx_].pts)
     return true;
-  return ShouldKeepBufferedData(pts);
+  return ShouldBufferPixels(pts);
 }
 
-bool FramesDecoderGpu::ShouldKeepBufferedData(int64_t pts) const {
+bool FramesDecoderGpu::ShouldBufferPixels(int64_t pts) const {
   // With the labels taken from the parser, any buffered frame may be the last frame that a frame
   // without a picture repeats (see KeepAsLastFrame), so all of them keep their data
   return buffered_frame_data_ == BufferedFrameData::kIfRead
-             ? (labels_from_parser_ || CanBeReadWithData(pts))
+             ? (labels_from_parser_ || MayNeedPixelsLater(pts))
              : buffered_frame_data_ == BufferedFrameData::kAll;
 }
 
@@ -1239,7 +1246,7 @@ bool FramesDecoderGpu::IsAmongNextFrames(int64_t pts) const {
   return entry != index_.index.end() && entry->pts == pts;
 }
 
-bool FramesDecoderGpu::CanBeReadWithData(int64_t pts) const {
+bool FramesDecoderGpu::MayNeedPixelsLater(int64_t pts) const {
   if (!HasIndex() || next_frame_idx_ < 0 || next_frame_idx_ >= static_cast<int>(index_.size()))
     return true;
   // a frame that is not among the frames from the next one on (e.g. hidden by an edit list, or

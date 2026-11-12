@@ -19,7 +19,6 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
-#include "dali/core/call_at_exit.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
@@ -959,13 +958,8 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
            << std::endl;
   assert(next_frame_idx_ <= frame_id);
   // Unless DecodeFrames knows more, the requested frame is the next one read with its data
-  bool own_frames_to_read = frames_to_read_.empty();
-  if (own_frames_to_read)
-    frames_to_read_ = make_cspan(&frame_id, 1);
-  auto clear_frames_to_read = AtScopeExit([&] {
-    if (own_frames_to_read)
-      frames_to_read_ = {};
-  });
+  FramesToReadScope frames_to_read(*this);
+  frames_to_read.Declare(make_cspan(&frame_id, 1));
   // Skip all remaining frames until the requested frame
   LOG_LINE << "Skipping frames from " << next_frame_idx_ << " to " << frame_id << std::endl;
   for (int i = next_frame_idx_; i < frame_id; i++) {
@@ -1090,7 +1084,7 @@ void FramesDecoderBase::DecodeFramesImpl(uint8_t *data,
     if (frame_id >= 0 && frame_id < NumFrames())
       to_read.push_back(frame_id);
   }
-  auto clear_frames_to_read = AtScopeExit([&] { frames_to_read_ = {}; });
+  FramesToReadScope frames_to_read(*this);
   int num_read = 0;
 
   uint8_t *last_out_frame_start = nullptr;
@@ -1099,7 +1093,7 @@ void FramesDecoderBase::DecodeFramesImpl(uint8_t *data,
     assert(out_frame_start >= data);
     if (frame_id >= 0 && frame_id < NumFrames()) {
       LOG_LINE << "Decoding frame " << frame_id << " to position " << i << std::endl;
-      frames_to_read_ = make_cspan(to_read.data() + num_read, to_read.size() - num_read);
+      frames_to_read.Declare(make_cspan(to_read.data() + num_read, to_read.size() - num_read));
       num_read++;
       SeekFrame(frame_id);
       ReadNextFrame(out_frame_start);

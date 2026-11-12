@@ -138,10 +138,33 @@ struct NvDecodeState {
   uint8_t *decoded_frame_yuv = nullptr;
 };
 
+/**
+ * @brief A place for a frame that the parser displayed before it was read.
+ *
+ * The state changes only through SetTimestamp, MarkPixelsValid and Clear, so that a slot never
+ * keeps the flag of the frame that it held before.
+ */
 struct BufferedFrame {
   DeviceBuffer<uint8_t> frame_;  // may be empty when the slot keeps no frame data
-  int64_t pts_ = -1;
-  bool has_data_ = false;  // false: the frame is never read with its data, only pts_ is kept
+  int64_t pts_ = -1;             // -1: the slot is empty
+  bool has_data_ = false;        // false: the frame is never read with its data, only pts_ is kept
+
+  /** @brief Takes a frame in, with no pixels yet (see MarkPixelsValid). */
+  void SetTimestamp(int64_t pts) {
+    pts_ = pts;
+    has_data_ = false;
+  }
+
+  /** @brief The frame is mapped and converted into frame_: it can be read with its data. */
+  void MarkPixelsValid() {
+    has_data_ = true;
+  }
+
+  /** @brief Empties the slot. It keeps frame_ for the next frame. */
+  void Clear() {
+    pts_ = -1;
+    has_data_ = false;
+  }
 };
 
 class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
@@ -268,7 +291,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   /**
    * @brief Number of pictures mapped and converted so far (for tests and diagnostics).
    *
-   * Pictures that cannot be read with their data when they are displayed (CanBeReadWithData is
+   * Pictures that cannot be read with their data when they are displayed (MayNeedPixelsLater is
    * false), or that are displayed as the next frame while it is only skipped, are not.
    */
   int64_t MappedPictures() const {
@@ -289,9 +312,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * kIfRead drops instead (see IsAmongNextFrames).
    */
   enum class BufferedFrameData {
-    // those that may be read with their data (see CanBeReadWithData)
+    // those that may be read with their data (see MayNeedPixelsLater)
     kIfRead,
-    // all of them; every picture is then decoded (see IsPictureReadWithData)
+    // all of them; every picture is then decoded (see ShouldDecodePicture)
     kAll,
     // none of them; an H.264 non-reference picture is then decoded only if it is the next frame,
     // read with its data, when it is decoded
@@ -308,13 +331,10 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   }
 
   /**
-   * @brief Whether a buffered frame with this timestamp may be read with its data later.
-   *
-   * Decoding a frame that is not read (e.g. one hidden by an edit list, or one that is only
-   * skipped on the way to the frames to read) is still needed for the frames that refer to it, but
-   * mapping and converting it is not. Reading a frame without its data is an internal error.
+   * @brief Whether a frame with this timestamp may still be read with its pixels, until the
+   *        decoder is flushed. False for a frame that is only skipped or never read.
    */
-  bool CanBeReadWithData(int64_t pts) const;
+  bool MayNeedPixelsLater(int64_t pts) const;
 
   /**
    * @brief Whether a frame with this timestamp is among the frames from the next one on, which are
@@ -324,29 +344,20 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   bool IsAmongNextFrames(int64_t pts) const;
 
   /**
-   * @brief Whether a buffered frame with this timestamp keeps its data (if its picture was
-   *        decoded): if it may be read with its data (CanBeReadWithData), or, for tests, always or
-   *        never (see SetBufferedFrameDataForTesting).
+   * @brief Whether the parser displays a frame with this timestamp, that is not the next one, with
+   *        its pixels (mapped and converted) in the buffer, or only its timestamp.
+   *
+   * It follows MayNeedPixelsLater, unless SetBufferedFrameDataForTesting says otherwise.
    */
-  bool ShouldKeepBufferedData(int64_t pts) const;
+  bool ShouldBufferPixels(int64_t pts) const;
 
   /**
-   * @brief Whether the picture with this timestamp, about to be decoded, may be read with its data:
-   *        it is the next frame, read with its data, or a buffered frame that keeps its data
-   *        (ShouldKeepBufferedData). It is mapped and converted later, when the parser displays it.
+   * @brief Whether the picture with this timestamp, about to be decoded, is decoded at all.
    *
-   * The decision is taken when the picture is decoded, and it still holds when it is displayed.
-   * Until the decoder is flushed (SendLastPacket(true): on a backward SeekFrame, AvSeekFrame and
-   * Reset), next_frame_idx_ only moves forward, and frames_to_read_ only loses frames from its
-   * front (DecodeFrames), or is set while it is empty (SeekFrame), or is cleared when DecodeFrames
-   * has read its frames or SeekFrame has skipped to its frame, after which a DecodeFrames reads
-   * only frames from next_frame_idx_ on. So a frame that
-   * is not among the frames from the next one on stays out of them, and a frame that is only
-   * skipped on the way to the frames to read is shown before the last of them, so it is displayed
-   * before that one is read: neither can be read with its data. The timestamps are compared, so a
-   * frame with the timestamp of a frame to read is taken as one.
+   * False only if its pixels are never read (see ShouldBufferPixels), which lets the decoder skip
+   * a picture that no other picture refers to.
    */
-  bool IsPictureReadWithData(int64_t pts) const;
+  bool ShouldDecodePicture(int64_t pts) const;
 
  private:
   /**
@@ -395,7 +406,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   // whether the picture decoded to each surface is still waiting for the display callback
   std::vector<bool> surface_to_display_;
   // whether cuvidDecodePicture was called for the picture last assigned to each surface (see
-  // IsPictureReadWithData); a surface whose picture was not decoded must not be mapped
+  // ShouldDecodePicture); a surface whose picture was not decoded must not be mapped
   std::vector<bool> surface_decoded_;
   int64_t current_pts_ = AV_NOPTS_VALUE;
 
