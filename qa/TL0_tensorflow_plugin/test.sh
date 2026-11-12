@@ -21,7 +21,7 @@ test_body() {
     plugin_test_dir=$(mktemp -d)
     tar -xzf ../../../nvidia_dali_tf_plugin*.tar.gz -C "$plugin_test_dir" --strip-components=1
     PYTHONPATH="$plugin_test_dir${PYTHONPATH:+:$PYTHONPATH}" \
-        python ../../../qa/TL0_tensorflow_plugin/test_compiler.py
+        ${python_new_invoke_test} test_dali_tf_plugin_compiler
     rm -rf "$plugin_test_dir"
 
     # The package name can be nvidia_dali_tf_plugin,  nvidia_dali_tf_plugin-weekly or  nvidia_dali_tf_plugin-nightly
