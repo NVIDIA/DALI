@@ -65,6 +65,11 @@ struct NumpyFileWrapper {
 
 namespace detail {
 
+// Validate parsed or cached headers before seeking, mapping, or scheduling payload reads.
+size_t ValidateNumpyPayload(const numpy::HeaderData &header, size_t file_size,
+                            const std::string &filename);
+
+
 class NumpyHeaderCache {
  public:
   explicit NumpyHeaderCache(bool cache_headers) : cache_headers_(cache_headers) {}

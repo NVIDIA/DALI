@@ -1307,9 +1307,11 @@ def test_sample_data_is_read_when_mmap_is_unavailable():
             keep_alive.clear()
 
 
-@cartesian_params((False, True), ((1 << 62), (1 << 61) - 16, 9))
-def test_numpy_reader_rejects_payload_outside_file(use_mmap, extent):
-    with tempfile.TemporaryDirectory() as root:
+@cartesian_params(("cpu", "gpu"), (False, True), ((1 << 62), (1 << 61) - 16, 9))
+def test_numpy_reader_rejects_payload_outside_file(device, use_mmap, extent):
+    if device == "gpu" and not is_gds_supported():
+        raise SkipTest("GDS is not supported in this platform")
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as root:
         path = os.path.join(root, "invalid.npy")
         header = repr({"descr": "<f8", "fortran_order": False, "shape": (extent,)})
         header = header.ljust(117) + "\n"
@@ -1318,10 +1320,11 @@ def test_numpy_reader_rejects_payload_outside_file(use_mmap, extent):
             f.write(header.encode())
             f.write(bytes(64))
 
-        @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+        @pipeline_def(batch_size=1, device_id=0 if device == "gpu" else None, num_threads=1)
         def pipe():
             return fn.readers.numpy(
                 files=[path],
+                device=device,
                 dont_use_mmap=not use_mmap,
             )
 
@@ -1337,21 +1340,24 @@ def test_numpy_reader_rejects_payload_outside_file(use_mmap, extent):
         assert_raises(RuntimeError, pipe().run, glob=message)
 
 
-@cartesian_params((False, True), (False, True), (0, 8))
-def test_numpy_reader_valid_payload(use_mmap, cache_header_information, extent):
-    with tempfile.TemporaryDirectory() as root:
+@cartesian_params(("cpu", "gpu"), (False, True), (False, True), (0, 8))
+def test_numpy_reader_valid_payload(device, use_mmap, cache_header_information, extent):
+    if device == "gpu" and not is_gds_supported():
+        raise SkipTest("GDS is not supported in this platform")
+    with tempfile.TemporaryDirectory(prefix=gds_data_root) as root:
         path = os.path.join(root, "valid.npy")
         expected = np.arange(extent, dtype=np.float64)
         np.save(path, expected)
 
-        @pipeline_def(batch_size=1, device_id=None, num_threads=1)
+        @pipeline_def(batch_size=1, device_id=0 if device == "gpu" else None, num_threads=1)
         def pipe():
             return fn.readers.numpy(
                 files=[path],
+                device=device,
                 dont_use_mmap=not use_mmap,
                 cache_header_information=cache_header_information,
             )
 
         p = pipe()
         for _ in range(2):
-            np.testing.assert_array_equal(p.run()[0].at(0), expected)
+            np.testing.assert_array_equal(to_array(p.run()[0][0]), expected)

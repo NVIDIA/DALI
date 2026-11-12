@@ -49,6 +49,29 @@ void NumpyHeaderCache::UpdateCache(const string &file_name, const numpy::HeaderD
   }
 }
 
+size_t ValidateNumpyPayload(const numpy::HeaderData &header, size_t file_size,
+                            const std::string &filename) {
+  size_t payload_bytes = 0;
+  try {
+    payload_bytes = header.nbytes();
+  } catch (const std::runtime_error &e) {
+    DALI_FAIL(e.what(), ". File: ", filename);
+  }
+  auto max_payload = static_cast<size_t>(std::numeric_limits<Index>::max());
+  DALI_ENFORCE(payload_bytes <= max_payload, make_string(
+        "Numpy array payload exceeds the supported size: ", filename, "; requested ",
+        payload_bytes, " bytes, maximum ", max_payload, " bytes."));
+  DALI_ENFORCE(header.data_offset >= 0 && static_cast<uint64_t>(header.data_offset) <= file_size,
+      make_string(
+        "Numpy array data offset is outside the file: ", filename, "; offset ",
+        header.data_offset, " bytes, file size ", file_size, " bytes."));
+  auto available_bytes = file_size - header.data_offset;
+  DALI_ENFORCE(payload_bytes <= available_bytes, make_string(
+        "Numpy array payload exceeds the available file data: ", filename, "; requested ",
+        payload_bytes, " bytes, available ", available_bytes, " bytes."));
+  return payload_bytes;
+}
+
 }  // namespace detail
 
 void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
@@ -84,7 +107,6 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   // read the header
   numpy::HeaderData header;
   auto ret = header_cache_.GetFromCache(filename, header);
-  size_t payload_bytes = 0;
   try {
     if (!ret) {
       if (opts.use_odirect) {
@@ -95,23 +117,10 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
       }
       header_cache_.UpdateCache(filename, header);
     }
-    payload_bytes = header.nbytes();
   } catch (const std::runtime_error &e) {
     DALI_FAIL(e.what(), ". File: ", filename);
   }
-  auto file_size = current_file->Size();
-  auto max_payload = static_cast<size_t>(std::numeric_limits<Index>::max());
-  DALI_ENFORCE(payload_bytes <= max_payload, make_string(
-        "Numpy array payload exceeds the supported size: ", filename, "; requested ",
-        payload_bytes, " bytes, maximum ", max_payload, " bytes."));
-  DALI_ENFORCE(header.data_offset >= 0 && static_cast<uint64_t>(header.data_offset) <= file_size,
-      make_string(
-        "Numpy array data offset is outside the file: ", filename, "; offset ",
-        header.data_offset, " bytes, file size ", file_size, " bytes."));
-  auto available_bytes = file_size - header.data_offset;
-  DALI_ENFORCE(payload_bytes <= available_bytes, make_string(
-        "Numpy array payload exceeds the available file data: ", filename, "; requested ",
-        payload_bytes, " bytes, available ", available_bytes, " bytes."));
+  auto payload_bytes = detail::ValidateNumpyPayload(header, current_file->Size(), filename);
   current_file->SeekRead(header.data_offset);
   Index nbytes = payload_bytes;
   target.shape = header.shape;
