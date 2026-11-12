@@ -318,15 +318,15 @@ void WebdatasetLoader::ReadSample(vector<Tensor<CPUBackend>>& sample) {
 
   for (auto& component : current_sample.components) {
     // Checking if the component data from the index file agrees with reality
-    if (component.offset < 0 ||
-        static_cast<uint64_t>(component.offset) > current_wds_shard->Size() ||
-        component.size > current_wds_shard->Size() - component.offset) {
-      throw std::runtime_error(make_string("Invalid component range from ",
-                     GetSampleSource(current_sample),
-                     ": offset or size is outside of the archive file (got offset ",
-                     component.offset, " and size ", component.size,
-                     ", archive size ", current_wds_shard->Size(), ")."));
-    }
+    const auto archive_size = current_wds_shard->Size();
+    const auto offset = static_cast<uint64_t>(component.offset);
+    DALI_ENFORCE(
+        component.offset >= 0 && offset <= archive_size &&
+            component.size <= archive_size - offset,
+        make_string("Invalid component range from ", GetSampleSource(current_sample),
+                    ": offset or size is outside of the archive file (got offset ",
+                    component.offset, " and size ", component.size,
+                    ", archive size ", archive_size, ")."));
 
     current_wds_shard->SeekRead(component.offset);
 

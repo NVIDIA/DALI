@@ -14,13 +14,13 @@
 
 import io
 import math
-from nose2.tools import params
 import nvidia.dali as dali
 import os
 import tarfile
 import tempfile
 from glob import glob
 from nose_utils import assert_equals, assert_raises
+from nose2.tools import params
 
 import webdataset_base as base
 from test_utils import compare_pipelines, get_dali_extra_path
@@ -246,7 +246,7 @@ def general_index_error(
         index_file.name,
         ext,
         batch_size=1,
-        device_id=None,
+        device_id=0,
         num_threads=1,
     )
     webdataset_pipeline.run()
