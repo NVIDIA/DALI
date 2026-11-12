@@ -57,6 +57,7 @@ size_t ValidateNumpyPayload(const numpy::HeaderData &header, size_t file_size,
   } catch (const std::runtime_error &e) {
     DALI_FAIL(e.what(), ". File: ", filename);
   }
+  // Check the signed tensor-size limit separately to report it instead of a file-bounds error.
   auto max_payload = static_cast<size_t>(std::numeric_limits<Index>::max());
   DALI_ENFORCE(payload_bytes <= max_payload, make_string(
         "Numpy array payload exceeds the supported size: ", filename, "; requested ",
@@ -122,7 +123,7 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   }
   auto payload_bytes = detail::ValidateNumpyPayload(header, current_file->Size(), filename);
   current_file->SeekRead(header.data_offset);
-  Index nbytes = payload_bytes;
+  auto nbytes = static_cast<Index>(payload_bytes);
   target.shape = header.shape;
   target.type = header.type();
   target.meta = meta;

@@ -351,11 +351,13 @@ class NumpyHeaderCUFileStream : public CUFileStream {
 }  // namespace
 #endif
 
-class NumpyLoaderCacheTest : public ::testing::TestWithParam<std::tuple<std::string, bool>> {};
+enum class NumpyReadMode { Mmap, Plain, Gpu };
+
+class NumpyLoaderCacheTest : public ::testing::TestWithParam<std::tuple<NumpyReadMode, bool>> {};
 
 TEST_P(NumpyLoaderCacheTest, RejectChangedFileWithCachedHeader) {
   const auto [read_mode, truncate_header] = GetParam();
-  bool use_mmap = read_mode == "mmap";
+  bool use_mmap = read_mode == NumpyReadMode::Mmap;
   auto path = (std::filesystem::temp_directory_path() / "dali-numpy-cache-XXXXXX").string();
   int fd = mkstemp(path.data());
   ASSERT_GE(fd, 0);
@@ -388,7 +390,7 @@ TEST_P(NumpyLoaderCacheTest, RejectChangedFileWithCachedHeader) {
 #endif
   auto read_sample = [&] {
 #if CUFILE_ENABLED
-    if (read_mode == "gpu") {
+    if (read_mode == NumpyReadMode::Gpu) {
       NumpyFileWrapperGPU sample;
       sample.filename = path;
       sample.file_stream_ = std::make_unique<NumpyHeaderCUFileStream>(path);
@@ -430,10 +432,10 @@ TEST_P(NumpyLoaderCacheTest, RejectChangedFileWithCachedHeader) {
   }
 }
 
-const std::vector<std::string> kNumpyReadModes = {
-    "mmap", "plain",
+const std::vector<NumpyReadMode> kNumpyReadModes = {
+    NumpyReadMode::Mmap, NumpyReadMode::Plain,
 #if CUFILE_ENABLED
-    "gpu",
+    NumpyReadMode::Gpu,
 #endif
 };
 

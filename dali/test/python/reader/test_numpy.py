@@ -1307,8 +1307,9 @@ def test_sample_data_is_read_when_mmap_is_unavailable():
             keep_alive.clear()
 
 
-@cartesian_params(("cpu", "gpu"), (False, True), ((1 << 62), (1 << 61) - 16, 9))
-def test_numpy_reader_rejects_payload_outside_file(device, use_mmap, extent):
+@cartesian_params((("cpu", False), ("cpu", True), ("gpu", False)), ((1 << 62), (1 << 61) - 16, 9))
+def test_numpy_reader_rejects_payload_outside_file(device_and_mmap, extent):
+    device, use_mmap = device_and_mmap
     if device == "gpu" and not is_gds_supported():
         raise SkipTest("GDS is not supported in this platform")
     with tempfile.TemporaryDirectory(prefix=gds_data_root) as root:
@@ -1340,8 +1341,9 @@ def test_numpy_reader_rejects_payload_outside_file(device, use_mmap, extent):
         assert_raises(RuntimeError, pipe().run, glob=message)
 
 
-@cartesian_params(("cpu", "gpu"), (False, True), (False, True), (0, 8))
-def test_numpy_reader_valid_payload(device, use_mmap, cache_header_information, extent):
+@cartesian_params((("cpu", False), ("cpu", True), ("gpu", False)), (False, True), (0, 8))
+def test_numpy_reader_valid_payload(device_and_mmap, cache_header_information, extent):
+    device, use_mmap = device_and_mmap
     if device == "gpu" and not is_gds_supported():
         raise SkipTest("GDS is not supported in this platform")
     with tempfile.TemporaryDirectory(prefix=gds_data_root) as root:
