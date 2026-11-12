@@ -294,7 +294,7 @@ def run_component_range_reader(archive, index, use_mmap, dtype=dali.types.UINT8)
     def pipeline():
         return dali.fn.readers.webdataset(
             paths=[archive],
-            index_paths=[index] if index else [],
+            index_paths=[index],
             ext=["bin"],
             dtypes=[dtype],
             dont_use_mmap=not use_mmap,
@@ -313,6 +313,7 @@ def run_component_range_reader(archive, index, use_mmap, dtype=dali.types.UINT8)
             (512, 2**64 - 4),
             (512, 2**64 - 512),
             (-512, 4),
+            (512, 513),
             (512, 1028),
             (2048, 4),
         )
@@ -326,8 +327,10 @@ def test_invalid_component_range(use_mmap, offset, size):
             f.write(bytes(1024))
         with open(index, "w") as f:
             f.write(f"v1.2 1\nbin {offset} {size} sample.bin\n")
+        # Keep unaligned sizes compatible with the dtype so they reach the range check.
+        dtype = dali.types.FLOAT if size % 4 == 0 else dali.types.UINT8
         with assert_raises(RuntimeError, glob="*offset or size is outside*"):
-            run_component_range_reader(archive, index, use_mmap, dali.types.FLOAT)
+            run_component_range_reader(archive, index, use_mmap, dtype)
 
 
 @params(*[(use_mmap, size) for use_mmap in (False, True) for size in (0, 4)])
@@ -358,6 +361,19 @@ def run_tar_size_reader(archive, use_mmap, dtype=dali.types.UINT8):
     return pipeline().run()[0].as_array()
 
 
+@params(False, True)
+def test_invalid_mapping(use_mmap):
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = os.path.join(tmp, "data.tar")
+        index = os.path.join(tmp, "data.idx")
+        with open(archive, "wb") as f:
+            f.write(bytes(1024))
+        with open(index, "w") as f:
+            f.write("v1.2 1\nbin 512 1024 sample.bin\n")
+        message = "*offset or size is outside of the archive file*"
+        with assert_raises(RuntimeError, glob=message):
+            run_component_range_reader(archive, index, use_mmap)
+
 
 def write_invalid_tar(archive, size):
     header = bytearray(tarfile.TarInfo("sample.bin").tobuf())
@@ -367,7 +383,6 @@ def write_invalid_tar(archive, size):
     header[148:156] = f"{sum(header):06o}\0 ".encode()
     with open(archive, "wb") as f:
         f.write(header + bytes(1024))
-
 
 
 @params(*[(use_mmap, size) for use_mmap in (False, True) for size in (-4, 8**11 - 1, 2048)])
@@ -385,7 +400,6 @@ def test_invalid_tar_entry_size(use_mmap, size):
             run_tar_size_reader(archive, use_mmap, dali.types.FLOAT)
 
 
-
 @params(False, True)
 def test_repeated_invalid_tar_first_entry(use_mmap):
     with tempfile.TemporaryDirectory() as tmp:
@@ -394,7 +408,6 @@ def test_repeated_invalid_tar_first_entry(use_mmap):
         for _ in range(32):
             with assert_raises(RuntimeError, glob="*extends beyond the archive.*"):
                 run_tar_size_reader(archive, use_mmap)
-
 
 
 @params(False, True)
@@ -406,7 +419,6 @@ def test_valid_tar(use_mmap):
             info.size = 4
             tar.addfile(info, io.BytesIO(bytes(range(4))))
         assert run_tar_size_reader(archive, use_mmap).tolist() == [[0, 1, 2, 3]]
-
 
 
 @params(
@@ -439,4 +451,3 @@ def test_tar_non_data_entry_ignores_size(use_mmap, kind):
             f.write(bytes(range(4)) + bytes(508))
             f.write(bytes(1024))
         assert run_tar_size_reader(archive, use_mmap).tolist() == [[0, 1, 2, 3]]
-
