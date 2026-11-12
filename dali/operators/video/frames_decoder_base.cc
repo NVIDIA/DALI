@@ -642,6 +642,7 @@ void FramesDecoderBase::BuildIndex() {
 
   // Initialize frame index
   index_.index.clear();
+  index_.end_pts = -1;
   index_.filename = Filename();
   index_.timebase = ctx_->streams[stream_id_]->time_base;
   index_.decode_order_timestamps = HasDecodeOrderTimestamps();
@@ -773,6 +774,10 @@ void FramesDecoderBase::BuildIndex() {
       has_hidden_packets = true;
       continue;
     }
+
+    // Stream end, from the packet durations, for FrameIndex::EndPts
+    if (packet->duration > 0)
+      index_.end_pts = std::max<int64_t>(index_.end_pts, entry.pts + packet->duration);
 
     // Update last keyframe position if this is a keyframe
     if (entry.is_keyframe) {
@@ -1034,7 +1039,8 @@ void FramesDecoderBase::AddDecodeWork(const FrameIndex &index, DecodePosition &p
   pos.next_frame = frame + 1 < n ? frame + 1 : -1;
 }
 
-int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id, int roi_start, int roi_end) {
+int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
+                                      int roi_start, int roi_end) {
   DALI_ENFORCE(boundary_type == boundary::BoundaryType::CLAMP ||
                    boundary_type == boundary::BoundaryType::CONSTANT ||
                    boundary_type == boundary::BoundaryType::REFLECT_1001 ||
@@ -1049,10 +1055,11 @@ int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int 
       return std::clamp(frame_id, roi_start, roi_end - 1);
     case boundary::BoundaryType::CONSTANT:
       return -1;
+    // Reflect within [roi_start, roi_end), so that padded indices never leave the ROI
     case boundary::BoundaryType::REFLECT_1001:
-      return boundary::idx_reflect_1001(frame_id, roi_end);
+      return boundary::idx_reflect_1001(frame_id, roi_start, roi_end);
     case boundary::BoundaryType::REFLECT_101:
-      return boundary::idx_reflect_101(frame_id, roi_end);
+      return boundary::idx_reflect_101(frame_id, roi_start, roi_end);
     case boundary::BoundaryType::ISOLATED:
     default:
       DALI_FAIL(make_string(
@@ -1129,11 +1136,15 @@ void FramesDecoderBase::DecodeFrames(uint8_t *data, int start_frame, int end_fra
            << ", stride=" << stride << std::endl;
 
   SmallVector<std::pair<int, int>, 32> sorted_frame_ids;
-  size_t num_frames = (end_frame - start_frame + stride - 1) / stride;
+  // 64-bit arithmetic: end_frame - start_frame + stride - 1 does not fit in int for large strides.
+  int64_t num_frames = (static_cast<int64_t>(end_frame) - start_frame + stride - 1) / stride;
   sorted_frame_ids.reserve(num_frames);
-  for (int i = 0; i < static_cast<int>(num_frames); i++) {
+  for (int64_t i = 0; i < num_frames; i++) {
+    int64_t frame_id = start_frame + i * stride;
+    // Frames of a range that is not past INT_MAX are < end_frame, so the index fits in int.
     sorted_frame_ids.push_back(
-        {HandleBoundary(boundary_type, start_frame + i * stride, 0, NumFrames()), i});
+        {HandleBoundary(boundary_type, static_cast<int>(frame_id), 0, NumFrames()),
+         static_cast<int>(i)});
   }
   std::sort(sorted_frame_ids.begin(), sorted_frame_ids.end());
   DecodeFramesImpl(data, sorted_frame_ids, boundary_type, constant_frame, out_timestamps);
