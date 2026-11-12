@@ -218,6 +218,49 @@ def test_image_decoder_fused():
                 )
 
 
+@pipeline_def
+def _stream_reuse_pipe(data_path, device, sliced):
+    encoded, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
+    if sliced:
+        # fixed, normalized ROI: the sub-code-stream is derived again from the (reused) parent
+        return fn.experimental.decoders.image_slice(
+            encoded, rel_start=[0.1, 0.2], rel_shape=[0.5, 0.6], axes=(0, 1), device=device
+        )
+    return fn.experimental.decoders.image(encoded, device=device)
+
+
+def _check_code_stream_reuse(device, sliced):
+    # With batch_size=1 the single code-stream slot is re-pointed at every sample, across formats
+    # and sizes. With batch_size=N and one run, every code stream is created from scratch. If a
+    # reused stream kept anything from the previous sample (parser state, I/O stream), the two
+    # would differ.
+    data_path = os.path.join(test_data_root, good_path, "mixed")
+    kwargs = dict(
+        data_path=data_path, device=device, sliced=sliced, num_threads=1, device_id=0, seed=1234
+    )
+    n = len(get_img_files(data_path))
+    assert n > 1
+    ref_pipe = _stream_reuse_pipe(batch_size=n, **kwargs)
+    reused_pipe = _stream_reuse_pipe(batch_size=1, **kwargs)
+    (ref,) = ref_pipe.run()
+    for i in range(n):
+        (out,) = reused_pipe.run()
+        ref_arr = to_array(ref[i])
+        out_arr = to_array(out[0])
+        assert ref_arr.shape == out_arr.shape, (
+            f"sample {i} ({ref[i].source_info()}): "
+            f"shape {out_arr.shape} with reused stream vs {ref_arr.shape} with fresh stream"
+        )
+        assert np.array_equal(
+            ref_arr, out_arr
+        ), f"sample {i} ({ref[i].source_info()}): reused code stream gives different output"
+
+
+@params(("cpu", False), ("cpu", True), ("mixed", False), ("mixed", True))
+def test_image_decoder_code_stream_reuse(device, sliced):
+    _check_code_stream_reuse(device, sliced)
+
+
 def check_FastDCT_body(batch_size, img_type, device):
     data_path = os.path.join(test_data_root, good_path, img_type)
     compare_pipelines(
