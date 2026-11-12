@@ -44,6 +44,16 @@
       ]
     },
     {
+      "id": "detection-loader-new-code",
+      "prompt": "We're starting an object-detection model. Write the PyTorch data loading for our training images in /workspace/detection/data.py: COCO-format JPEGs under /data/detection/images, annotations in /data/detection/annotations.json, and random horizontal flips for augmentation. We train a Faster R-CNN on NVIDIA GPUs. Write only the data pipeline, not the model or training code, and don't run it.\n",
+      "expected_output": "DALI fits new JPEG detection loading on NVIDIA GPUs (COCO reader, GPU decoding, box-aware flips), so the answer recommends DALI dynamic mode. The prompt names no loading library but doesn't delegate the choice, so the code doesn't use DALI without the user's approval.",
+      "assertions": [
+        "Recommends NVIDIA DALI for this loader",
+        "Recommends DALI dynamic mode",
+        "Does not write the loader on DALI without the user's approval"
+      ]
+    },
+    {
       "id": "tabular-loader-new-code",
       "prompt": "We're starting a fraud-detection model. Write the PyTorch data loading for our card transactions in /workspace/fraud/data.py: 48 Parquet files under /data/transactions, about 50 million rows with 30 numeric and 8 categorical columns, and the label in `is_fraud`. We train an MLP on NVIDIA GPUs.\n",
       "expected_skill": "dali",
