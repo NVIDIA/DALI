@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -89,7 +89,14 @@ class InstallerCompilerTest(unittest.TestCase):
             stack.enter_context(
                 patch.object(installer, "find", side_effect=[["libdali.so"], ["plugin.so"]])
             )
-            if isinstance(compiler_error, ImportError):
+            if compiler_error is None:
+                stack.enter_context(
+                    patch.object(installer, "get_cpp_compiler", return_value="clang++")
+                )
+                stack.enter_context(
+                    patch.object(installer, "get_cpp_compiler_version", return_value="22.1")
+                )
+            elif isinstance(compiler_error, ImportError):
                 stack.enter_context(
                     patch.object(installer, "get_cpp_compiler", side_effect=compiler_error)
                 )
@@ -121,6 +128,35 @@ class InstallerCompilerTest(unittest.TestCase):
         helper = self.make_helper(ImportError("clang++ was not found"))
         self.assertFalse(helper.can_default_compile)
         with self.assertRaisesRegex(ImportError, r"(?s)clang\+\+ was not found.*Environment:"):
+            helper.get_compiler()
+
+    def test_libcpp_probe(self):
+        helper = self.make_helper(None)
+        self.assertTrue(helper.tf_uses_libcpp)
+        ok = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+        with patch.object(installer.subprocess, "run", return_value=ok) as run:
+            self.assertEqual(helper.get_compiler(), "clang++")
+        cmd = run.call_args.args[0]
+        self.assertEqual(cmd[0], "clang++")
+        for flag in helper.tf_cflags.split():
+            self.assertIn(flag, cmd)
+
+        failed = subprocess.CompletedProcess([], 1, stdout="", stderr="cstdint not found")
+        with patch.object(installer.subprocess, "run", return_value=failed):
+            with self.assertRaises(ImportError) as ctx:
+                helper.get_compiler()
+        message = str(ctx.exception)
+        self.assertIn("clang++", message)
+        self.assertIn(helper.tf_cflags, message)
+        self.assertIn("cstdint not found", message)
+
+    def test_advice_not_repeated(self):
+        helper = self.make_helper(ImportError("clang++ was not found, set CXX"))
+        with self.assertRaises(ImportError) as ctx:
+            helper.get_compiler()
+        self.assertNotIn("Install a compatible C++ compiler", str(ctx.exception))
+        helper = self.make_helper(FileNotFoundError("c++ was not found"))
+        with self.assertRaisesRegex(ImportError, "Install a compatible C\\+\\+ compiler"):
             helper.get_compiler()
 
 

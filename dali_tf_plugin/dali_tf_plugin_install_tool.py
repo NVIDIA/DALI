@@ -306,11 +306,11 @@ class InstallerHelper:
 
     def get_compiler(self):
         if self.compiler_error is not None:
-            raise ImportError(
-                f"Cannot build the TensorFlow plugin from source: {self.compiler_error} "
-                "Install a compatible C++ compiler and set CXX to its executable.\n"
-                + self.debug_str()
-            ) from self.compiler_error
+            msg = f"Cannot build the TensorFlow plugin from source: {self.compiler_error}"
+            if not isinstance(self.compiler_error, ImportError):
+                # ImportErrors already explain how to fix the problem.
+                msg += " Install a compatible C++ compiler and set CXX to its executable."
+            raise ImportError(msg + "\n" + self.debug_str()) from self.compiler_error
         compiler = self.cpp_compiler
         if self.tf_uses_libcpp:
             # GCC version strings embedded in TF do not describe its libc++ toolchain.
