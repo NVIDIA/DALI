@@ -603,19 +603,22 @@ def test_file_url_can_be_opened(device):
     p.run()
 
 
-# Builds an experimental.readers.video pipeline in a child process whose address space
-# is capped, so that an infinite sample-generation loop cannot exhaust the machine's memory.
+# Builds an experimental.readers.video pipeline in a child process. For the CPU reader the
+# address space is capped, so that an infinite sample-generation loop cannot exhaust the
+# machine's memory. The cap is not applied to the GPU reader: CUDA reserves a lot of virtual
+# address space, so under RLIMIT_AS cuInit fails and the pipeline cannot be created at all.
+# There the timeout of the parent process is the only guard against a hang.
 _BOUNDED_BUILD_CHILD = r"""
 import resource
 import sys
 
-limit = 6 * 1024**3
-resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
+device = sys.argv[4]
+
+if device == "cpu":
+    limit = 6 * 1024**3
+    resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
 
 from nvidia.dali import fn, pipeline_def
-
-
-device = sys.argv[4]
 
 
 @pipeline_def(batch_size=1, num_threads=1, device_id=None if device == "cpu" else 0)
