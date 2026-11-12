@@ -37,6 +37,10 @@
 #include "dali/operators/reader/loader/indexed_file_loader.h"
 #include "dali/operators/reader/loader/coco_loader.h"
 
+#if CUFILE_ENABLED
+#include "dali/operators/reader/loader/numpy_loader_gpu.h"
+#endif
+
 #if LMDB_ENABLED
 #include "dali/operators/reader/loader/lmdb.h"
 #endif
@@ -317,10 +321,41 @@ TEST(LoaderCheckpointingTest, TestCheckpointShortEpoch) {
   32);
 }
 
-class NumpyLoaderCacheTest : public ::testing::TestWithParam<std::tuple<bool, bool>> {};
+#if CUFILE_ENABLED
+namespace {
+
+// Exercise the GPU reader's host-side header path without GPU allocation or GDS I/O.
+class NumpyHeaderCUFileStream : public CUFileStream {
+ public:
+  explicit NumpyHeaderCUFileStream(const std::string &path)
+      : CUFileStream(path), stream_(FileStream::Open(path)) {}
+
+  size_t Read(void *buffer, size_t bytes) override { return stream_->Read(buffer, bytes); }
+  void SeekRead(ptrdiff_t pos, int whence = SEEK_SET) override { stream_->SeekRead(pos, whence); }
+  ssize_t TellRead() const override { return stream_->TellRead(); }
+  size_t Size() const override { return stream_->Size(); }
+  void Close() override { stream_->Close(); }
+
+  size_t ReadGPU(void *, size_t, ptrdiff_t) override {
+    throw std::logic_error("Unexpected GPU payload read in a header-only test.");
+  }
+
+  size_t ReadAtGPU(void *, size_t, ptrdiff_t, int64_t) override {
+    throw std::logic_error("Unexpected GPU payload read in a header-only test.");
+  }
+
+ private:
+  std::unique_ptr<FileStream> stream_;
+};
+
+}  // namespace
+#endif
+
+class NumpyLoaderCacheTest : public ::testing::TestWithParam<std::tuple<std::string, bool>> {};
 
 TEST_P(NumpyLoaderCacheTest, RejectChangedFileWithCachedHeader) {
-  const auto [use_mmap, truncate_header] = GetParam();
+  const auto [read_mode, truncate_header] = GetParam();
+  bool use_mmap = read_mode == "mmap";
   auto path = (std::filesystem::temp_directory_path() / "dali-numpy-cache-XXXXXX").string();
   int fd = mkstemp(path.data());
   ASSERT_GE(fd, 0);
@@ -348,14 +383,31 @@ TEST_P(NumpyLoaderCacheTest, RejectChangedFileWithCachedHeader) {
   NumpyLoader loader(spec, false);
   loader.PrepareMetadata();
   int64_t data_offset = 0;
-  {
+#if CUFILE_ENABLED
+  detail::NumpyHeaderCache gpu_cache(true);
+#endif
+  auto read_sample = [&] {
+#if CUFILE_ENABLED
+    if (read_mode == "gpu") {
+      NumpyFileWrapperGPU sample;
+      sample.filename = path;
+      sample.file_stream_ = std::make_unique<NumpyHeaderCUFileStream>(path);
+      sample.ReadHeader(gpu_cache);
+      EXPECT_EQ(sample.shape, TensorShape<>({8}));
+      EXPECT_EQ(sample.type, DALI_FLOAT64);
+      data_offset = sample.data_offset;
+      return;
+    }
+#endif
     NumpyFileWrapper sample;
     loader.ReadSample(sample);
-    ASSERT_EQ(sample.nbytes, 64);
+    EXPECT_EQ(sample.nbytes, 64);
     EXPECT_EQ(sample.data.shares_data(), use_mmap);
     data_offset = sample.data_offset;
-    ASSERT_GT(data_offset, 4);
-  }  // Release all mappings before changing the file, retaining only the loader's header cache.
+  };
+  read_sample();
+  ASSERT_GT(data_offset, 4);
+  // Release all mappings/streams before changing the file, retaining only the header caches.
   {
     std::ofstream file(path, std::ios::binary | std::ios::trunc);
     // An invalid magic string proves the second load uses the cached header instead of parsing.
@@ -363,10 +415,9 @@ TEST_P(NumpyLoaderCacheTest, RejectChangedFileWithCachedHeader) {
     file.write(replacement.data(), replacement.size());
     ASSERT_TRUE(file.good());
   }
-  NumpyFileWrapper sample;
   try {
-    // Call the loader directly so no prefetched sample can hide the file replacement.
-    loader.ReadSample(sample);
+    // Call the loader/header path directly so prefetch cannot hide the file replacement.
+    read_sample();
     FAIL() << "Expected rejection of the changed file";
   } catch (const std::runtime_error &e) {
     std::string error = e.what();
@@ -379,7 +430,15 @@ TEST_P(NumpyLoaderCacheTest, RejectChangedFileWithCachedHeader) {
   }
 }
 
-INSTANTIATE_TEST_SUITE_P(MmapAndPlainReads, NumpyLoaderCacheTest,
-                        ::testing::Combine(::testing::Bool(), ::testing::Bool()));
+const std::vector<std::string> kNumpyReadModes = {
+    "mmap", "plain",
+#if CUFILE_ENABLED
+    "gpu",
+#endif
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    CpuAndGpuHeaders, NumpyLoaderCacheTest,
+    ::testing::Combine(::testing::ValuesIn(kNumpyReadModes), ::testing::Bool()));
 
 };  // namespace dali
