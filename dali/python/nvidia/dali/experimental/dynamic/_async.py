@@ -39,6 +39,7 @@ def _join_executors():
 
 
 def _before_fork():
+    """Stop the workers. `submit` stays blocked until ``_after_fork``"""
     _executors_lock.acquire()
     for executor in _executors:
         executor._lock.acquire()
