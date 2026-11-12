@@ -43,8 +43,7 @@ void NvImageCodecDecoder::DestroyHandle(nvimgcodecDecoder_t handle) {
 NvImageCodecCodeStream NvImageCodecCodeStream::FromHostMem(nvimgcodecInstance_t instance,
                                                            const void *data, size_t length) {
   NvImageCodecCodeStream ret;
-  CHECK_NVIMGCODEC(nvimgcodecCodeStreamCreateFromHostMem(
-      instance, &ret.handle_, static_cast<const unsigned char*>(data), length, nullptr));
+  ret.ResetFromHostMem(instance, data, length);
   return ret;
 }
 
@@ -56,10 +55,17 @@ void NvImageCodecCodeStream::ResetFromHostMem(nvimgcodecInstance_t instance,
       instance, &handle_, static_cast<const unsigned char*>(data), length, nullptr));
 }
 
+void NvImageCodecCodeStream::ResetFromSubCodeStream(
+    nvimgcodecCodeStream_t code_stream, const nvimgcodecCodeStreamView_t* cs_view) {
+  // A non-null handle is reused in place by nvImageCodec. If creating a new stream fails,
+  // nvImageCodec frees it and leaves the handle null.
+  CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(code_stream, &handle_, cs_view));
+}
+
 NvImageCodecCodeStream NvImageCodecCodeStream::FromSubCodeStream(
   nvimgcodecCodeStream_t code_stream, const nvimgcodecCodeStreamView_t* cs_view) {
   NvImageCodecCodeStream ret;
-  CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(code_stream, &ret.handle_, cs_view));
+  ret.ResetFromSubCodeStream(code_stream, cs_view);
   return ret;
 }
 
@@ -80,8 +86,15 @@ void NvImageCodecCodeStream::DestroyHandle(nvimgcodecCodeStream_t handle) {
 NvImageCodecImage NvImageCodecImage::Create(nvimgcodecInstance_t instance,
                                             const nvimgcodecImageInfo_t *image_info) {
   NvImageCodecImage ret;
-  CHECK_NVIMGCODEC(nvimgcodecImageCreate(instance, &ret.handle_, image_info));
+  ret.Reset(instance, image_info);
   return ret;
+}
+
+void NvImageCodecImage::Reset(nvimgcodecInstance_t instance,
+                              const nvimgcodecImageInfo_t *image_info) {
+  // A non-null handle is reused in place by nvImageCodec. If creating a new image fails,
+  // nvImageCodec frees it and leaves the handle null.
+  CHECK_NVIMGCODEC(nvimgcodecImageCreate(instance, &handle_, image_info));
 }
 
 
