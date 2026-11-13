@@ -17,11 +17,12 @@ import nvidia.dali.ops as ops
 import nvidia.dali.types as types
 import os
 import random
+from contextlib import nullcontext
 from functools import partial
 from nvidia.dali.pipeline import Pipeline
 from nvidia.dali import fn, pipeline_def
 from nvidia.dali.python_function_plugin import current_dali_stream
-from nose_utils import attr
+from nose_utils import assert_raises, attr
 
 test_data_root = os.environ["DALI_EXTRA_PATH"]
 images_dir = os.path.join(test_data_root, "db", "single", "jpeg")
@@ -663,3 +664,82 @@ def test_current_pipeline():
 
     pipe1.run()
     pipe2.run()
+
+
+def _pytorch_complex128_case(
+    device, batch_size, shape, strided=False, boundary=False, invalid_mixed_dtype=False
+):
+    if boundary:
+        base = numpy.array([[0.0, -0.0], [numpy.inf, -numpy.inf]], dtype=numpy.float64)
+        imag_vals = numpy.array([[-0.0, numpy.nan], [1.0, numpy.inf]], dtype=numpy.float64)
+    else:
+        base = numpy.arange(numpy.prod(shape), dtype=numpy.float64).reshape(shape)
+    real_inputs = [base.copy() if boundary else base + i * 10.0 for i in range(batch_size)]
+
+    def make_complex128_batch(batch):
+        ctx = (
+            torch.cuda.stream(torch.cuda.ExternalStream(current_dali_stream()))
+            if device == "gpu"
+            else nullcontext()
+        )
+        with ctx:
+            outputs = []
+            for i, dlt in enumerate(batch):
+                real = torch_dlpack.from_dlpack(dlt).to(dtype=torch.float64)
+                if invalid_mixed_dtype and i > 0:
+                    outputs.append(torch_dlpack.to_dlpack(real))
+                    continue
+                imag = (
+                    torch.as_tensor(imag_vals, device=real.device)
+                    if boundary
+                    else (-0.5 * real + 1.25)
+                )
+                out = torch.complex(real, imag)
+                if strided:
+                    out = out.transpose(0, 1)[::2, 1::2]
+                outputs.append(torch_dlpack.to_dlpack(out))
+            return outputs
+
+    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0)
+    def pipeline():
+        data = fn.external_source(lambda: real_inputs)
+        inp = data.gpu() if device == "gpu" else data
+        return fn.dl_tensor_python_function(
+            inp,
+            device=device,
+            batch_processing=True,
+            function=make_complex128_batch,
+            synchronize_stream=False,
+        )
+
+    p = pipeline()
+    if invalid_mixed_dtype:
+        with assert_raises(RuntimeError, glob="*consistent data type*"):
+            p.run()
+        return
+    (out,) = p.run()
+    out_batch = out.as_cpu() if device == "gpu" else out
+    out_arrays = [numpy.array(sample) for sample in out_batch]
+    for inp, actual in zip(real_inputs, out_arrays, strict=True):
+        expected = inp + 1j * (imag_vals if boundary else (-0.5 * inp + 1.25))
+        if strided:
+            expected = expected.T[::2, 1::2]
+        assert actual.dtype == numpy.complex128
+        numpy.testing.assert_array_equal(actual, expected)
+
+
+@attr("pytorch")
+def test_pytorch_complex128():
+    setup_pytorch()
+    for case in (
+        ("cpu", 1, (3, 4), False, False, False),
+        ("cpu", 2, (0, 4), False, False, False),
+        ("gpu", 1, (3, 4), False, False, False),
+        ("gpu", 2, (0, 4), False, False, False),
+        ("gpu", 4, (3, 4), True, False, False),
+        ("cpu", 1, (2, 2), False, True, False),
+        ("gpu", 1, (2, 2), False, True, False),
+        ("cpu", 2, (2, 2), False, False, True),
+        ("gpu", 2, (2, 2), False, False, True),
+    ):
+        yield (_pytorch_complex128_case, *case)

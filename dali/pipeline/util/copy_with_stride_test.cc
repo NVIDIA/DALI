@@ -14,6 +14,7 @@
 
 #include "dali/pipeline/util/copy_with_stride.h"
 #include <gtest/gtest.h>
+#include <complex>
 #include <memory>
 #include <utility>
 #include "dali/core/dev_buffer.h"
@@ -237,6 +238,37 @@ TEST(CopyWithStrideTest, SimpleCopyGPU) {
 
                                            7,  8,  9,
                                            10, 11, 12}));
+}
+
+template <typename ComplexT, typename ScalarT>
+void TestShiftedTransposedComplexGPU(DALIDataType dtype) {
+  // Shift by one scalar element (4B for complex64, 8B for complex128) and transpose strides.
+  ScalarT h_data[] = {ScalarT(999),
+                      ScalarT(1), ScalarT(-1), ScalarT(2), ScalarT(-2), ScalarT(3), ScalarT(-3),
+                      ScalarT(4), ScalarT(-4), ScalarT(5), ScalarT(-5), ScalarT(6), ScalarT(-6)};
+  TensorShape<2> stride{1, 3};
+  TensorShape<2> shape{2, 2};
+  constexpr int vol = 4;
+  ASSERT_EQ(vol, volume(shape));
+  DeviceBuffer<ScalarT> data;
+  data.from_host(h_data);
+  auto dl_tensors = DlTensorSingletonBatch(AsDlTensor(data.data() + 1, dtype, shape, stride));
+  auto output_tl = SingletonTL(shape, dtype);
+  CopyDlTensorBatchGpu(output_tl, dl_tensors, 0);
+  std::array<ComplexT, vol> h_out;
+  CUDA_CALL(cudaMemcpy(h_out.data(), output_tl.raw_mutable_tensor(0), vol * sizeof(ComplexT),
+                       cudaMemcpyDeviceToHost));
+  std::array<ComplexT, vol> ref = {{{1, -1}, {4, -4},
+                                    {2, -2}, {5, -5}}};
+  ASSERT_TRUE(h_out == ref);
+}
+
+TEST(CopyWithStrideTest, Complex64GPU) {
+  TestShiftedTransposedComplexGPU<std::complex<float>, float>(DALI_COMPLEX64);
+}
+
+TEST(CopyWithStrideTest, Complex128GPU) {
+  TestShiftedTransposedComplexGPU<std::complex<double>, double>(DALI_COMPLEX128);
 }
 
 }  // namespace dali

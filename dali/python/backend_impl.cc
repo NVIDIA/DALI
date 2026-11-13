@@ -169,7 +169,7 @@ template<typename Backend>
 py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   py::dict d;
   py::tuple tup(2);
-  d["typestr"] = FormatStrFromType(t.type());
+  d["typestr"] = ArrayInterfaceTypestrFromType(t.type());
   // __array_interface__ expects shape to be a tuple
   d["shape"] = py::tuple(py_shape<Backend>(t));
   // tuple of (raw_data_pointer, if_data_is_read_only)
@@ -1793,7 +1793,7 @@ void ExposeTensorListCPU(py::module &m) {
           }
 
           if (IsValidType(tl.type())) {
-            format = FormatStrFromType(tl.type());
+            format = ArrayInterfaceTypestrFromType(tl.type());
             type_size = tl.type_info().size();
           } else {
             // Default is float
@@ -3297,6 +3297,8 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
     .value("FLOAT",         DALI_FLOAT)
     .value("FLOAT64",       DALI_FLOAT64)
     .value("BOOL",          DALI_BOOL)
+    .value("COMPLEX64",     DALI_COMPLEX64)
+    .value("COMPLEX128",    DALI_COMPLEX128)
     .value("STRING",        DALI_STRING)
     .value("_BOOL_VEC",     DALI_BOOL_VEC)
     .value("_INT32_VEC",    DALI_INT_VEC)

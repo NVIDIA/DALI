@@ -28,6 +28,8 @@ to_torch_type = {
     types.DALIDataType.INT16: torch.int16,
     types.DALIDataType.INT32: torch.int32,
     types.DALIDataType.INT64: torch.int64,
+    types.DALIDataType.COMPLEX64: torch.complex64,
+    types.DALIDataType.COMPLEX128: torch.complex128,
 }
 
 

@@ -81,10 +81,17 @@ struct ElementTypeOfSize<4> {
 
 template <>
 struct ElementTypeOfSize<8> {
-  using type = uint64_t;
+  // Complex64 has 4-byte alignment (two floats), so avoid 8-byte aligned input loads.
+  using type = Vectorized<uint32_t, 2, 4>;
 };
 
-template <int NumBytes, int VecLen = 4>
+template <>
+struct ElementTypeOfSize<16> {
+  // Complex128 has 8-byte alignment (two doubles), so avoid 16-byte aligned input loads.
+  using type = Vectorized<uint64_t, 2, 8>;
+};
+
+template <int NumBytes, int VecLen = (NumBytes >= 16 ? 1 : 4)>
 struct ElementType {
   static constexpr int vec_len = VecLen;
   using type = typename ElementTypeOfSize<NumBytes>::type;
@@ -281,7 +288,7 @@ void CopyBatchTyped(span<StridedCopyDesc> sample_descs, MismatchedNdimT mismatch
 
 void CopyBatch(span<StridedCopyDesc> sample_descs, int max_mismatched_ndim, int element_size,
                cudaStream_t stream) {
-  VALUE_SWITCH(element_size, ElementSize, (1, 2, 4, 8), (
+  VALUE_SWITCH(element_size, ElementSize, (1, 2, 4, 8, 16), (
     VALUE_SWITCH(max_mismatched_ndim, NDim, (0, 1, 2, 3, 4, 5), (
       CopyBatchTyped<ElementSize>(sample_descs, MismatchedNdim<NDim>{}, stream);
     ), ( // NOLINT
@@ -317,9 +324,10 @@ void ValidateBatch(int &element_size, int &ndim, std::vector<DLMTensorPtr> &dl_t
     }
   }
   // Limitation based on DLToDALIType
-  DALI_ENFORCE(num_bits == 8 || num_bits == 16 || num_bits == 32 || num_bits == 64,
-               "Unsupported data type width. Currently DALI tensors support only types of 8, 16, "
-               "32 or 64 bits");
+  DALI_ENFORCE(
+      num_bits == 8 || num_bits == 16 || num_bits == 32 || num_bits == 64 || num_bits == 128,
+      "Unsupported data type width. Currently DALI tensors support only types of 8, 16, "
+      "32, 64 or 128 bits");
   DALI_ENFORCE(0 <= ndim && ndim <= strided_copy::MAX_DIMS,
                make_string("DALI tensor must have between 0 and ", strided_copy::MAX_DIMS,
                            " dimensions, got tensor with `", ndim, "` dimensions."));

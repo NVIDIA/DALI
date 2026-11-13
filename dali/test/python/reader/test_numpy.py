@@ -68,6 +68,8 @@ def is_gds_supported(device_id=0):
 def create_numpy_file(filename, shape, typ, fortran_order):
     # generate random array
     arr = rng.random_sample(shape) * 10.0
+    if np.issubdtype(typ, np.complexfloating):
+        arr = arr + 1j * (rng.random_sample(shape) * 10.0)
     arr = arr.astype(typ)
     if fortran_order:
         arr = np.asfortranarray(arr)
@@ -153,13 +155,8 @@ all_numpy_types = set(
 )
 unsupported_numpy_types = set(
     [
-        np.csingle,
-        np.cdouble,
         np.clongdouble,
-        np.complex64,
-        np.complex128,
         np.longdouble,
-        complex,
     ]
 )
 rng = np.random.RandomState(12345)
@@ -259,6 +256,8 @@ def _get_type_and_shape_params():
     for device in ["cpu", "gpu"] if is_gds_supported() else ["cpu"]:
         for fortran_order in [False, True, None]:
             for dtype in all_numpy_types - unsupported_numpy_types:
+                if device == "gpu" and np.issubdtype(dtype, np.complexfloating):
+                    continue
                 for ndim in [0, 1, 2, rng.choice([3, 4])]:
                     if ndim <= 1 and fortran_order is not False:
                         continue
