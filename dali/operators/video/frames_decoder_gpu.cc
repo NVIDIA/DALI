@@ -1030,7 +1030,7 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     frame_returned_ = true;
     LOG_LINE << "Found frame with correct display timestamp " << current_pts_
               << " for index " << next_frame_idx_ << std::endl;
-    keep_as_last_frame = labels_from_parser_;
+    keep_as_last_frame = KeepsLastFrame();
     if (current_copy_to_output_) {
       if (!surface_decoded_[picture_display_info->picture_index]) {
         throw std::logic_error(make_string("Internal error: frame ", next_frame_idx_, " of \"",
@@ -1121,7 +1121,8 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     // The picture was buffered for its own frame (a later one): the frame wanted is a copy of it
     copyD2D(static_cast<uint8_t *>(current_frame_output_),
             static_cast<const uint8_t *>(frame_output), FrameBytes(), stream_);
-    KeepAsLastFrame(frame_output);
+    if (KeepsLastFrame())
+      KeepAsLastFrame(frame_output);
     frame_returned_ = true;
   }
 
@@ -1164,7 +1165,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
         LOG_LINE << "Copying from frame buffer to frame_output" << std::endl;
         copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
-      if (labels_from_parser_ && frame.has_data_)
+      if (KeepsLastFrame() && frame.has_data_)
         KeepAsLastFrame(frame.frame_.data());
       LOG_LINE << "Found buffered frame with pts=" << frame.pts_ << std::endl;
 
@@ -1184,7 +1185,8 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
           next = &frame;
       }
       copyD2D(data, next->frame_.data(), FrameSize(), stream_);
-      KeepAsLastFrame(next->frame_.data());
+      if (KeepsLastFrame())
+        KeepAsLastFrame(next->frame_.data());
     } else {
       RepeatLastFrame(data);
     }

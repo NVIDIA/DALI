@@ -75,6 +75,16 @@ struct FrameIndex {
   // End of the stream (pts + duration of the latest-ending packet), as recorded by the container;
   // AV_NOPTS_VALUE if unknown. See EndPts().
   int64_t end_pts = AV_NOPTS_VALUE;
+  /**
+   * @brief Some frames may have no picture: a packet may hold none (an empty packet, or an MPEG-4
+   * Part 2 packet without a coded VOP, e.g. the not-coded VOP of a DivX packed stream, also when
+   * its VOPs cannot be read), or a keyframe may have leading pictures (or it is not known), which
+   * a decoder that starts at it drops.
+   *
+   * With decode_order_timestamps, a frame without a picture repeats the frame before it, which the
+   * GPU decoder then keeps a copy of. Without such frames, it skips that copy.
+   */
+  bool may_have_frames_without_pictures = false;
 
   size_t size() const {
     return index.size();

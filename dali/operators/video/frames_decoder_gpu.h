@@ -455,7 +455,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   bool labels_from_parser_ = false;
   // With labels_from_parser_: a copy of the last frame read, which a frame without a picture of its
   // own (e.g. the not-coded VOP of a DivX packed stream) repeats. Unknown after a flush: such a
-  // frame then takes the next picture shown.
+  // frame then takes the next picture shown. Only kept when the index says that such frames may
+  // exist (see KeepsLastFrame).
   DeviceBuffer<uint8_t> last_frame_;
   bool has_last_frame_ = false;
 
@@ -494,6 +495,13 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   // Bytes of a frame in the output type
   size_t FrameBytes() const;
+
+  // Whether the frames read are kept in last_frame_: with labels_from_parser_, and only for a
+  // stream that may have frames without pictures. Otherwise a skipped frame needs no color
+  // conversion and a frame read needs no copy.
+  bool KeepsLastFrame() const {
+    return labels_from_parser_ && index_.may_have_frames_without_pictures;
+  }
 
   // The buffer for the last frame read (see last_frame_), allocated for the output type
   uint8_t *LastFrame();
