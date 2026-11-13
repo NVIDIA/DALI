@@ -3343,6 +3343,7 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
     .value("GRAY", DALI_GRAY)
     .value("YCbCr", DALI_YCbCr)
     .value("ANY_DATA", DALI_ANY_DATA)
+    .value("LAB", DALI_LAB)
     .export_values();
 
   // DALIInterpType

@@ -31,7 +31,11 @@ class ColorSpaceConversion : public StatelessOperator<Backend> {
         input_type_(spec.GetArgument<DALIImageType>("image_type")),
         output_type_(spec.GetArgument<DALIImageType>("output_type")),
         in_nchannels_(NumberOfChannels(input_type_)),
-        out_nchannels_(NumberOfChannels(output_type_)) {
+        out_nchannels_(NumberOfChannels(output_type_)),
+        white_point_(spec.GetArgument<float>("white_point")) {
+    DALI_ENFORCE(white_point_ == 50.0f || white_point_ == 65.0f,
+                 make_string("Unsupported white point: ", white_point_,
+                             ". Supported values are 50 (D50) and 65 (D65)."));
   }
 
  protected:
@@ -65,6 +69,7 @@ class ColorSpaceConversion : public StatelessOperator<Backend> {
   const DALIImageType output_type_;
   const int in_nchannels_;
   const int out_nchannels_;
+  float white_point_ = 65.0f;
 };
 
 }  // namespace dali

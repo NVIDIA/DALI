@@ -428,6 +428,205 @@ DALI_HOST_DEV DALI_FORCEINLINE Output rgb_to_gray(vec<3, Input> rgb) {
   return jpeg::rgb_to_y<Output>(rgb);
 }
 
+namespace detail {
+
+DALI_HOST_DEV DALI_FORCEINLINE float srgb_to_linear(float c) {
+  c = clamp(c, 0.0f, 1.0f);
+  return c <= 0.04045f ? c * (1.0f / 12.92f) : powf((c + 0.055f) * (1.0f / 1.055f), 2.4f);
+}
+
+DALI_HOST_DEV DALI_FORCEINLINE float linear_to_srgb(float c) {
+  c = clamp(c, 0.0f, 1.0f);
+  float s = c <= 0.0031308f ? c * 12.92f : 1.055f * powf(c, 1.0f / 2.4f) - 0.055f;
+  return clamp(s, 0.0f, 1.0f);
+}
+
+DALI_HOST_DEV DALI_FORCEINLINE float lab_f(float t) {
+  constexpr float delta = 6.0f / 29.0f;
+  constexpr float delta_cubed = delta * delta * delta;            // 216.0f / 24389.0f
+  constexpr float kappa_div_116 = 1.0f / (3.0f * delta * delta);  // 841.0f / 108.0f
+  constexpr float offset = 4.0f / 29.0f;
+  return t > delta_cubed ? cbrtf(t) : kappa_div_116 * t + offset;
+}
+
+DALI_HOST_DEV DALI_FORCEINLINE float lab_f_inv(float t) {
+  constexpr float delta = 6.0f / 29.0f;
+  constexpr float three_delta_sq = 3.0f * delta * delta;  // 108.0f / 841.0f
+  constexpr float offset = 4.0f / 29.0f;
+  return t > delta ? t * t * t : three_delta_sq * (t - offset);
+}
+
+// sRGB to CIE XYZ with D65 illuminant.
+// Row sums equal the D65 white point (Xn = 0.950456, Yn = 1.0, Zn = 1.088754).
+struct d65 {
+  static constexpr dvec3 x_row = {0.412453, 0.357580, 0.180423};
+  static constexpr dvec3 y_row = {0.212671, 0.715160, 0.072169};
+  static constexpr dvec3 z_row = {0.019334, 0.119193, 0.950227};
+};
+
+// Bradford-adapted sRGB to CIE XYZ with D50 illuminant.
+// Row sums equal the D50 white point (Xn = 0.96422, Yn = 1.0, Zn = 0.82521).
+struct d50 {
+  static constexpr dvec3 x_row = {0.4360747, 0.3850649, 0.1430804};
+  static constexpr dvec3 y_row = {0.2225045, 0.7168786, 0.0606169};
+  static constexpr dvec3 z_row = {0.0139322, 0.0971045, 0.7141733};
+};
+
+/**
+ * @brief White-point-normalized sRGB <-> XYZ matrices computed at compile time
+ *
+ * Each row of the sRGB -> XYZ matrix is divided by its sum (the white point coordinate Xn, Yn,
+ * Zn), so that linear white (1, 1, 1) maps to normalized XYZ (1, 1, 1) and L*a*b* (100, 0, 0).
+ * The inverse matrix maps normalized XYZ back to linear sRGB.
+ */
+template <typename Illuminant>
+struct cielab_coefficients {
+  static constexpr double xn =
+      Illuminant::x_row[0] + Illuminant::x_row[1] + Illuminant::x_row[2];
+  static constexpr double yn =
+      Illuminant::y_row[0] + Illuminant::y_row[1] + Illuminant::y_row[2];
+  static constexpr double zn =
+      Illuminant::z_row[0] + Illuminant::z_row[1] + Illuminant::z_row[2];
+
+  static constexpr dvec3 m0 = Illuminant::x_row / xn;
+  static constexpr dvec3 m1 = Illuminant::y_row / yn;
+  static constexpr dvec3 m2 = Illuminant::z_row / zn;
+
+  static constexpr vec3 to_xyz_x = vec3(m0[0], m0[1], m0[2]);
+  static constexpr vec3 to_xyz_y = vec3(m1[0], m1[1], m1[2]);
+  static constexpr vec3 to_xyz_z = vec3(m2[0], m2[1], m2[2]);
+
+  // Cofactors and determinant of the 3x3 normalized matrix [m0; m1; m2]
+  static constexpr double c00 = m1[1] * m2[2] - m1[2] * m2[1];
+  static constexpr double c01 = m0[2] * m2[1] - m0[1] * m2[2];
+  static constexpr double c02 = m0[1] * m1[2] - m0[2] * m1[1];
+
+  static constexpr double c10 = m1[2] * m2[0] - m1[0] * m2[2];
+  static constexpr double c11 = m0[0] * m2[2] - m0[2] * m2[0];
+  static constexpr double c12 = m0[2] * m1[0] - m0[0] * m1[2];
+
+  static constexpr double c20 = m1[0] * m2[1] - m1[1] * m2[0];
+  static constexpr double c21 = m0[1] * m2[0] - m0[0] * m2[1];
+  static constexpr double c22 = m0[0] * m1[1] - m0[1] * m1[0];
+
+  static constexpr double det = m0[0] * c00 + m1[0] * c01 + m2[0] * c02;
+
+  static constexpr vec3 from_xyz_r = vec3(c00 / det, c01 / det, c02 / det);
+  static constexpr vec3 from_xyz_g = vec3(c10 / det, c11 / det, c12 / det);
+  static constexpr vec3 from_xyz_b = vec3(c20 / det, c21 / det, c22 / det);
+};
+
+/**
+ * @brief CIELAB conversions parameterized by reference illuminant (D65 or D50)
+ *
+ * For standard 8-bit images (uint8_t), canonical CIELAB coordinates
+ * (L* in [0, 100], a* and b* centered at 0) are mapped to 8-bit range:
+ *   L = round(L* * 255 / 100)
+ *   a = round(a* + 128)
+ *   b = round(b* + 128)
+ */
+template <typename Illuminant>
+struct cielab_method {
+ private:
+  using C = cielab_coefficients<Illuminant>;
+
+  static DALI_HOST_DEV DALI_FORCEINLINE constexpr uint8_t pack_l(float L) {
+    return ConvertSat<uint8_t>(L * (255.0f / 100.0f));
+  }
+
+  static DALI_HOST_DEV DALI_FORCEINLINE constexpr uint8_t pack_ab(float ab) {
+    return ConvertSat<uint8_t>(ab + 128.0f);
+  }
+
+  static DALI_HOST_DEV DALI_FORCEINLINE constexpr vec<3, uint8_t> pack_lab(vec3 lab) {
+    return {
+      pack_l(lab[0]),
+      pack_ab(lab[1]),
+      pack_ab(lab[2])
+    };
+  }
+
+  static DALI_HOST_DEV DALI_FORCEINLINE constexpr float unpack_l(uint8_t l_in) {
+    return static_cast<float>(l_in) * (100.0f / 255.0f);
+  }
+
+  static DALI_HOST_DEV DALI_FORCEINLINE constexpr float unpack_ab(uint8_t ab_in) {
+    return static_cast<float>(ab_in) - 128.0f;
+  }
+
+  static DALI_HOST_DEV DALI_FORCEINLINE constexpr vec3 unpack_lab(vec<3, uint8_t> lab) {
+    return {
+      unpack_l(lab[0]),
+      unpack_ab(lab[1]),
+      unpack_ab(lab[2])
+    };
+  }
+
+ public:
+  template <typename Output = uint8_t, typename Input = uint8_t>
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> rgb_to_lab(vec<3, Input> rgb) {
+    static_assert(std::is_same<Output, uint8_t>::value && std::is_same<Input, uint8_t>::value,
+                  "CIELAB conversion currently supports only uint8_t input and output");
+    vec3 srgb = {
+      ConvertNorm<float>(rgb[0]),
+      ConvertNorm<float>(rgb[1]),
+      ConvertNorm<float>(rgb[2])
+    };
+    vec3 lin = {
+      srgb_to_linear(srgb[0]),
+      srgb_to_linear(srgb[1]),
+      srgb_to_linear(srgb[2])
+    };
+    constexpr vec3 to_xyz_x = C::to_xyz_x;
+    constexpr vec3 to_xyz_y = C::to_xyz_y;
+    constexpr vec3 to_xyz_z = C::to_xyz_z;
+    float fx = lab_f(dot(to_xyz_x, lin));
+    float fy = lab_f(dot(to_xyz_y, lin));
+    float fz = lab_f(dot(to_xyz_z, lin));
+
+    float L = clamp(116.0f * fy - 16.0f, 0.0f, 100.0f);
+    float a = 500.0f * (fx - fy);
+    float b = 200.0f * (fy - fz);
+    return pack_lab({L, a, b});
+  }
+
+  template <typename Output = uint8_t, typename Input = uint8_t>
+  static DALI_HOST_DEV DALI_FORCEINLINE vec<3, Output> lab_to_rgb(vec<3, Input> lab) {
+    static_assert(std::is_same<Output, uint8_t>::value && std::is_same<Input, uint8_t>::value,
+                  "CIELAB conversion currently supports only uint8_t input and output");
+    vec3 c_lab = unpack_lab(lab);
+    float fy = (c_lab[0] + 16.0f) * (1.0f / 116.0f);
+    float fx = fy + c_lab[1] * (1.0f / 500.0f);
+    float fz = fy - c_lab[2] * (1.0f / 200.0f);
+
+    vec3 xyz = {
+      lab_f_inv(fx),
+      lab_f_inv(fy),
+      lab_f_inv(fz)
+    };
+    constexpr vec3 from_xyz_r = C::from_xyz_r;
+    constexpr vec3 from_xyz_g = C::from_xyz_g;
+    constexpr vec3 from_xyz_b = C::from_xyz_b;
+    float r = linear_to_srgb(dot(from_xyz_r, xyz));
+    float g = linear_to_srgb(dot(from_xyz_g, xyz));
+    float b = linear_to_srgb(dot(from_xyz_b, xyz));
+    return {
+      ConvertSatNorm<Output>(r),
+      ConvertSatNorm<Output>(g),
+      ConvertSatNorm<Output>(b)
+    };
+  }
+
+};  // struct cielab_method
+
+}  // namespace detail
+
+// CIELAB with D65 reference white point (the standard sRGB illuminant)
+struct cielab_d65 : detail::cielab_method<detail::d65> {};
+
+// CIELAB with D50 reference white point (Bradford-adapted from sRGB)
+struct cielab_d50 : detail::cielab_method<detail::d50> {};
+
 }  // namespace color
 }  // namespace kernels
 }  // namespace dali
