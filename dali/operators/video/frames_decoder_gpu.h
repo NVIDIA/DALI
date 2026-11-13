@@ -222,6 +222,10 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
+  /**
+   * @brief Gets the NVDEC decoder for the sequence. Throws if the size of the decoded pictures is
+   *        not the size of the output.
+   */
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
 
   /**
@@ -323,7 +327,29 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   bool IsBufferEmpty() const;
 
-  void InitBitStreamFilter();
+  void InitBitStreamFilter(AVUniquePtr<AVBSFContext> &bsfc);
+
+  /**
+   * @brief Asks the NVDEC parser for the size of the pictures in the stream and, if it differs
+   *        from the one in the container, uses it as the size of the output.
+   *
+   * The parser applies the right and bottom crop of the SPS, but ignores the left and top one: a
+   * stream with a left or top crop is decoded to the full frame (a pure left/top crop gives the
+   * uncropped size) and, with a mixed crop, to a frame cropped on the right and the bottom only.
+   * The position of the file is restored to the first packet.
+   */
+  void ProbeDisplaySize();
+
+  /**
+   * @brief Reads the next packet of the selected stream. Returns false at the end of the file.
+   */
+  bool ReadSelectedStreamPacket(AVPacket *packet);
+
+  /**
+   * @brief Seeks back to the start of the file and checks that the first packet is the next one
+   *        read. Returns false if the seek failed or landed elsewhere.
+   */
+  bool RewindToFirstPacket(const AVPacket *first);
 
   static cudaVideoCodec GetCodecType(AVCodecID codec_id);
 
