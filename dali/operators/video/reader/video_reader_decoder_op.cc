@@ -28,6 +28,7 @@
 
 #include "dali/core/boundary.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/core/device_guard.h"
 #include "dali/core/exec/thread_pool_base.h"
 #include "dali/core/span.h"
 
@@ -398,6 +399,10 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
    */
   void PrepareMetadataImpl() override {
     LOG_LINE << "Starting PrepareMetadataImpl" << std::endl;
+    // With lazy_init, this may run on any thread that asks for the size of the reader (e.g.
+    // Pipeline::reader_meta before the first run): the codec checks of the GPU decoder query
+    // NVDEC of the current device, which must be the reader's device, with its context current.
+    DeviceGuard dg(std::is_same_v<Backend, GPUBackend> ? this->device_id_ : -1);
     samples_.clear();
     all_frame_idxs_.clear();
     if (uniform_sample_)

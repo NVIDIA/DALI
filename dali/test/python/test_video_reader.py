@@ -22,6 +22,7 @@ import atexit
 import enum
 import functools
 import itertools
+import multiprocessing
 import random
 import shutil
 import subprocess
@@ -1531,3 +1532,34 @@ def test_ycbcr_cpu_matches_gpu(source):
     assert cpu.shape == gpu.shape
     max_diff = np.abs(cpu - gpu).max()
     assert max_diff <= 1, f"CPU and GPU YCbCr differ by up to {max_diff}"
+
+
+def _lazy_init_reader_meta_before_the_first_run():
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=[VIDEO_0], sequence_length=3, lazy_init=True, name="reader"
+        )
+
+    p = pipe()
+    p.build()
+    assert p.reader_meta("reader")["epoch_size"] > 0
+
+
+def test_lazy_init_reader_meta_before_the_first_run():
+    """With lazy_init, reader_meta() builds the metadata of the GPU reader on the calling thread.
+    That thread has no CUDA context when nothing made one before (a CUDA tensor, torch.cuda or an
+    earlier GPU video operator all do), and the codec checks of the reader have to work then too.
+    A fresh process is needed, as a context made by any earlier test would hide the problem: the
+    check runs in a spawned process. That process imports this module to find the function, so
+    the module-level code must not create a CUDA context."""
+    proc = multiprocessing.get_context("spawn").Process(
+        target=_lazy_init_reader_meta_before_the_first_run
+    )
+    proc.start()
+    proc.join(timeout=120)
+    if proc.is_alive():
+        proc.kill()
+        proc.join()
+        raise AssertionError("The child process did not finish in 120 s")
+    assert proc.exitcode == 0, f"The child process failed with exit code {proc.exitcode}"
