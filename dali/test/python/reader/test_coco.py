@@ -681,6 +681,43 @@ def test_coco_keypoints_preprocessed_annotations_overwrite():
         assert keypoints.shape == (boxes.shape[0], 0, 3), keypoints.shape
 
 
+def test_coco_keypoints_preprocessed_annotations_overwrite_without_keypoints():
+    with tempfile.TemporaryDirectory() as root:
+        _write_keypoints_dataset(root)
+        preprocessed_dir = os.path.join(root, "preprocessed")
+        os.makedirs(preprocessed_dir)
+        file_root = os.path.join(root, "images")
+        annotations_file = os.path.join(root, "annotations.json")
+        _run_keypoints_pipe(
+            file_root=file_root,
+            annotations_file=annotations_file,
+            save_preprocessed_annotations=True,
+            save_preprocessed_annotations_dir=preprocessed_dir,
+        )
+
+        @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+        def save_pipe():
+            _, boxes, _, ids = fn.readers.coco(
+                file_root=file_root,
+                annotations_file=annotations_file,
+                ratio=True,
+                image_ids=True,
+                save_preprocessed_annotations=True,
+                save_preprocessed_annotations_dir=preprocessed_dir,
+            )
+            return boxes, ids
+
+        save_pipe().run()
+        assert not os.path.exists(os.path.join(preprocessed_dir, "num_keypoints.dat"))
+        assert not os.path.exists(os.path.join(preprocessed_dir, "keypoints.dat"))
+        pipe = coco_keypoints_pipe(file_root=file_root, preprocessed_annotations=preprocessed_dir)
+        assert_raises(
+            ValueError,
+            pipe.run,
+            glob="*Keypoints were requested, but the preprocessed annotations*",
+        )
+
+
 @params(
     ([1.0, 2.0], "*must be a multiple of 3*"),
     ("abc", "*`keypoints` must be an array, got string*"),

@@ -508,6 +508,10 @@ void CocoLoader::SavePreprocessedAnnotations(
       std::remove((path + "/keypoints.dat").c_str());
     else
       SaveToFile(keypoints_, path + "/keypoints.dat");
+  } else {
+    // Don't leave stale keypoints from an earlier save next to the new boxes.
+    std::remove((path + "/num_keypoints.dat").c_str());
+    std::remove((path + "/keypoints.dat").c_str());
   }
 
   if (output_image_ids_) {
