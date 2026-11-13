@@ -668,13 +668,8 @@ class CaptureContext:
     ) -> CaptureNode | None:
         """Find a captured node matching this call."""
         node = self._call_trie.lookup(frame, op_class)
-        if node is None:
+        if node is None or device != node.device:
             return None
-        if device != node.device:
-            raise RuntimeError(
-                f"Captured operator was traced with device={node.device} but called with "
-                f"device={device}. Cannot change device in capture mode."
-            )
         if len(inputs) != len(node.inputs):
             return None
         if not all(self._matches(a, e) for a, e in zip(inputs, node.inputs)):
