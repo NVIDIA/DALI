@@ -1,4 +1,4 @@
-# Copyright (c) 2021-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ from nvidia.dali._utils.external_source_impl import get_callback_from_source
 from nvidia.dali.types import SampleInfo
 import numpy as np
 import os
+import signal
 from nose2.tools import params
 from nose_utils import raises
 
@@ -359,6 +360,34 @@ class TestPoolInvalidReturn:
         callbacks = [MockGroup.from_callback(invalid_callback)]
         with create_pool(
             callbacks, keep_alive_queue_size=1, num_workers=1, start_method="spawn"
+        ) as pool:
+            _ = get_pids(pool)
+            work_batch = TaskArgs.make_sample(SampleRange(0, 1, 0, 0))
+            pool.schedule_batch(context_i=0, work_batch=work_batch)
+            pool.receive_batch(context_i=0)
+
+
+def killing_callback(info):
+    os.kill(os.getpid(), signal.SIGKILL)
+
+
+class TestPoolWorkerKilled:
+    def setUp(self):
+        setup_function()
+
+    def tearDown(self):
+        teardown_function()
+
+    @params(*start_methods)
+    @raises(
+        RuntimeError,
+        glob="*following Python worker processes exited unexpectedly:\n"
+        "  - worker 0 (pid *) was terminated by signal 9 (SIGKILL)\n*",
+    )
+    def test_pool_worker_killed(self, start_method):
+        callbacks = [MockGroup.from_callback(killing_callback)]
+        with create_pool(
+            callbacks, keep_alive_queue_size=1, num_workers=1, start_method=start_method
         ) as pool:
             _ = get_pids(pool)
             work_batch = TaskArgs.make_sample(SampleRange(0, 1, 0, 0))
