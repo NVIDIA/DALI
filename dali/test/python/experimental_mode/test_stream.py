@@ -16,7 +16,7 @@ import threading
 
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.backend as _backend
-from ndd_utils import cuda_launch_host_func
+from ndd_utils import cuda_launch_host_func, gc_disabled
 from nose_utils import SkipTest, attr
 
 
@@ -114,13 +114,14 @@ def test_stream_synchronize():
             error = True
         allow_finish.set()
 
-    cuda_launch_host_func(stream, callback)
-    thread = threading.Thread(target=worker, daemon=True)
-    thread.start()
+    with gc_disabled(stream):
+        cuda_launch_host_func(stream, callback)
+        thread = threading.Thread(target=worker, daemon=True)
+        thread.start()
 
-    stream.synchronize()
-    sync_returned = True
+        stream.synchronize()
+        sync_returned = True
 
-    thread.join()
+        thread.join()
     assert allow_finish.is_set()
     assert not error
