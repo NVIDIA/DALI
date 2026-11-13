@@ -15,6 +15,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <cstdlib>
 #include <exception>
 #include <functional>
 #include <limits>
@@ -28,6 +29,7 @@
 #include <vector>
 
 #include "dali/core/boundary.h"
+#include "dali/core/cuda_event.h"
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/exec/thread_pool_base.h"
@@ -130,10 +132,9 @@ struct VideoSample : public VideoSampleDesc {
     data_.set_pinned(std::is_same_v<Backend, GPUBackend>);
   }
 
-  // to be filled by Prefetch
+  // the decoded frames, filled by Prefetch (the CPU backend, and the GPU one with the old copying
+  // path)
   Tensor<Backend> data_;
-  std::vector<double> timestamps_;
-  std::vector<int32_t> frame_idx_;
 };
 
 enum class FileListFormat {
@@ -498,6 +499,9 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         continue;
       const FrameIndex &index = *file_index.index;
       indices_[entry.filename] = file_index.index;  // kept for the reader's lifetime
+      // the decoder reads the same codec parameters: the reader sizes its output with these
+      entry.height = file_index.height;
+      entry.width = file_index.width;
       int64_t num_frames = index.size();
       // The range is resolved in 64 bits, and stored in the (int) fields of the entry only once
       // it is within the frames of the video.
@@ -738,6 +742,18 @@ class VideoReaderDecoder
                  make_string("Invalid image_type: ", image_type_));
 
     constant_frame_.set_pinned(std::is_same_v<Backend, GPUBackend>);
+
+    slots_.resize(this->prefetch_queue_depth_);
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      const char *copy_env = std::getenv("DALI_VIDEO_READER_COPY_OUTPUTS");
+      bool copy_outputs = copy_env && std::atoi(copy_env) != 0;
+      // without a stream of its own, the reader decodes on the default stream (old drivers)
+      zero_copy_ = cuda_stream_ && !copy_outputs;
+      if (zero_copy_) {
+        for (auto &slot : slots_)
+          slot.ready = CUDAEvent::CreateWithFlags(cudaEventDisableTiming, this->device_id_);
+      }
+    }
   }
 
   ~VideoReaderDecoder() override {
@@ -770,100 +786,48 @@ class VideoReaderDecoder
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
     Base::SetupImpl(output_desc, ws);
-    output_desc.reserve(4);
-    int batch_size = GetCurrBatchSize();
-    TensorListShape<4> video_shape(batch_size);
-    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      auto &sample = GetSample(sample_id);
-      video_shape.set_tensor_shape(sample_id, sample.data_.shape());
-    }
-    output_desc.push_back({video_shape, DALI_UINT8});
-
-    if (has_labels_) {
-      TensorListShape<1> label_shape = uniform_list_shape<1>(batch_size, {1});
-      output_desc.push_back({label_shape, DALI_INT32});
-    }
-
-    if (frame_num_policy_ == FrameNumPolicy::Scalar) {
-      TensorListShape<1> frame_idx_shape = uniform_list_shape<1>(batch_size, {1});
-      output_desc.push_back({frame_idx_shape, DALI_INT32});
-    } else if (frame_num_policy_ == FrameNumPolicy::Sequence) {
-      TensorListShape<1> frame_idx_shape(batch_size);
-      for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-        auto num_frames = GetSample(sample_id).data_.shape()[0];
-        frame_idx_shape.set_tensor_shape(sample_id, {num_frames});
-      }
-      output_desc.push_back({frame_idx_shape, DALI_INT32});
-    }
-
-    if (has_timestamps_) {
-      TensorListShape<1> timestamps_shape(batch_size);
-      for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-        auto &sample = GetSample(sample_id);
-        auto num_frames = sample.data_.shape()[0];
-        timestamps_shape.set_tensor_shape(sample_id, {num_frames});
-      }
-      output_desc.push_back({timestamps_shape, DALI_FLOAT64});
-    }
-    return true;
-  }
-
-  template <typename T>
-  void OutputMetadata(Workspace &ws, int out_idx,
-                      std::function<span<const T>(const VideoSample<Backend>&)> get_values) {
-    auto &output = ws.Output<Backend>(out_idx);
-    int batch_size = output.num_samples();
-    DALI_ENFORCE(output.IsContiguousInMemory(), "Output must be contiguous in memory");
-    auto output_as_tensor = output.AsTensor();
-
-    auto copy_data = [&](T* data) {
-      for (int sample_id = 0; sample_id < batch_size; ++sample_id)
-        for (auto &elem : get_values(GetSample(sample_id)))
-          *data++ = elem;
-    };
-
-    if constexpr (std::is_same_v<Backend, GPUBackend>) {
-      auto data = mm::alloc_raw_async_unique<T, mm::memory_kind::pinned>(
-        output_as_tensor.shape().num_elements(), nullptr, ws.stream());
-      copy_data(data.get());
-      CUDA_CALL(cudaMemcpyAsync(output_as_tensor.template mutable_data<T>(), data.get(),
-                                output_as_tensor.shape().num_elements() * sizeof(T),
-                                cudaMemcpyHostToDevice, ws.stream()));
-    } else {
-      copy_data(output_as_tensor.template mutable_data<T>());
-    }
+    FillOutputDesc(output_desc, CurrSlot());
+    // When decoding into the output batch (zero_copy_), RunImpl provides all the outputs.
+    return !zero_copy_;
   }
 
   void RunImpl(Workspace &ws) override {
-    auto &video_output = ws.Output<Backend>(0);
-    int batch_size = GetCurrBatchSize();
-
-    video_output.SetLayout("FHWC");
-    AccessOrder order = std::is_same_v<Backend, GPUBackend> ? ws.stream() : AccessOrder::host();
-    for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
-      auto &sample = GetSample(sample_id);
-      video_output.CopySample(sample_id, sample.data_, order);
+    auto &slot = CurrSlot();
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      if (zero_copy_)
+        PublishBatch(ws, slot);
+    }
+    if (!zero_copy_) {
+      auto &video_output = ws.Output<Backend>(0);
+      int batch_size = GetCurrBatchSize();
+      video_output.SetLayout("FHWC");
+      AccessOrder order =
+          std::is_same_v<Backend, GPUBackend> ? ws.stream() : AccessOrder::host();
+      for (int sample_id = 0; sample_id < batch_size; ++sample_id) {
+        auto &sample = GetSample(sample_id);
+        video_output.CopySample(sample_id, sample.data_, order);
+      }
     }
 
     // Copy optional metadata outputs
     int out_index = 1;
     if (has_labels_) {
-      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
-        return make_cspan(&s.video_file_meta_->label, 1);
+      OutputMetadata<int32_t>(ws, out_index++, slot, [](const SampleMeta &m) {
+        return make_cspan(&m.label, 1);
       });
     }
     if (frame_num_policy_ == FrameNumPolicy::Scalar) {
-      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
-        return make_cspan(&s.start_, 1);
+      OutputMetadata<int32_t>(ws, out_index++, slot, [](const SampleMeta &m) {
+        return make_cspan(&m.start, 1);
       });
     } else if (frame_num_policy_ == FrameNumPolicy::Sequence) {
-      OutputMetadata<int32_t>(ws, out_index++, [](auto &s) {
-        return make_cspan(s.frame_idx_);
+      OutputMetadata<int32_t>(ws, out_index++, slot, [](const SampleMeta &m) {
+        return make_cspan(m.frame_idx);
       });
     }
     if (has_timestamps_) {
-      OutputMetadata<double>(ws, out_index++, [](auto &s) {
-        return make_cspan(s.timestamps_);
+      OutputMetadata<double>(ws, out_index++, slot, [](const SampleMeta &m) {
+        return make_cspan(m.timestamps);
       });
     }
   }
@@ -879,131 +843,346 @@ class VideoReaderDecoder
   void Prefetch() override {
     Base::Prefetch();
     auto &current_batch = prefetched_batch_queue_[curr_batch_producer_];
-    size_t i = 0;
-    for (auto &sample : current_batch) {
-      LOG_LINE << "Processing sample " << i++ << " with filename " << sample->video_file_meta_->filename
-               << " and previous decoder " << decoder_.get() << " filename "
-               << (decoder_ ? decoder_->Filename() : "none") << std::endl;
-      auto prev_filename = decoder_ ? decoder_->Filename() : "";
-      const auto &filename = sample->video_file_meta_->filename;
-      if (prev_filename != filename) {
-        if constexpr (std::is_same_v<Backend, CPUBackend>) {
-          decoder_ = std::make_unique<FramesDecoderImpl>(filename, image_type_);
-        } else {
-          decoder_ = std::make_unique<FramesDecoderImpl>(filename, cuda_stream_, image_type_);
-        }
-        LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_.get()
-                 << " num_frames: " << decoder_->NumFrames() << std::endl;
-        // the index the reader was set up with (the file is not indexed again, even if it changed)
-        auto *index = FileIndex(filename);
-        DALI_ENFORCE(index, make_string("Internal error: no frame index for \"", filename, "\"."));
-        if (!decoder_->HasIndex())
-          decoder_->SetIndex(*index);
-      } else {
-        LOG_LINE << "Reusing decoder for " << decoder_->Filename() << " ptr: " << decoder_.get()
-                 << " num_frames: " << decoder_->NumFrames() << std::endl;
-      }
-      DALI_ENFORCE(decoder_->IsValid(),
-                   make_string("Invalid decoder for filename ", filename));
+    auto &slot = slots_[curr_batch_producer_];
+    int batch_size = current_batch.size();
+    slot.ready_recorded = false;
+    slot.meta.resize(batch_size);
+    slot.shape.resize(batch_size);
 
-      int64_t num_frames = sample->frame_idxs_.empty()
-          ? (static_cast<int64_t>(sample->end_) - sample->start_ + sample->stride_ - 1) /
-                sample->stride_
-          : static_cast<int64_t>(sample->frame_idxs_.size());
-      sample->data_.Resize(
-          {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()}, DALI_UINT8);
-      sample->data_.SetSourceInfo(decoder_->Filename());
-      sample->data_.SetLayout("FHWC");
+    // A sample can appear more than once in a batch (the padding of the last batch repeats the
+    // last sample): it is decoded once, and the others are copies.
+    slot.src_idx.resize(batch_size);
+    first_occurrence_.clear();
+    for (int i = 0; i < batch_size; i++)
+      slot.src_idx[i] = first_occurrence_.emplace(current_batch[i].get(), i).first->second;
 
-      const uint8_t *constant_frame =
-          boundary_type_ == boundary::BoundaryType::CONSTANT ?
-              ConstantFrame(constant_frame_, decoder_->FrameShape(), make_cspan(fill_value_),
-                            cuda_stream_, true) :
-              nullptr;
-      if (has_timestamps_) {
-        sample->timestamps_.resize(num_frames);
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      if (zero_copy_)
+        AllocateBatchBuffer(slot, current_batch);
+    }
+
+    for (int i = 0; i < batch_size; i++) {
+      if (slot.src_idx[i] != i)
+        continue;
+      auto &sample = *current_batch[i];
+      LOG_LINE << "Processing sample " << i << " with filename "
+               << sample.video_file_meta_->filename << " and previous decoder " << decoder_.get()
+               << " filename " << (decoder_ ? decoder_->Filename() : "none") << std::endl;
+      OpenDecoder(sample.video_file_meta_->filename);
+      int64_t num_frames = NumFrames(sample);
+      uint8_t *out = nullptr;
+      if (zero_copy_) {
+        auto expected = slot.shape.tensor_shape(i);
+        DALI_ENFORCE(expected == decoder_->Shape(num_frames),
+                     make_string("The frames of \"", decoder_->Filename(), "\" have the shape ",
+                                 decoder_->Shape(num_frames), ", but the shape was ", expected,
+                                 " when the reader indexed the file. The file was probably "
+                                 "modified after the reader was created: create the pipeline "
+                                 "again to index it."));
+        out = static_cast<uint8_t *>(slot.data.raw_mutable_tensor(i));
       } else {
-        sample->timestamps_.clear();
+        sample.data_.Resize(decoder_->Shape(num_frames), DALI_UINT8);
+        sample.data_.SetSourceInfo(decoder_->Filename());
+        sample.data_.SetLayout("FHWC");
+        slot.shape.set_tensor_shape(i, sample.data_.shape());
+        out = sample.data_.template mutable_data<uint8_t>();
       }
-      if (!sample->frame_idxs_.empty()) {
-        LOG_LINE << "Decoding frames (uniform) num_frames=" << num_frames
-                 << ", frame_idxs=[" << sample->frame_idxs_.front() << ".."
-                 << sample->frame_idxs_.back() << "]"
-                 << ", filename=" << sample->video_file_meta_->filename
-                 << ", label=" << sample->video_file_meta_->label
-                 << ", boundary_type=" << to_string(boundary_type_) << std::endl;
-      } else {
-        LOG_LINE << "Decoding frames start=" << sample->start_ << ", end=" << sample->end_
-                 << ", stride=" << sample->stride_ << ", num_frames=" << num_frames
-                 << ", filename=" << sample->video_file_meta_->filename
-                 << ", label=" << sample->video_file_meta_->label
-                 << ", start=" << sample->video_file_meta_->start_frame
-                 << ", end=" << sample->video_file_meta_->end_frame
-                 << ", boundary_type=" << to_string(boundary_type_) << std::endl;
-      }
-      int roi_start = sample->video_file_meta_->start_frame;
-      int roi_end = sample->video_file_meta_->end_frame;
-      if (frame_num_policy_ == FrameNumPolicy::Sequence) {
-        sample->frame_idx_.resize(num_frames);
-        if (!sample->frame_idxs_.empty()) {
-          // Uniform indices are always within [roi_start, roi_end-1], so HandleBoundary
-          // is a no-op here — but we call it for consistency with the stride path below.
-          for (int64_t i = 0; i < num_frames; ++i) {
-            sample->frame_idx_[i] = static_cast<int32_t>(decoder_->HandleBoundary(
-                boundary_type_, sample->frame_idxs_[i], roi_start, roi_end));
-          }
-        } else {
-          for (int64_t i = 0; i < num_frames; ++i) {
-            sample->frame_idx_[i] = static_cast<int32_t>(decoder_->HandleBoundary(
-                boundary_type_,
-                static_cast<int>(sample->start_ + i * sample->stride_),
-                roi_start, roi_end));
-          }
-        }
-      } else {
-        sample->frame_idx_.clear();
-      }
-      if (!sample->frame_idxs_.empty()) {
-        // Uniform sampling: explicit frame indices already include ROI offset (start_frame)
-        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(),
-                               make_cspan(sample->frame_idxs_), boundary_type_, constant_frame,
-                               make_span(sample->timestamps_));
-      } else if (roi_start != 0 || roi_end != decoder_->NumFrames()) {
-        frame_idxs_.clear();
-        for (int64_t frame_idx = sample->start_; frame_idx < sample->end_;
-             frame_idx += sample->stride_) {
-          frame_idxs_.push_back(decoder_->HandleBoundary(
-              boundary_type_, static_cast<int>(frame_idx), roi_start, roi_end));
-        }
-        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(),
-                               make_cspan(frame_idxs_), boundary_type_, constant_frame,
-                               make_span(sample->timestamps_));
-      } else {
-        decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(), sample->start_,
-                               sample->end_, sample->stride_, boundary_type_, constant_frame,
-                               make_span(sample->timestamps_));
-      }
+      DecodeSample(sample, num_frames, out, slot.meta[i]);
       LOG_LINE << "Decoding frames done" << std::endl;
     }
 
-    if (cuda_stream_) {
-      CUDA_CALL(cudaStreamSynchronize(cuda_stream_.get()));
+    for (int i = 0; i < batch_size; i++) {
+      int src = slot.src_idx[i];
+      if (src == i)
+        continue;
+      slot.meta[i] = slot.meta[src];
+      slot.shape.set_tensor_shape(i, slot.shape.tensor_shape(src));
+      if constexpr (std::is_same_v<Backend, GPUBackend>) {
+        if (zero_copy_) {
+          // each sample of the output has a buffer of its own
+          CUDA_CALL(cudaMemcpyAsync(slot.data.raw_mutable_tensor(i), slot.data.raw_tensor(src),
+                                    slot.shape.tensor_size(i), cudaMemcpyDeviceToDevice,
+                                    cuda_stream_.get()));
+        }
+      }
+    }
+
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      if (zero_copy_) {
+        // RunImpl orders its stream after this event: no host synchronization here
+        CUDA_CALL(cudaEventRecord(slot.ready, cuda_stream_.get()));
+        slot.ready_recorded = true;
+      } else if (cuda_stream_) {
+        CUDA_CALL(cudaStreamSynchronize(cuda_stream_.get()));
+      }
     }
     LOG_LINE << "Prefetch done" << std::endl;
   }
 
+ protected:
+  bool ShouldSyncBeforeRecycle() const override {
+    // With zero_copy_, nothing that RunImpl issues on the workspace's stream reads the samples.
+    return !zero_copy_;
+  }
+
  private:
+  /** The per-sample values of the metadata outputs. */
+  struct SampleMeta {
+    std::string source_info;
+    int32_t label = 0;
+    int32_t start = 0;
+    std::vector<int32_t> frame_idx;
+    std::vector<double> timestamps;
+  };
+
+  /**
+   * @brief The state of one batch of the prefetch queue.
+   *
+   * It is kept here, not in the samples, because a sample object can be in two batches of the
+   * queue at once (a batch made only of the padding of the shard repeats the last sample of the
+   * previous batch).
+   */
+  struct BatchSlot {
+    std::vector<SampleMeta> meta;
+    TensorListShape<4> shape;
+    std::vector<int> src_idx;  // the index of the sample's first occurrence in the batch
+    // zero_copy_ only: the output batch, decoded on cuda_stream_ and complete at `ready`
+    TensorList<GPUBackend> data;
+    CUDAEvent ready;
+    bool ready_recorded = false;
+  };
+
+  BatchSlot &CurrSlot() {
+    return slots_[this->curr_batch_consumer_];
+  }
+
+  int64_t NumFrames(const VideoSampleDesc &sample) const {
+    return sample.frame_idxs_.empty()
+               ? (static_cast<int64_t>(sample.end_) - sample.start_ + sample.stride_ - 1) /
+                     sample.stride_
+               : static_cast<int64_t>(sample.frame_idxs_.size());
+  }
+
+  void FillOutputDesc(std::vector<OutputDesc> &output_desc, const BatchSlot &slot) const {
+    output_desc.clear();
+    output_desc.reserve(4);
+    int batch_size = slot.shape.num_samples();
+    output_desc.push_back({slot.shape, DALI_UINT8});
+
+    if (has_labels_) {
+      TensorListShape<1> label_shape = uniform_list_shape<1>(batch_size, {1});
+      output_desc.push_back({label_shape, DALI_INT32});
+    }
+
+    if (frame_num_policy_ == FrameNumPolicy::Scalar) {
+      TensorListShape<1> frame_idx_shape = uniform_list_shape<1>(batch_size, {1});
+      output_desc.push_back({frame_idx_shape, DALI_INT32});
+    } else if (frame_num_policy_ == FrameNumPolicy::Sequence) {
+      TensorListShape<1> frame_idx_shape(batch_size);
+      for (int sample_id = 0; sample_id < batch_size; ++sample_id)
+        frame_idx_shape.set_tensor_shape(sample_id, {slot.shape.tensor_shape_span(sample_id)[0]});
+      output_desc.push_back({frame_idx_shape, DALI_INT32});
+    }
+
+    if (has_timestamps_) {
+      TensorListShape<1> timestamps_shape(batch_size);
+      for (int sample_id = 0; sample_id < batch_size; ++sample_id)
+        timestamps_shape.set_tensor_shape(sample_id,
+                                          {slot.shape.tensor_shape_span(sample_id)[0]});
+      output_desc.push_back({timestamps_shape, DALI_FLOAT64});
+    }
+  }
+
+  template <typename T>
+  void OutputMetadata(Workspace &ws, int out_idx, const BatchSlot &slot,
+                      span<const T> (*get_values)(const SampleMeta &)) {
+    auto &output = ws.Output<Backend>(out_idx);
+    int batch_size = output.num_samples();
+    DALI_ENFORCE(output.IsContiguousInMemory(), "Output must be contiguous in memory");
+    auto output_as_tensor = output.AsTensor();
+
+    auto copy_data = [&](T* data) {
+      for (int sample_id = 0; sample_id < batch_size; ++sample_id)
+        for (auto &elem : get_values(slot.meta[sample_id]))
+          *data++ = elem;
+    };
+
+    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+      auto data = mm::alloc_raw_async_unique<T, mm::memory_kind::pinned>(
+        output_as_tensor.shape().num_elements(), nullptr, ws.stream());
+      copy_data(data.get());
+      CUDA_CALL(cudaMemcpyAsync(output_as_tensor.template mutable_data<T>(), data.get(),
+                                output_as_tensor.shape().num_elements() * sizeof(T),
+                                cudaMemcpyHostToDevice, ws.stream()));
+    } else {
+      copy_data(output_as_tensor.template mutable_data<T>());
+    }
+  }
+
+  /**
+   * @brief Allocates the batch that Prefetch decodes into and RunImpl returns as the output.
+   *
+   * The shapes come from the files' metadata, so that the batch is allocated before decoding.
+   * A new buffer every time: a published batch is owned by its consumers, and the buffer that
+   * the executor swapped in was released in its own order (never written to).
+   */
+  void AllocateBatchBuffer(BatchSlot &slot,
+                           const std::vector<std::shared_ptr<VideoSample<Backend>>> &batch) {
+    for (int i = 0; i < static_cast<int>(batch.size()); i++) {
+      const auto &sample = *batch[i];
+      const auto *meta = sample.video_file_meta_;
+      slot.shape.set_tensor_shape(i, TensorShape<4>{NumFrames(sample), meta->height, meta->width,
+                                                    kNumChannels});
+    }
+    slot.data.Reset();
+    slot.data.set_device_id(this->device_id_);
+    slot.data.set_order(AccessOrder(cuda_stream_.get()));
+    slot.data.Resize(slot.shape, DALI_UINT8, BatchContiguity::Contiguous);
+    slot.data.SetLayout("FHWC");
+  }
+
+  /**
+   * @brief Returns the decoded batch as output 0, without copying it, and sizes the metadata
+   *        outputs (SetupImpl did not request them).
+   */
+  void PublishBatch(Workspace &ws, BatchSlot &slot) {
+    DALI_ENFORCE(slot.ready_recorded, "Internal error: the batch was not decoded.");
+    auto &video_output = ws.Output<GPUBackend>(0);
+    CUDA_CALL(cudaStreamWaitEvent(ws.stream(), slot.ready, 0));
+    std::swap(video_output, slot.data);
+    // From now on, the batch is used (and eventually freed) in the order of the consumers.
+    video_output.set_order(ws.output_order(), false);
+    video_output.SetLayout("FHWC");
+    for (int i = 0; i < video_output.num_samples(); i++)
+      video_output.SetSourceInfo(i, slot.meta[i].source_info);
+    // What the executor gave us is not written to: it is released in its own order.
+    slot.data.Reset();
+    slot.ready_recorded = false;
+
+    std::vector<OutputDesc> output_desc;
+    FillOutputDesc(output_desc, slot);
+    for (int o = 1; o < ws.NumOutput(); o++) {
+      ws.Output<GPUBackend>(o).Resize(output_desc[o].shape, output_desc[o].type,
+                                      BatchContiguity::Contiguous);
+    }
+  }
+
+  /** Makes decoder_ a decoder of `filename`, reusing the current one if it is of that file. */
+  void OpenDecoder(const std::string &filename) {
+    auto prev_filename = decoder_ ? decoder_->Filename() : "";
+    if (prev_filename != filename) {
+      if constexpr (std::is_same_v<Backend, CPUBackend>) {
+        decoder_ = std::make_unique<FramesDecoderImpl>(filename, image_type_);
+      } else {
+        decoder_ = std::make_unique<FramesDecoderImpl>(filename, cuda_stream_, image_type_);
+      }
+      LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_.get()
+               << " num_frames: " << decoder_->NumFrames() << std::endl;
+      // the index the reader was set up with (the file is not indexed again, even if it changed)
+      auto *index = FileIndex(filename);
+      DALI_ENFORCE(index, make_string("Internal error: no frame index for \"", filename, "\"."));
+      if (!decoder_->HasIndex())
+        decoder_->SetIndex(*index);
+    } else {
+      LOG_LINE << "Reusing decoder for " << decoder_->Filename() << " ptr: " << decoder_.get()
+               << " num_frames: " << decoder_->NumFrames() << std::endl;
+    }
+    DALI_ENFORCE(decoder_->IsValid(), make_string("Invalid decoder for filename ", filename));
+  }
+
+  /** Decodes the frames of `sample` with decoder_ to `out`, and fills its metadata. */
+  void DecodeSample(const VideoSampleDesc &sample, int64_t num_frames, uint8_t *out,
+                    SampleMeta &meta) {
+    meta.source_info = decoder_->Filename();
+    meta.label = sample.video_file_meta_->label;
+    meta.start = sample.start_;
+    const uint8_t *constant_frame =
+        boundary_type_ == boundary::BoundaryType::CONSTANT ?
+            ConstantFrame(constant_frame_, decoder_->FrameShape(), make_cspan(fill_value_),
+                          cuda_stream_, true) :
+            nullptr;
+    if (has_timestamps_) {
+      meta.timestamps.resize(num_frames);
+    } else {
+      meta.timestamps.clear();
+    }
+    if (!sample.frame_idxs_.empty()) {
+      LOG_LINE << "Decoding frames (uniform) num_frames=" << num_frames
+               << ", frame_idxs=[" << sample.frame_idxs_.front() << ".."
+               << sample.frame_idxs_.back() << "]"
+               << ", filename=" << sample.video_file_meta_->filename
+               << ", label=" << sample.video_file_meta_->label
+               << ", boundary_type=" << to_string(boundary_type_) << std::endl;
+    } else {
+      LOG_LINE << "Decoding frames start=" << sample.start_ << ", end=" << sample.end_
+               << ", stride=" << sample.stride_ << ", num_frames=" << num_frames
+               << ", filename=" << sample.video_file_meta_->filename
+               << ", label=" << sample.video_file_meta_->label
+               << ", start=" << sample.video_file_meta_->start_frame
+               << ", end=" << sample.video_file_meta_->end_frame
+               << ", boundary_type=" << to_string(boundary_type_) << std::endl;
+    }
+    int roi_start = sample.video_file_meta_->start_frame;
+    int roi_end = sample.video_file_meta_->end_frame;
+    if (frame_num_policy_ == FrameNumPolicy::Sequence) {
+      meta.frame_idx.resize(num_frames);
+      if (!sample.frame_idxs_.empty()) {
+        // Uniform indices are always within [roi_start, roi_end-1], so HandleBoundary
+        // is a no-op here — but we call it for consistency with the stride path below.
+        for (int64_t i = 0; i < num_frames; ++i) {
+          meta.frame_idx[i] = static_cast<int32_t>(decoder_->HandleBoundary(
+              boundary_type_, sample.frame_idxs_[i], roi_start, roi_end));
+        }
+      } else {
+        for (int64_t i = 0; i < num_frames; ++i) {
+          meta.frame_idx[i] = static_cast<int32_t>(decoder_->HandleBoundary(
+              boundary_type_,
+              static_cast<int>(sample.start_ + i * sample.stride_),
+              roi_start, roi_end));
+        }
+      }
+    } else {
+      meta.frame_idx.clear();
+    }
+    if (!sample.frame_idxs_.empty()) {
+      // Uniform sampling: explicit frame indices already include ROI offset (start_frame)
+      decoder_->DecodeFrames(out, make_cspan(sample.frame_idxs_), boundary_type_, constant_frame,
+                             make_span(meta.timestamps));
+    } else if (roi_start != 0 || roi_end != decoder_->NumFrames()) {
+      frame_idxs_.clear();
+      for (int64_t frame_idx = sample.start_; frame_idx < sample.end_;
+           frame_idx += sample.stride_) {
+        frame_idxs_.push_back(decoder_->HandleBoundary(
+            boundary_type_, static_cast<int>(frame_idx), roi_start, roi_end));
+      }
+      decoder_->DecodeFrames(out, make_cspan(frame_idxs_), boundary_type_, constant_frame,
+                             make_span(meta.timestamps));
+    } else {
+      decoder_->DecodeFrames(out, sample.start_, sample.end_, sample.stride_, boundary_type_,
+                             constant_frame, make_span(meta.timestamps));
+    }
+  }
+
+  static constexpr int kNumChannels = 3;
+
   FrameNumPolicy frame_num_policy_;
   bool has_timestamps_;
   boundary::BoundaryType boundary_type_;
   DALIImageType image_type_;
   std::vector<uint8_t> fill_value_;
   bool has_labels_ = false;
+  // GPU: decode into the output batch, instead of into the samples and copying them to the
+  // output (DALI_VIDEO_READER_COPY_OUTPUTS=1 restores the copy; internal, for comparisons)
+  bool zero_copy_ = false;
 
   Tensor<Backend> constant_frame_;
   CUDAStreamLease cuda_stream_;
   std::unique_ptr<FramesDecoderImpl> decoder_;  // keeping one decoder open.
   std::vector<int> frame_idxs_;
+  std::unordered_map<const void *, int> first_occurrence_;
+  // one per batch of the prefetch queue; declared after cuda_stream_, so that their buffers are
+  // released (in that stream's order) before the stream is
+  std::vector<BatchSlot> slots_;
 };
 
 DALI_SCHEMA(experimental__readers__Video)

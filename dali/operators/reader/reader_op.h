@@ -230,7 +230,8 @@ class DataReader : public Operator<Backend> {
   void RunBackend(Workspace &ws, bool validate_metadata, GPUBackend) {
     // Consume batch
     Operator<Backend>::Run(ws, validate_metadata);
-    CUDA_CALL(cudaStreamSynchronize(ws.stream()));
+    if (ShouldSyncBeforeRecycle())
+      CUDA_CALL(cudaStreamSynchronize(ws.stream()));
     // clear samples from the current batch so they can be recycled
     ClearCurentBatch();
 
@@ -274,6 +275,18 @@ class DataReader : public Operator<Backend> {
   }
 
  protected:
+  /**
+   * @brief Whether the GPU reader waits for the work issued in Run (on the workspace's stream)
+   *        to complete before the samples of the batch are recycled.
+   *
+   * Needed when that work reads the memory of the samples (e.g. copies it to the output),
+   * as a recycled sample can be overwritten by the next Prefetch. A reader whose GPU work in
+   * Run does not read the samples' memory can return false.
+   */
+  virtual bool ShouldSyncBeforeRecycle() const {
+    return true;
+  }
+
   int SnapshotQueueDepth() {
     // we keep the snapshots of loader state after producing each of `prefetch_queue_depth_`
     // batches + 1 snapshot before that.
