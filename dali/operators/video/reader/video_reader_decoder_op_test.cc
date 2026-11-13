@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <limits>
+#include <string>
 #include <opencv2/core.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
@@ -45,6 +47,36 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
 
   template<typename Backend>
   int GetFrameIdx(dali::TensorList<Backend> &device_frame_idx);
+
+  // A huge (but valid) step and stride must not overflow the frame arithmetic of the sample loop,
+  // of Prefetch or of the full-video decoding path (FramesDecoderBase::DecodeFrames): exactly one
+  // sample (starting at frame 0, with a single frame) fits per file, and it is the first frame of
+  // the video. Without the decoding fix, the frame count wraps to 0 and nothing is decoded, so the
+  // pixels are compared too, not just the shape.
+  template<typename Backend>
+  void RunHugeStrideAndStepTest(
+        const std::string &filename,
+        TestVideo &ground_truth,
+        const std::string &backend,
+        int device_id) {
+    Pipeline pipe(1, 1, device_id);
+    pipe.AddOperator(OpSpec("experimental__readers__Video")
+      .AddArg("device", backend)
+      .AddArg("sequence_length", 1)
+      .AddArg("stride", std::numeric_limits<int>::max())
+      .AddArg("step", std::numeric_limits<int>::max())
+      .AddArg("pad_mode", "constant")
+      .AddArg("filenames", std::vector<std::string>{filename})
+      .AddOutput("frames", ParseStorageDevice(backend)), "r");
+    pipe.Build({{"frames", backend}});
+    EXPECT_EQ(pipe.GetReaderMeta("r").epoch_size, 1);
+    pipe.Run();
+    Workspace ws;
+    pipe.Outputs(&ws);
+    auto &frames = ws.Output<Backend>(0);
+    ASSERT_EQ(frames.shape()[0][0], 1);
+    AssertFrame(0, frames.template tensor<uint8_t>(0), ground_truth);
+  }
 
  private:
   template<typename Backend>
@@ -277,6 +309,30 @@ TEST_F(VideoReaderDecoderGpuTest, RandomShuffle) {
 }
 
 class VideoReaderDecoderCompareTest : public VideoTestBase {};
+
+// stride * sequence_length (the sequence extent and default step) must fit in int: before the
+// fix, sequence_length=stride=65536 wrapped the default step to 0 and PrepareMetadataImpl looped
+// forever.
+TEST_F(VideoReaderDecoderCpuTest, SequenceExtentOverflowIsError_CpuOnlyTests) {
+  Pipeline pipe(1, 1, CPU_ONLY_DEVICE_ID);
+  pipe.AddOperator(OpSpec("experimental__readers__Video")
+    .AddArg("device", "cpu")
+    .AddArg("sequence_length", 65536)
+    .AddArg("stride", 65536)
+    .AddArg("filenames", std::vector<std::string>{cfr_videos_paths_[0]})
+    .AddOutput("frames", StorageDevice::CPU), "r");
+  RunFailureTest([&]() -> void { pipe.Build({{"frames", "cpu"}}); },
+                 "stride * sequence_length");
+}
+
+TEST_F(VideoReaderDecoderCpuTest, HugeStrideAndStep_CpuOnlyTests) {
+  RunHugeStrideAndStepTest<dali::CPUBackend>(
+      cfr_videos_paths_[0], cfr_videos_[0], "cpu", CPU_ONLY_DEVICE_ID);
+}
+
+TEST_F(VideoReaderDecoderGpuTest, HugeStrideAndStep) {
+  RunHugeStrideAndStepTest<dali::GPUBackend>(cfr_videos_paths_[0], cfr_videos_[0], "gpu", 0);
+}
 
 TEST_F(VideoReaderDecoderCompareTest, CompareReaders) {
   const int batch_size = 4;
