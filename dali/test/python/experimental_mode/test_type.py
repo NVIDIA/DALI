@@ -166,3 +166,32 @@ def test_type_significand_bits():
     assert ndd.float16.significand_bits == 10
     assert ndd.float32.significand_bits == 23
     assert ndd.float64.significand_bits == 52
+
+
+def test_explicit_zero_float_field_is_not_replaced_with_the_default():
+    # A written 0 used to be treated as missing, so these came back as float32 and float16.
+    cases = {
+        "f32e8m0": "Invalid number of significand bits: 0",
+        "f16e0m10": "Invalid number of exponent bits: 0",
+    }
+    for name, message in cases.items():
+        try:
+            parsed = ndd.dtype(name)
+        except ValueError as err:
+            if message not in str(err):
+                raise AssertionError(f"{name} raised {err!r}, want {message}") from err
+            continue
+        raise AssertionError(
+            f"{name} was accepted as {parsed.name} "
+            f"(exponent {parsed.exponent_bits}, significand {parsed.significand_bits})"
+        )
+
+
+def test_rejected_float_alias_does_not_drop_bfloat16():
+    for _ in range(2):
+        try:
+            ndd.dtype("f16e8m7")
+        except ValueError:
+            continue
+        raise AssertionError("f16e8m7 was accepted")
+    assert ndd.dtype("bfloat16") is ndd.bfloat16
