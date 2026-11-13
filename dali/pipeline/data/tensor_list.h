@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -589,6 +589,11 @@ class DLL_PUBLIC TensorList {
    * @brief Set source information for given sample
    */
   void SetSourceInfo(int idx, const std::string &source_info);
+
+  /**
+   * @brief Set the key used to identify the sample in the decoded image cache
+   */
+  void SetCacheKey(int idx, const std::string &cache_key);
 
   /**
    * @brief Get the metadata for given sample

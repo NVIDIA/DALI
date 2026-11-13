@@ -695,6 +695,11 @@ void TensorList<Backend>::SetSourceInfo(int idx, const std::string &source_info)
 }
 
 template <typename Backend>
+void TensorList<Backend>::SetCacheKey(int idx, const std::string &cache_key) {
+  tensors_[idx].SetCacheKey(cache_key);
+}
+
+template <typename Backend>
 const DALIMeta &TensorList<Backend>::GetMeta(int idx) const {
   assert(idx < curr_num_tensors_);
   return tensors_[idx].GetMeta();

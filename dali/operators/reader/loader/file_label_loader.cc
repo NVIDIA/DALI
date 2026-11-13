@@ -105,12 +105,16 @@ void FileLabelLoaderBase<checkpointing_supported>::ReadSample(ImageLabelWrapper 
 
   // copy the label
   image_label.label = GetLabel(entry);
+  auto path = filesystem::join_path(file_root_, entry.filename);
   DALIMeta meta;
   meta.SetSourceInfo(entry.filename);
+  // The decoded image cache is shared between pipelines. The name relative to `file_root` is not
+  // enough to identify the file there - the same relative name can exist under many roots.
+  meta.SetCacheKey(path);
   meta.SetSkipSample(false);
 
   // if image is cached, skip loading
-  if (ShouldSkipImage(entry.filename)) {
+  if (ShouldSkipImage(path)) {
     meta.SetSkipSample(true);
     image_label.image.Reset();
     image_label.image.SetMeta(meta);
@@ -118,7 +122,6 @@ void FileLabelLoaderBase<checkpointing_supported>::ReadSample(ImageLabelWrapper 
     return;
   }
 
-  auto path = filesystem::join_path(file_root_, entry.filename);
   FileStream::Options opts;
   opts.read_ahead = read_ahead_;
   opts.use_mmap = !copy_read_data_;
