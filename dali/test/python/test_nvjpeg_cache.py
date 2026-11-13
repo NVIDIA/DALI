@@ -17,6 +17,7 @@ import tempfile
 
 import numpy as np
 from PIL import Image
+from nvidia.dali import fn, pipeline_def
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -86,31 +87,35 @@ def test_nvjpeg_cached(decoder_type):
         compare(ref_images, out_images)
 
 
-def _make_dataset(root, color, size):
-    """Creates a one-image dataset with the same relative file name for every `root`."""
+def _make_dataset(root, images):
+    """Creates a dataset with `images`: {name: (color, (height, width))} in a single class."""
     class_dir = os.path.join(root, "class0")
     os.makedirs(class_dir)
-    img = np.empty((*size, 3), dtype=np.uint8)
-    img[:] = color
-    Image.fromarray(img).save(os.path.join(class_dir, "shared.png"))
-    return img
+    refs = {}
+    for name, (color, size) in images.items():
+        img = np.empty((*size, 3), dtype=np.uint8)
+        img[:] = color
+        Image.fromarray(img).save(os.path.join(class_dir, name))
+        refs[name] = img
+    return refs
 
 
-def _cached_pipeline(root, decoder_type):
-    pipe = Pipeline(batch_size=1, num_threads=1, device_id=0, seed=seed)
-    decoders = ops.experimental.decoders if "experimental" in decoder_type else ops.decoders
-    with pipe:
-        jpegs, _ = ops.readers.File(file_root=root)()
-        images = decoders.Image(
-            device="mixed",
-            output_type=types.RGB,
-            cache_size=16,
-            cache_type="threshold",
-            cache_threshold=0,
-        )(jpegs)
-        pipe.set_outputs(images)
-    pipe.build()
-    return pipe
+@pipeline_def(batch_size=1, num_threads=1, device_id=0, seed=seed)
+def _cached_pipeline(root, decoder_type, batch_permutation=None):
+    encoded, _ = fn.readers.file(file_root=root)
+    if batch_permutation is not None:
+        encoded = fn.permute_batch(encoded, indices=batch_permutation)
+    decoder = (
+        fn.experimental.decoders.image if "experimental" in decoder_type else fn.decoders.image
+    )
+    return decoder(
+        encoded,
+        device="mixed",
+        output_type=types.RGB,
+        cache_size=16,
+        cache_type="threshold",
+        cache_threshold=0,
+    )
 
 
 @params(("legacy",), ("experimental",))
@@ -120,14 +125,34 @@ def test_cache_is_not_shared_between_file_roots(decoder_type):
     with tempfile.TemporaryDirectory() as tmp:
         root_a = os.path.join(tmp, "a")
         root_b = os.path.join(tmp, "b")
-        ref_a = _make_dataset(root_a, (250, 10, 10), (8, 8))
-        ref_b = _make_dataset(root_b, (10, 20, 240), (3, 5))
-        pipe_a = _cached_pipeline(root_a, decoder_type)
-        pipe_b = _cached_pipeline(root_b, decoder_type)
+        (ref_a,) = _make_dataset(root_a, {"shared.png": ((250, 10, 10), (8, 8))}).values()
+        (ref_b,) = _make_dataset(root_b, {"shared.png": ((10, 20, 240), (3, 5))}).values()
+        pipe_a = _cached_pipeline(root=root_a, decoder_type=decoder_type)
+        pipe_b = _cached_pipeline(root=root_b, decoder_type=decoder_type)
         for _ in range(2):  # the second iteration is served from the cache
             for pipe, ref in ((pipe_a, ref_a), (pipe_b, ref_b), (pipe_a, ref_a), (pipe_b, ref_b)):
                 (out,) = pipe.run()
                 assert_array_equal(out.as_cpu().at(0), ref)
+
+
+@params(("legacy",), ("experimental",))
+def test_cache_key_follows_the_sample_when_batch_is_permuted(decoder_type):
+    # The cache key must stay attached to the data it describes when samples are reordered
+    # between the reader and the decoder.
+    with tempfile.TemporaryDirectory() as tmp:
+        refs = _make_dataset(
+            tmp, {"a.png": ((250, 10, 10), (8, 8)), "b.png": ((10, 20, 240), (3, 5))}
+        )
+        ref_a, ref_b = refs["a.png"], refs["b.png"]
+        kwargs = dict(batch_size=2, root=tmp, decoder_type=decoder_type)
+        pipe_swapped = _cached_pipeline(batch_permutation=[1, 0], **kwargs)
+        pipe_ordered = _cached_pipeline(**kwargs)
+        for _ in range(2):  # the second iteration is served from the cache
+            for pipe, expected in ((pipe_swapped, (ref_b, ref_a)), (pipe_ordered, (ref_a, ref_b))):
+                (out,) = pipe.run()
+                out = out.as_cpu()
+                assert_array_equal(out.at(0), expected[0])
+                assert_array_equal(out.at(1), expected[1])
 
 
 def main():

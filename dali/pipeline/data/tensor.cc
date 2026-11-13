@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -32,9 +32,8 @@ void Tensor<Backend>::Copy(const Tensor<SrcBackend> &src, AccessOrder order) {
   copy_impl::SyncBefore(this->order(), src.order(), copy_order);
 
   this->Resize(src.shape(), src.type());
-  this->SetLayout(src.GetLayout());
-  this->SetSourceInfo(src.GetSourceInfo());
-  this->SetSkipSample(src.ShouldSkipSample());
+  // Copy all the metadata (layout, source info, cache key, skip flag).
+  this->SetMeta(src.GetMeta());
   std::optional<int> dst_device_id, src_device_id;
   if (std::is_same_v<Backend, GPUBackend>)
     dst_device_id = this->device_id();
