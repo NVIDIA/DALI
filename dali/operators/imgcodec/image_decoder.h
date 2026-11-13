@@ -471,8 +471,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
   }
 
   void ParseSample(ParsedSample &parsed_sample, span<const uint8_t> encoded) {
-    parsed_sample.encoded_stream =
-        NvImageCodecCodeStream::FromHostMem(instance_, encoded.data(), encoded.size());
+    // Reuse the code stream from the previous iteration instead of destroying and recreating it.
+    parsed_sample.encoded_stream.ResetFromHostMem(instance_, encoded.data(), encoded.size());
     parsed_sample.nvimgcodec_jpeg_info = nvimgcodecJpegImageInfo_t{
         NVIMGCODEC_STRUCTURE_TYPE_JPEG_IMAGE_INFO, sizeof(nvimgcodecJpegImageInfo_t), nullptr};
     parsed_sample.nvimgcodec_img_info =
@@ -721,14 +721,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
           cs_view.region.start[1] = roi.begin[1];
           cs_view.region.end[0] = roi.end[0];
           cs_view.region.end[1] = roi.end[1];
-          nvimgcodecCodeStream_t sub_encoded_stream = st->sub_encoded_stream.get();
-          if (sub_encoded_stream) {  // reuses the code stream object
-            CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(
-                st->parsed_sample.encoded_stream.get(), &sub_encoded_stream, &cs_view));
-          } else {
-            st->sub_encoded_stream = NvImageCodecCodeStream::FromSubCodeStream(
-                st->parsed_sample.encoded_stream.get(), &cs_view);
-          }
+          st->sub_encoded_stream.ResetFromSubCodeStream(
+              st->parsed_sample.encoded_stream.get(), &cs_view);
         }
         out_shape.set_tensor_shape(i, st->out_shape);
         PrepareOutput(*state_[i], rois_[i], ws);
@@ -782,12 +776,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
         if (!st.need_processing) {
           st.image_info.buffer = output.raw_mutable_tensor(orig_idx);
         }
-        nvimgcodecImage_t image = st.image.get();
-        if (image) {  // reuses the image object
-          CHECK_NVIMGCODEC(nvimgcodecImageCreate(instance_, &image, &st.image_info));
-        } else {
-          st.image = NvImageCodecImage::Create(instance_, &st.image_info);
-        }
+        st.image.Reset(instance_, &st.image_info);
         if (has_roi) {
           batch_encoded_streams_.push_back(st.sub_encoded_stream);
         } else {
