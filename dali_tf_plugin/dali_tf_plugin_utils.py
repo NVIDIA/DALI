@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -105,28 +105,38 @@ def get_tf_version():
 # Get C++ compiler
 
 
-def get_cpp_compiler():
-    return os.environ.get("CXX") or "g++"
+def tf_uses_libcpp(tf_cflags):
+    return "-stdlib=libc++" in tf_cflags.split()
+
+
+def get_cpp_compiler(tf_cflags=""):
+    if os.environ.get("CXX"):
+        return os.environ["CXX"]
+    if tf_uses_libcpp(tf_cflags):
+        if which("clang++") is None:
+            raise ImportError(
+                "TensorFlow requests -stdlib=libc++, but clang++ was not found. "
+                "Install a compatible Clang toolchain and libc++/libc++abi development "
+                "headers and libraries, or set CXX to its clang++ executable."
+            )
+        return "clang++"
+    return "g++"
 
 
 # Get C++ compiler version
 
 
-def get_cpp_compiler_version():
-    cmd = [get_cpp_compiler(), "--version"]
-    process_compiler = subprocess.Popen(cmd, stdout=subprocess.PIPE)  # nosec B603
-    cmd = ["head", "-1"]
-    process_head = subprocess.Popen(
-        cmd, stdin=process_compiler.stdout, stdout=subprocess.PIPE  # nosec B603
-    )
-    cmd = ["grep", "[c|g]++ "]
-    s = str(
-        subprocess.check_output(cmd, stdin=process_head.stdout, shell=False).strip()  # nosec B603
-    )
-    process_compiler.stdout.close()
-    process_head.stdout.close()
-    version = re.search(r"[g|c]\+\+\s*\(.*\)\s*(\d+.\d+).\d+", s).group(1)
-    return version
+def get_cpp_compiler_version(compiler):
+    cmd = [compiler, "--version"]
+    output = subprocess.check_output(cmd, text=True)  # nosec B603
+    # GCC prints the version after the vendor parentheses; Clang uses "clang version".
+    version = re.search(r"(?:clang version\s+|\)\s*)(\d+\.\d+)", output.partition("\n")[0])
+    if version is None:
+        raise ImportError(
+            f"Could not determine the C++ compiler version for {cmd[0]!r} from {output!r}. "
+            "Set CXX to a supported g++ or clang++ executable."
+        )
+    return version.group(1)
 
 
 # Runs `which` program
