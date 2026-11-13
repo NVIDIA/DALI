@@ -1451,3 +1451,55 @@ def test_huge_stride_and_step_decode_one_frame(device):
     # guard against the reference going vacuous (an all-black frame matches an undecoded one)
     assert ref_frame.mean() > 10, "The reference frame is (almost) black"
     compare_frames(out[0, 0], ref_frame, 0, 0, 0)
+
+
+def _first_frame(device, filename, image_type):
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device=device,
+            filenames=[filename],
+            sequence_length=1,
+            image_type=image_type,
+        )
+
+    p = pipe()
+    p.build()
+    (video,) = p.run()
+    return np.float64(np.array(video.as_cpu()[0])[0])
+
+
+@cartesian_params(
+    devices,
+    (
+        # (file, expected slope, expected offset) of Y as a function of the RGB output's luma
+        ("limited", CFR_VP9_60FPS_FILE, 219 / 255, 16.0),
+        ("full", FULL_RANGE_VP9_FILE, 1.0, 0.0),
+    ),
+)
+def test_ycbcr_preserves_source_color_range(device, source):
+    # YCbCr output keeps the source's range, RGB is full range, so Y relates to the RGB output's
+    # luma by slope 1 / offset 0 for a full-range source and by slope 219/255 / offset 16 for a
+    # limited-range one. The limited-range case fails if the CPU backend expands to full range.
+    _, filename, expected_slope, expected_offset = source
+
+    rgb = _first_frame(device, filename, types.RGB)
+    ycbcr = _first_frame(device, filename, types.YCbCr)
+    luma = rgb @ np.array([0.299, 0.587, 0.114])  # BT.601
+    slope, offset = np.polyfit(luma.ravel(), ycbcr[..., 0].ravel(), 1)
+    assert abs(slope - expected_slope) < 0.05 and abs(offset - expected_offset) < 5.0, (
+        f"Y = {slope:.3f} * luma(RGB) + {offset:.2f}, expected slope {expected_slope:.3f}, "
+        f"offset {expected_offset:.1f} (Y range {ycbcr[..., 0].min()}..{ycbcr[..., 0].max()})"
+    )
+
+
+@cartesian_params((("limited", CFR_VP9_60FPS_FILE), ("full", FULL_RANGE_VP9_FILE)))
+def test_ycbcr_cpu_matches_gpu(source):
+    # Compares all three channels (Y, Cb, Cr) of both backends. Unlike the Y-only check above, this
+    # catches chroma-only regressions, and covers both limited- and full-range sources.
+    _, filename = source
+    cpu = _first_frame("cpu", filename, types.YCbCr)
+    gpu = _first_frame("gpu", filename, types.YCbCr)
+    assert cpu.shape == gpu.shape
+    max_diff = np.abs(cpu - gpu).max()
+    assert max_diff <= 1, f"CPU and GPU YCbCr differ by up to {max_diff}"
