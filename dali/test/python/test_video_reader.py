@@ -1213,6 +1213,7 @@ def test_file_list_timestamps_no_frames_in_any_range(device):
     with assert_raises(RuntimeError, glob="The number of input samples: 0, needs to be at least*"):
         _file_list_frame_selection(_experimental_reader(device), list_file)
 
+
 MJPEG_AVI = os.path.join(DALI_EXTRA_PATH, "db", "video", "mjpeg", "mjpeg.avi")
 
 # Decodes MJPEG_AVI with the GPU (mixed) and CPU variants of experimental.readers.video or
