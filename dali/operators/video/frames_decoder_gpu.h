@@ -21,6 +21,7 @@ extern "C" {
 #include <libavcodec/bsf.h>
 }
 
+#include <exception>
 #include <string>
 #include <memory>
 #include <queue>
@@ -195,7 +196,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   int HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_info);
 
-  FramesDecoderGpu(FramesDecoderGpu&&) = default;
+  // not movable: the parser calls back into this object (pUserData)
+  FramesDecoderGpu(FramesDecoderGpu&&) = delete;
 
   ~FramesDecoderGpu();
 
@@ -204,13 +206,48 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   /**
    * @brief Checks if the codec can be decoded by this decoder, as it is done when the video stream
    *        is selected: it is supported by the decoder and by NVDEC on this platform
-   *        (8-bit 4:2:0). It warns if it is not.
+   *        (8-bit 4:2:0). It warns if it is not, unless `warn` is false.
+   *
+   * It queries NVDEC of the current device (once per codec, cached per process), so the calling
+   * thread must have a current CUDA context.
    */
-  static bool IsCodecSupported(AVCodecID codec_id);
+  static bool IsCodecSupported(AVCodecID codec_id, bool warn = true);
+
+  /**
+   * @brief The codecs for which `IsCodecSupported` is true: a codec is supported if and only if it
+   *        is on this list. The list is made on the calling thread (with the same requirement as
+   *        `IsCodecSupported`), and can then be used from any thread.
+   */
+  static std::vector<AVCodecID> SupportedCodecs();
 
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
+
+  /**
+   * @brief How many pictures the parser keeps decoded before it passes them to the display
+   *        callback, on top of what reordering needs. That many pictures are queued on NVDEC
+   *        while one is mapped and converted.
+   */
+  static constexpr int kDisplayDelay = 1;
+
+  /**
+   * @brief Decode surfaces on top of the minimum that the stream needs and of the display delay:
+   *        the picture being mapped and converted must not be decoded over, and the minimum does
+   *        not guarantee the best performance (nvcuvid.h).
+   */
+  static constexpr int kSpareDecodeSurfaces = 2;
+
+  /**
+   * @brief The number of decode surfaces of the decoder for a stream. It is also what the sequence
+   *        callback returns to the parser, which uses it from then on.
+   */
+  static int NumDecodeSurfaces(const CUVIDEOFORMAT &video_format);
+
+  /** @brief Stores an exception thrown in a parser callback, to be rethrown by ParseVideoData. */
+  void SetCallbackException(std::exception_ptr e) {
+    callback_exception_ = std::move(e);
+  }
 
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
 
@@ -218,15 +255,32 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   bool SelectVideoStream(int stream_id = -1) override;
 
  private:
+  /**
+   * @brief Sends a packet to the NVDEC parser. Exceptions thrown by the parser callbacks are
+   *        rethrown here, once the parser has returned.
+   */
+  void ParseVideoData(CUVIDSOURCEDATAPACKET *packet);
+
   std::unique_ptr<NvDecodeState> nvdecode_state_;
   void *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;
   bool frame_returned_ = false;
   bool flush_ = false;
+  std::exception_ptr callback_exception_;
   bool more_frames_to_decode_ = true;
 
   // This is used to order the frames, if there is no pts
   int frame_index_if_no_pts_ = 0;
+
+  // The stream's timestamps are in decoding order (HasDecodeOrderTimestamps). A picture is then
+  // labelled with the timestamp that the parser passes to the display callback, instead of its
+  // packet's: the parser hands the timestamps fed in decoding order out in display order.
+  bool labels_from_parser_ = false;
+  // With labels_from_parser_: a copy of the last frame read, which a frame without a picture of its
+  // own (e.g. the not-coded VOP of a DivX packed stream) repeats. Unknown after a flush: such a
+  // frame then takes the next picture shown.
+  DeviceBuffer<uint8_t> last_frame_;
+  bool has_last_frame_ = false;
 
   AVUniquePtr<AVBSFContext> bsfc_;
   AVUniquePtr<AVPacket> filtered_packet_;
@@ -236,7 +290,12 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   std::vector<BufferedFrame> frame_buffer_;
 
+  // pts of the packets sent to the parser, whose pictures were not decoded yet (decode order)
   std::queue<int64_t> piped_pts_;
+  // pts of the picture last decoded to each surface (CUVIDPICPARAMS::CurrPicIdx)
+  std::vector<int64_t> surface_pts_;
+  // whether the picture decoded to each surface is still waiting for the display callback
+  std::vector<bool> surface_to_display_;
   int64_t current_pts_ = AV_NOPTS_VALUE;
 
   cudaStream_t stream_ = 0;
@@ -247,6 +306,19 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   BufferedFrame& FindEmptySlot();
 
+  // Bytes of a frame in the output type
+  size_t FrameBytes() const;
+
+  // The buffer for the last frame read (see last_frame_), allocated for the output type
+  uint8_t *LastFrame();
+
+  // Keeps a copy of the frame read (see last_frame_), unless it was converted into LastFrame()
+  void KeepAsLastFrame(const void *frame);
+
+  // Returns the frame wanted, which has no picture, as a repeat of the last frame read, into `data`
+  // (nullptr: skipped, which needs no last frame)
+  void RepeatLastFrame(void *data);
+
   bool HasEmptySlot() const;
 
   bool IsBufferEmpty() const;
@@ -256,6 +328,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   static cudaVideoCodec GetCodecType(AVCodecID codec_id);
 
   bool IsFullRange(CUVIDEOFORMAT *video_format) const;
+  bool IsBT709(CUVIDEOFORMAT *video_format) const;
 
   void InitGpuParser();
 

@@ -14,11 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Check staged content for leaked secrets
+# Check staged content for leaked secrets and GuardWords findings
 if command -v pre-commit >/dev/null 2>&1; then
     pre-commit run --hook-stage pre-commit || exit $?
 else
-    echo "pre-commit is required to run the secret-scan hook."
+    echo "pre-commit is required to run the security hooks."
     exit 1
 fi
 

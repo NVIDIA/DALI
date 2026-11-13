@@ -509,6 +509,8 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
     nvtx_get_instance_range = NVTXRange(f"get instance {op._op_name}", category="op_builder")
+    # Constant bounds don't speed up slicing; skipping spares analyzing modules that only slice
+    detect_constants = op._schema_name != "_TensorSubscript"
 
     @mark_transparent
     @NVTXRange(f"{fn_name}()", category="op_builder")
@@ -524,7 +526,7 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             _caller_frame = resolve_callsite_frame(depth_hint=3)
 
         # TODO(michalz): utilize constant inputs
-        constant_args = constant_kwargs(_caller_frame, raw_kwargs)
+        constant_args = constant_kwargs(_caller_frame, raw_kwargs) if detect_constants else None
 
         init_args = {}
         call_args = {}

@@ -1,6 +1,7 @@
 repos:
   - repo: https://github.com/NVIDIA/security-workflows
-    # v0.3
-    rev: 711025b090f2aa728da576700750b195d1e816dc
+    # GuardWords was added after v0.4.0 (NVIDIA/security-workflows#24).
+    rev: c4e36e1edf9e5c0601d5fec00b62462d20a956ac
     hooks:
       - id: secret-scan-trufflehog
+      - id: guardwords-scan-code-scanning

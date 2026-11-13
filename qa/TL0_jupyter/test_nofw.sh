@@ -14,6 +14,11 @@ do_once() {
 }
 
 test_body() {
+    kernel_args=()
+    if [ -n "${DALI_ENABLE_SANITIZERS:-}" ]; then
+        kernel_args+=('--ExecutePreprocessor.extra_arguments=["--IPKernelApp.capture_fd_output=False"]')
+    fi
+
     # test code
     # test all jupyters except one related to a particular FW,
     # and one requiring a dedicated HW (multiGPU, GDS and OF)
@@ -32,7 +37,7 @@ test_body() {
     find * -name "*.ipynb" | sed "/${exclude_files}/d" | xargs -i jupyter nbconvert \
                     --to notebook --inplace --execute \
                     --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                    --ExecutePreprocessor.timeout=300 {}
+                    --ExecutePreprocessor.timeout=300 "${kernel_args[@]}" {}
 }
 
 pushd ../..

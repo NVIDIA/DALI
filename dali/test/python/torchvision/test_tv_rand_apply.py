@@ -23,8 +23,11 @@ import torchvision.transforms.v2 as transforms
 from nvidia.dali.experimental.torchvision import (
     Compose,
     Grayscale,
+    PILToTensor,
     RandomApply,
     RandomHorizontalFlip,
+    ToPILImage,
+    ToPureTensor,
 )
 
 
@@ -39,6 +42,8 @@ def verify_non_one_off(t1: torch.Tensor, t2: torch.Tensor):
     return more_than_one_mask.sum().item() == 0
 
 
+SEED = 1234
+
 dali_extra = os.environ["DALI_EXTRA_PATH"]
 jpeg = os.path.join(dali_extra, "db", "single", "jpeg")
 jpeg_113 = os.path.join(jpeg, "113")
@@ -52,7 +57,8 @@ test_files = [
 def test_random_apply_p1(device):
     """p=1.0: transformations always applied — output must match torchvision."""
     td = Compose(
-        [RandomApply([Grayscale(num_output_channels=3, device=device)], p=1.0, device=device)]
+        [RandomApply([Grayscale(num_output_channels=3, device=device)], p=1.0, device=device)],
+        seed=SEED,
     )
     t = transforms.Compose(
         [transforms.RandomApply([transforms.Grayscale(num_output_channels=3)], p=1.0)]
@@ -69,7 +75,8 @@ def test_random_apply_p1(device):
 def test_random_apply_p0(device):
     """p=0.0: transformations never applied — output must equal input."""
     td = Compose(
-        [RandomApply([Grayscale(num_output_channels=3, device=device)], p=0.0, device=device)]
+        [RandomApply([Grayscale(num_output_channels=3, device=device)], p=0.0, device=device)],
+        seed=SEED,
     )
     t = transforms.Compose(
         [transforms.RandomApply([transforms.Grayscale(num_output_channels=3)], p=0.0)]
@@ -88,6 +95,14 @@ def test_invalid_random_apply_probability(p):
         RandomApply([Grayscale(num_output_channels=3)], p=p)
 
 
+@params(PILToTensor, ToPureTensor, ToPILImage)
+def test_random_apply_rejects_type_converting_ops(op_class):
+    with assert_raises(TypeError, glob=f"{op_class.__name__} cannot be used in RandomApply*"):
+        RandomApply([op_class()])
+    with assert_raises(TypeError, glob=f"{op_class.__name__} cannot be used in RandomApply*"):
+        RandomApply([Grayscale(num_output_channels=3), op_class()])
+
+
 @params("cpu", "gpu")
 def test_random_apply_multi_ops(device):
     """p=1.0 with multiple operators — all applied in sequence."""
@@ -101,7 +116,8 @@ def test_random_apply_multi_ops(device):
                 p=1.0,
                 device=device,
             )
-        ]
+        ],
+        seed=SEED,
     )
     t = transforms.Compose(
         [
@@ -126,10 +142,10 @@ def test_random_apply_multi_ops(device):
 def test_random_apply_preserves_shape(device):
     """Output shape must match input shape regardless of p."""
     td_apply = Compose(
-        [RandomApply([RandomHorizontalFlip(p=1.0, device=device)], p=1.0, device=device)]
+        [RandomApply([RandomHorizontalFlip(p=1.0, device=device)], p=1.0, device=device)], seed=SEED
     )
     td_skip = Compose(
-        [RandomApply([RandomHorizontalFlip(p=1.0, device=device)], p=0.0, device=device)]
+        [RandomApply([RandomHorizontalFlip(p=1.0, device=device)], p=0.0, device=device)], seed=SEED
     )
 
     for fn in test_files:
@@ -144,7 +160,8 @@ def test_random_apply_preserves_shape(device):
 def test_random_apply_p_sanity(p, device):
     """Sanity test to verify if 0 < p < 1."""
     td = Compose(
-        [RandomApply([Grayscale(num_output_channels=3, device=device)], p=p, device=device)]
+        [RandomApply([Grayscale(num_output_channels=3, device=device)], p=p, device=device)],
+        seed=SEED,
     )
     for fn in test_files:
         img = Image.open(fn)
@@ -155,7 +172,8 @@ def test_random_apply_p_sanity(p, device):
 def test_random_apply_p(p, device):
     """Sanity test to verify if p value varies application."""
     td = Compose(
-        [RandomApply([Grayscale(num_output_channels=1, device=device)], p=p, device=device)]
+        [RandomApply([Grayscale(num_output_channels=1, device=device)], p=p, device=device)],
+        seed=SEED,
     )
     reps = 10
     for fn in test_files:

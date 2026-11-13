@@ -78,6 +78,11 @@ class _ValidateSigma(ArgumentValidateRule):
             _ValidateIfRange.verify(values=sigma, name="sigma")
 
 
+def _to_window_size(kernel_size: int | Sequence[int]) -> int | Sequence[int]:
+    # torchvision orders kernel_size as (x, y), DALI orders window_size by axis as (y, x)
+    return kernel_size if isinstance(kernel_size, int) else kernel_size[::-1]
+
+
 class GaussianBlur(Operator):
     """
     Blurs image with randomly chosen Gaussian blur kernel.
@@ -92,7 +97,7 @@ class GaussianBlur(Operator):
     ----------
     kernel_size : int or sequence
         Size of the Gaussian kernel. Should be a positive integer or a sequence of two positive
-        integers.
+        integers ``(x, y)``.
     sigma : float or tuple of float
         Standard deviation to be used for creating kernel to perform blurring. If float, sigma
         is fixed.
@@ -125,7 +130,7 @@ class GaussianBlur(Operator):
 
         return fn.gaussian_blur(
             data_input,
-            window_size=self.kernel_size,
+            window_size=_to_window_size(self.kernel_size),
             sigma=sigma,
             device=self.device,
         )

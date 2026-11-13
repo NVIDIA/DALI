@@ -128,6 +128,23 @@ struct DLL_PUBLIC NvImageCodecCodeStream
   static NvImageCodecCodeStream FromHostMem(nvimgcodecInstance_t instance, const void* data,
                                             size_t length);
 
+  /**
+   * @brief Points this code stream at new encoded data in host memory.
+   *
+   * An existing code stream object is reused in place instead of being destroyed and created
+   * again; an empty handle gets a new object. The data is not copied and must outlive its use.
+   */
+  void ResetFromHostMem(nvimgcodecInstance_t instance, const void* data, size_t length);
+
+  /**
+   * @brief Makes this code stream a sub-code-stream of `code_stream` described by `cs_view`.
+   *
+   * An existing code stream object is reused in place instead of being destroyed and created
+   * again; an empty handle gets a new object.
+   */
+  void ResetFromSubCodeStream(nvimgcodecCodeStream_t code_stream,
+                              const nvimgcodecCodeStreamView_t* cs_view);
+
   static NvImageCodecCodeStream FromSubCodeStream(nvimgcodecCodeStream_t code_stream,
                                                   const nvimgcodecCodeStreamView_t* cs_view);
 
@@ -146,6 +163,14 @@ struct DLL_PUBLIC NvImageCodecImage : public UniqueHandle<nvimgcodecImage_t, NvI
 
   static NvImageCodecImage Create(nvimgcodecInstance_t instance,
                                   const nvimgcodecImageInfo_t* image_info);
+
+  /**
+   * @brief Describes a new image with `image_info`.
+   *
+   * An existing image object is reused in place instead of being destroyed and created again;
+   * an empty handle gets a new object.
+   */
+  void Reset(nvimgcodecInstance_t instance, const nvimgcodecImageInfo_t* image_info);
 
   static constexpr nvimgcodecImage_t null_handle() {
     return nullptr;

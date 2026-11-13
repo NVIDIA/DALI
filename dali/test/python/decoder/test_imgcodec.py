@@ -218,6 +218,105 @@ def test_image_decoder_fused():
                 )
 
 
+@pipeline_def
+def _stream_reuse_pipe(data_path, device, sliced):
+    encoded, _ = fn.readers.file(file_root=data_path, shard_id=0, num_shards=1, name="Reader")
+    if sliced:
+        # fixed, normalized ROI: the sub-code-stream is derived again from the (reused) parent
+        return fn.experimental.decoders.image_slice(
+            encoded, rel_start=[0.1, 0.2], rel_shape=[0.5, 0.6], axes=(0, 1), device=device
+        )
+    return fn.experimental.decoders.image(encoded, device=device)
+
+
+def _check_code_stream_reuse(device, sliced):
+    # With batch_size=1 the single code-stream slot is re-pointed at every sample, across formats
+    # and sizes. With batch_size=N and one run, every code stream is created from scratch. If a
+    # reused stream kept anything from the previous sample (parser state, I/O stream), the two
+    # would differ.
+    data_path = os.path.join(test_data_root, good_path, "mixed")
+    kwargs = dict(
+        data_path=data_path, device=device, sliced=sliced, num_threads=1, device_id=0, seed=1234
+    )
+    n = len(get_img_files(data_path))
+    assert n > 1
+    ref_pipe = _stream_reuse_pipe(batch_size=n, **kwargs)
+    reused_pipe = _stream_reuse_pipe(batch_size=1, **kwargs)
+    (ref,) = ref_pipe.run()
+    for i in range(n):
+        (out,) = reused_pipe.run()
+        ref_arr = to_array(ref[i])
+        out_arr = to_array(out[0])
+        assert ref_arr.shape == out_arr.shape, (
+            f"sample {i} ({ref[i].source_info()}): "
+            f"shape {out_arr.shape} with reused stream vs {ref_arr.shape} with fresh stream"
+        )
+        assert np.array_equal(
+            ref_arr, out_arr
+        ), f"sample {i} ({ref[i].source_info()}): reused code stream gives different output"
+
+
+@params(("cpu", False), ("cpu", True), ("mixed", False), ("mixed", True))
+def test_image_decoder_code_stream_reuse(device, sliced):
+    _check_code_stream_reuse(device, sliced)
+
+
+def _read_first_file(subdir):
+    path = sorted(get_img_files(os.path.join(test_data_root, good_path, subdir)))[0]
+    with open(path, "rb") as f:
+        return np.frombuffer(f.read(), dtype=np.uint8)
+
+
+@pipeline_def(batch_size=1, device_id=0, num_threads=1, prefetch_queue_depth=1)
+def _per_iteration_input_pipe(samples, device, rois=None):
+    # One sample per iteration, so that the single code-stream slot is reused for each of them.
+    it = iter(samples)
+    encoded = fn.external_source(source=lambda: [next(it)], batch=True)
+    if rois is None:
+        return fn.experimental.decoders.image(encoded, device=device)
+    it_roi = iter(rois)
+    end = fn.external_source(source=lambda: [next(it_roi)], batch=True, dtype=types.INT32)
+    return fn.experimental.decoders.image_slice(encoded, end=end, axes=[0, 1], device=device)
+
+
+@params(("cpu", "empty"), ("cpu", "corrupt"), ("mixed", "empty"), ("mixed", "corrupt"))
+def test_image_decoder_code_stream_reuse_invalid_input(device, kind):
+    # A valid sample followed by an empty/corrupt one decoded with the same (reused) code stream
+    # must be rejected, rather than silently decoding what the stream kept from the valid sample.
+    valid = _read_first_file("jpeg")
+    bad = (
+        np.empty((0,), dtype=np.uint8)
+        if kind == "empty"
+        else np.frombuffer(b"definitely not an encoded image", dtype=np.uint8)
+    )
+    (ref,) = _per_iteration_input_pipe([valid], device).run()
+    pipe = _per_iteration_input_pipe([valid, bad], device)
+    (out,) = pipe.run()
+    assert np.array_equal(to_array(ref[0]), to_array(out[0]))
+    assert_raises(RuntimeError, pipe.run, glob="*nvImageCodec failure*")
+
+
+@params("cpu", "mixed")
+def test_image_decoder_code_stream_reuse_roi_boundaries(device):
+    # Boundary ROIs on a reused code stream: a 1x1 window at the origin, then a window that is
+    # out of bounds, which must be rejected (not clamped using the previous sample's extent).
+    valid = _read_first_file("jpeg")
+    (full,) = _per_iteration_input_pipe([valid], device).run()
+    full = to_array(full[0])
+    pipe = _per_iteration_input_pipe(
+        [valid, valid],
+        device,
+        rois=[np.array([1, 1], dtype=np.int32), np.array([100000, 100000], dtype=np.int32)],
+    )
+    (out,) = pipe.run()
+    out = to_array(out[0])
+    assert out.shape == (1, 1, 3), out.shape
+    assert np.array_equal(out[0, 0], full[0, 0])
+    assert_raises(
+        RuntimeError, pipe.run, glob="cropping window*..*..*is not valid for image dimensions*[*x*]"
+    )
+
+
 def check_FastDCT_body(batch_size, img_type, device):
     data_path = os.path.join(test_data_root, good_path, img_type)
     compare_pipelines(

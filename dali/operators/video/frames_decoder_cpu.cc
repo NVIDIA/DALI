@@ -19,6 +19,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <vector>
 #include "dali/core/error_handling.h"
 #include "dali/core/util.h"
 #include "dali/operators/video/video_utils.h"
@@ -145,13 +146,18 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   int sws_colorspace = (image_type_ == DALI_RGB && src_colorspace == AVCOL_SPC_BT709)
                            ? SWS_CS_ITU709
                            : SWS_CS_DEFAULT;
+  // RGB output is conventionally full-range (0-255). YCbCr output keeps the source's range
+  // (limited/"TV" sources stay limited, full-range sources stay full), like the GPU backend,
+  // which only upsamples chroma for YCbCr (YUV_UPSAMPLE), and the legacy reader. Forcing either
+  // range here would systematically shift YCbCr values relative to both (DALI-4916).
+  bool dst_full_range = image_type_ == DALI_YCbCr ? src_full_range : true;
   if (sws_src_full_range_ != src_full_range || sws_src_colorspace_ != sws_colorspace) {
     int ret = sws_setColorspaceDetails(
       sws_ctx_.get(),
       sws_getCoefficients(sws_colorspace),
       src_full_range,
       sws_getCoefficients(SWS_CS_DEFAULT),
-      1,
+      dst_full_range,
       0,
       1 << 16,
       1 << 16);
@@ -208,6 +214,7 @@ bool FramesDecoderCpu::ReadRegularFrame(uint8_t *data) {
     ret = avcodec_send_packet(codec_ctx_, packet.get());
     DALI_ENFORCE(ret >= 0,
                  make_string("Failed to send packet to decoder: ", av_error_string(ret)));
+    decoded_pictures_++;
 
     ret = avcodec_receive_frame(codec_ctx_, frame_);
     if (ret == AVERROR(EAGAIN)) {
@@ -274,25 +281,39 @@ void FramesDecoderCpu::Reset() {
   flush_state_ = false;
 }
 
-bool FramesDecoderCpu::IsCodecSupported(AVCodecID codec_id) {
-  static constexpr std::array<AVCodecID, 3> codecs = {
-    AVCodecID::AV_CODEC_ID_VP8,
-    AVCodecID::AV_CODEC_ID_VP9,
-    AVCodecID::AV_CODEC_ID_MJPEG,
-    // Those are not supported by our compiled version of libavcodec,
-    // AVCodecID::AV_CODEC_ID_AV1,
-    // AVCodecID::AV_CODEC_ID_MPEG4,
-    // AVCodecID::AV_CODEC_ID_H264,
-    // AVCodecID::AV_CODEC_ID_HEVC,
-  };
+namespace {
 
-  if (std::find(codecs.begin(), codecs.end(), codec_id) == codecs.end()) {
-    DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
-                          ") is not supported by the CPU variant of this operator."));
+constexpr std::array<AVCodecID, 3> kCpuCodecs = {
+  AVCodecID::AV_CODEC_ID_VP8,
+  AVCodecID::AV_CODEC_ID_VP9,
+  AVCodecID::AV_CODEC_ID_MJPEG,
+  // Those are not supported by our compiled version of libavcodec,
+  // AVCodecID::AV_CODEC_ID_AV1,
+  // AVCodecID::AV_CODEC_ID_MPEG4,
+  // AVCodecID::AV_CODEC_ID_H264,
+  // AVCodecID::AV_CODEC_ID_HEVC,
+};
+
+}  // namespace
+
+bool FramesDecoderCpu::IsCodecSupported(AVCodecID codec_id, bool warn) {
+  if (std::find(kCpuCodecs.begin(), kCpuCodecs.end(), codec_id) == kCpuCodecs.end()) {
+    if (warn)
+      DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
+                            ") is not supported by the CPU variant of this operator."));
     return false;
   }
 
   return avcodec_find_decoder(codec_id) != nullptr;
+}
+
+std::vector<AVCodecID> FramesDecoderCpu::SupportedCodecs() {
+  std::vector<AVCodecID> supported;
+  for (AVCodecID codec_id : kCpuCodecs) {
+    if (IsCodecSupported(codec_id, false))
+      supported.push_back(codec_id);
+  }
+  return supported;
 }
 
 bool FramesDecoderCpu::SelectVideoStream(int stream_id) {

@@ -42,6 +42,7 @@ from ._call_site import resolve_callsite_frame
 from ._capture import CapturedBatch, CaptureRef
 from ._device import Device
 from ._nvtx import NVTXRange
+from ._tensor import _subscript_kwargs
 from ._type import DType
 from .capture._invariant import invariant, is_dunder
 from .capture._invariant import is_invariant as _is_explicit_invariant
@@ -216,7 +217,9 @@ class ModuleInfo:
                 accepted = cst.Call
             elif name.startswith("INPLACE_"):
                 accepted = cst.AugAssign
-            elif name.startswith("BINARY_") and name != "BINARY_SUBSCR":
+            elif name == "BINARY_SUBSCR":
+                accepted = cst.Subscript
+            elif name.startswith("BINARY_"):
                 accepted = cst.BinaryOperation
             elif name == "COMPARE_OP":
                 accepted = cst.Comparison
@@ -320,8 +323,9 @@ class _FusedCodegenState(PositionProvidingCodegenState):
     def after_codegen(self, node: cst.CSTNode) -> None:
         super().after_codegen(node)
         self._node_stack.pop()
-        # A frame executes either at a call or at an operator reached via a dunder
-        if isinstance(node, (cst.Call, cst.BinaryOperation, cst.AugAssign, cst.Comparison)):
+        # A frame executes either at a call, or at an operator or subscript reached via a dunder
+        supported = (cst.Call, cst.BinaryOperation, cst.AugAssign, cst.Comparison, cst.Subscript)
+        if isinstance(node, supported):
             self.nodes.append(node)
 
 
@@ -467,6 +471,8 @@ class _Classifier:
                 # There are no reflected dunders for comparisons so we need to check manually
                 reflected = probe.is_invariant(lhs, static=False)
                 pos_nodes, kw_nodes = ((rhs, lhs) if reflected else (lhs, rhs)), {}
+            case cst.Subscript() as subscript:
+                pos_nodes, kw_nodes = (), _split_subscript_args(subscript, inputs[0], raw_kwargs)
             case _:
                 pos_nodes, kw_nodes = (), {}
 
@@ -730,6 +736,27 @@ def _split_call_args(
     pos = [a.value for a in call.args if a.keyword is None]
     kw = {a.keyword.value: a.value for a in call.args if a.keyword is not None}
     return pos, kw
+
+
+def _split_subscript_args(
+    subscript: cst.Subscript, data: Any, raw_kwargs: Mapping[str, Any]
+) -> dict[str, cst.BaseExpression]:
+    """Map the ``_tensor_subscript`` arguments of ``data.slice[...]`` to their expressions."""
+    ranges = []
+    for element in subscript.slice:
+        match element.slice:
+            case cst.Index(star="*"):
+                return {}
+            case cst.Index(value=cst.Ellipsis()):
+                ranges.append(...)
+            case cst.Index(value=value):
+                ranges.append(value)
+            case cst.Slice(lower=lower, upper=upper, step=step):
+                ranges.append(slice(lower, upper, step))
+    kw_nodes = _subscript_kwargs(ranges, data)
+    # A name holding an Ellipsis or a slice desyncs source elements from runtime arguments
+    used = {name for name, value in raw_kwargs.items() if value is not None}
+    return kw_nodes if used <= kw_nodes.keys() else {}
 
 
 def _matches_callee(obj: Any, callee_code: types.CodeType) -> bool:

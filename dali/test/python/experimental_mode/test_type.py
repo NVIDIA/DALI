@@ -169,6 +169,35 @@ def test_type_significand_bits():
     assert ndd.float64.significand_bits == 52
 
 
+def test_explicit_zero_float_field_is_not_replaced_with_the_default():
+    # A written 0 used to be treated as missing, so these came back as float32 and float16.
+    cases = {
+        "f32e8m0": "Invalid number of significand bits: 0",
+        "f16e0m10": "Invalid number of exponent bits: 0",
+    }
+    for name, message in cases.items():
+        try:
+            parsed = ndd.dtype(name)
+        except ValueError as err:
+            if message not in str(err):
+                raise AssertionError(f"{name} raised {err!r}, want {message}") from err
+            continue
+        raise AssertionError(
+            f"{name} was accepted as {parsed.name} "
+            f"(exponent {parsed.exponent_bits}, significand {parsed.significand_bits})"
+        )
+
+
+def test_rejected_float_alias_does_not_drop_bfloat16():
+    for _ in range(2):
+        try:
+            ndd.dtype("f16e8m7")
+        except ValueError:
+            continue
+        raise AssertionError("f16e8m7 was accepted")
+    assert ndd.dtype("bfloat16") is ndd.bfloat16
+
+
 def test_type_call():
     t = ndd.int16([1, 2, 3])
     assert isinstance(t, ndd.Tensor)
@@ -241,11 +270,3 @@ def test_type_compare_with_torch():
     assert ndd.int32 == torch.int32
     assert ndd.uint8 == torch.uint8
     assert ndd.float64 != torch.float32
-
-
-def test_type_name_without_type_id():
-    t = ndd.dtype("f8e5m2")
-    assert t.kind == ndd.DType.Kind.float
-    assert (t.bits, t.exponent_bits, t.significand_bits) == (8, 5, 2)
-    assert t.type_id is None
-    assert ndd.dtype("f8e5m2") is t

@@ -38,6 +38,13 @@ This operator combines the features of ``readers.video`` and ``resize``.
 
 .. note::
   The decoder supports only constant frame-rate videos.
+
+.. note::
+  When converting to RGB, this operator always uses the ITU-R BT.601 matrix, regardless of what the
+  video stream says. The colors of streams that use the BT.709 matrix (common in HD video) will be
+  slightly off. Use ``experimental.readers.video``, which converts BT.709
+  streams with the BT.709 matrix, for a correct conversion in this case. Streams that use any
+  other matrix (for example BT.2020) are converted with BT.601 by both readers.
 )code")
   .NumInput(0)
   .OutputFn(detail::VideoReaderOutputFn)

@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace dali {
 
@@ -68,9 +69,15 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
   /**
    * @brief Checks if the codec can be decoded by this decoder, as it is done when the video stream
    *        is selected: it is on the list of the supported codecs and libavcodec has a decoder
-   *        for it. It warns if it is not.
+   *        for it. It warns if it is not, unless `warn` is false.
    */
-  static bool IsCodecSupported(AVCodecID codec_id);
+  static bool IsCodecSupported(AVCodecID codec_id, bool warn = true);
+
+  /**
+   * @brief The codecs for which `IsCodecSupported` is true: a codec is supported if and only if it
+   *        is on this list, which can be used from any thread.
+   */
+  static std::vector<AVCodecID> SupportedCodecs();
 
  protected:
   bool SelectVideoStream(int stream_id = -1) override;

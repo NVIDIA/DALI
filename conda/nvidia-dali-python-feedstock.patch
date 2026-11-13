@@ -44,7 +44,7 @@ index 3ac3249..639b9ff 100755
    -DBUILD_WITH_LSAN=OFF \
    -DBUILD_WITH_UBSAN=OFF \
 diff --git a/recipe/recipe.yaml b/recipe/recipe.yaml
-index ac23651..78d6591 100644
+index 675c252..78d6591 100644
 --- a/recipe/recipe.yaml
 +++ b/recipe/recipe.yaml
 @@ -1,7 +1,11 @@
@@ -75,7 +75,7 @@ index ac23651..78d6591 100644
 -    target_directory: third_party/ffts
  
  build:
--  number: 2
+-  number: 3
 +  number: ${{ build_number }}
    skip:
      - cuda_compiler_version == "None"
@@ -132,3 +132,35 @@ index ac23651..78d6591 100644
      requirements:
        ignore_run_exports:
          by_name:
+diff --git a/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml b/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
+index 55f8137..0d96c39 100644
+--- a/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
++++ b/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
+@@ -41,9 +41,9 @@ libcvcuda:
+ libjpeg_turbo:
+ - '3'
+ libnvcomp:
+-- 5.3.0.*
++- 6.0.*
+ libnvimgcodec:
+-- 0.9.*
++- 0.10.*
+ libopencv:
+ - 4.13.*
+ libprotobuf:
+diff --git a/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml b/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml
+index ff66761..94ed305 100644
+--- a/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml
++++ b/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml
+@@ -41,9 +41,9 @@ libcvcuda:
+ libjpeg_turbo:
+ - '3'
+ libnvcomp:
+-- 5.3.0.*
++- 6.0.*
+ libnvimgcodec:
+-- 0.9.*
++- 0.10.*
+ libopencv:
+ - 4.13.*
+ libprotobuf:

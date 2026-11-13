@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -239,9 +239,9 @@ void GDSStagingEngine::wait_buffers(std::unique_lock<std::mutex> &lock) {
   lock.unlock();
   CUDA_CALL(cudaEventSynchronize(ready_));
   lock.lock();
-  for (void *ptr : scheduled_)
-    ready_buffers_.insert(ptr);
-  scheduled_.clear();
+  // Another thread may have submitted more copies and re-recorded ready_ while unlocked.
+  // Check the current event before reclaiming the current scheduled buffers.
+  return_ready();
 }
 
 void GDSStagingEngine::return_unused(GDSStagingBuffer &&staging_buffer) {
