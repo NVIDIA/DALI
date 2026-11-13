@@ -1,0 +1,15 @@
+schema_version: 1
+
+harbor:
+  pre_agent_setup:
+    - fetch() { git init -q "$2" && git -C "$2" fetch -q --depth 1 "$1" "$3" && git -C "$2" checkout -q FETCH_HEAD; }
+    # parent of the AugMix fix 9a4bc93 (huggingface/pytorch-image-models#2783)
+    - fetch https://github.com/huggingface/pytorch-image-models /workspace/timm cf33e928047066cd97b4233bfd953eed00302f7b
+    - fetch https://github.com/mindee/doctr /workspace/doctr v1.1.0
+    - fetch https://github.com/lightly-ai/lightly /workspace/lightly v1.5.26
+    # local speedups (channels_last + torch.compile), left uncommitted
+    - sed -i '/^    trainer.fit($/i\    model = model.to(memory_format=torch.channels_last)\n    model = torch.compile(model)' /workspace/lightly/benchmarks/imagenet/resnet50/main.py
+    - pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu torch==2.14.1+cpu torchvision==0.29.1+cpu tensorboard -e /workspace/timm -e /workspace/doctr -e /workspace/lightly
+    # docTR's opencv-python needs X11 libraries that the image lacks
+    - pip uninstall -y opencv-python
+    - pip install --no-cache-dir --no-deps opencv-python-headless
