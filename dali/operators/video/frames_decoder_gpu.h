@@ -138,9 +138,33 @@ struct NvDecodeState {
   uint8_t *decoded_frame_yuv = nullptr;
 };
 
+/**
+ * @brief A place for a frame that the parser displayed before it was read.
+ *
+ * The state changes only through SetTimestamp, MarkPixelsValid and Clear, so that a slot never
+ * keeps the flag of the frame that it held before.
+ */
 struct BufferedFrame {
-  DeviceBuffer<uint8_t> frame_;
-  int pts_;
+  DeviceBuffer<uint8_t> frame_;  // may be empty when the slot keeps no frame data
+  int64_t pts_ = -1;             // -1: the slot is empty
+  bool has_data_ = false;        // false: the frame is never read with its data, only pts_ is kept
+
+  /** @brief Takes a frame in, with no pixels yet (see MarkPixelsValid). */
+  void SetTimestamp(int64_t pts) {
+    pts_ = pts;
+    has_data_ = false;
+  }
+
+  /** @brief The frame is mapped and converted into frame_: it can be read with its data. */
+  void MarkPixelsValid() {
+    has_data_ = true;
+  }
+
+  /** @brief Empties the slot. It keeps frame_ for the next frame. */
+  void Clear() {
+    pts_ = -1;
+    has_data_ = false;
+  }
 };
 
 class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
@@ -251,8 +275,89 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
 
+  /**
+   * @brief Number of frame buffers (device memory for one frame each) held by the decoder, for
+   *        tests.
+   */
+  int NumFrameBuffers() const;
+
+  /**
+   * @brief Number of places for a buffered frame (with or without a frame buffer), for tests.
+   */
+  int NumBufferSlots() const {
+    return static_cast<int>(frame_buffer_.size());
+  }
+
+  /**
+   * @brief Number of pictures mapped and converted so far (for tests and diagnostics).
+   *
+   * Pictures that cannot be read with their data when they are displayed (MayNeedPixelsLater is
+   * false), or that are displayed as the next frame while it is only skipped, are not.
+   */
+  int64_t MappedPictures() const {
+    return mapped_pictures_;
+  }
+
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
+
+  /**
+   * @brief Which of the buffered frames are mapped and converted.
+   *
+   * The pictures are mapped in display order, when the parser displays them (HandlePictureDisplay).
+   * A picture displayed when it is not the next frame is buffered: a frame shown after the next
+   * one, which the parser displays in the same cuvidParseVideoData call as the next one, or at the
+   * end of the stream, when it displays all the pictures it holds; or a frame that is never read
+   * (e.g. one hidden by an edit list, or one shown before the next frame after a seek), which
+   * kIfRead drops instead (see IsAmongNextFrames).
+   */
+  enum class BufferedFrameData {
+    // those that may be read with their data (see MayNeedPixelsLater)
+    kIfRead,
+    // all of them; every picture is then decoded (see ShouldDecodePicture)
+    kAll,
+    // none of them; an H.264 non-reference picture is then decoded only if it is the next frame,
+    // read with its data, when it is decoded
+    kNone,
+  };
+
+  /**
+   * @brief For tests: maps all the buffered frames and decodes every picture (to compare the frames
+   *        read with the default) or maps none of them (to check that reading a frame without its
+   *        data fails).
+   */
+  void SetBufferedFrameDataForTesting(BufferedFrameData data) {
+    buffered_frame_data_ = data;
+  }
+
+  /**
+   * @brief Whether a frame with this timestamp may still be read with its pixels, until the
+   *        decoder is flushed. False for a frame that is only skipped or never read.
+   */
+  bool MayNeedPixelsLater(int64_t pts) const;
+
+  /**
+   * @brief Whether a frame with this timestamp is among the frames from the next one on, which are
+   *        the only ones looked up in the buffer until the decoder is flushed (true without an
+   *        index, or past the last frame).
+   */
+  bool IsAmongNextFrames(int64_t pts) const;
+
+  /**
+   * @brief Whether the parser displays a frame with this timestamp, that is not the next one, with
+   *        its pixels (mapped and converted) in the buffer, or only its timestamp.
+   *
+   * It follows MayNeedPixelsLater, unless SetBufferedFrameDataForTesting says otherwise.
+   */
+  bool ShouldBufferPixels(int64_t pts) const;
+
+  /**
+   * @brief Whether the picture with this timestamp, about to be decoded, is decoded at all.
+   *
+   * False only if its pixels are never read (see ShouldBufferPixels), which lets the decoder skip
+   * a picture that no other picture refers to.
+   */
+  bool ShouldDecodePicture(int64_t pts) const;
 
  private:
   /**
@@ -262,6 +367,10 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   void ParseVideoData(CUVIDSOURCEDATAPACKET *packet);
 
   std::unique_ptr<NvDecodeState> nvdecode_state_;
+
+  int64_t mapped_pictures_ = 0;  // see MappedPictures
+  BufferedFrameData buffered_frame_data_ = BufferedFrameData::kIfRead;
+
   void *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;
   bool frame_returned_ = false;
@@ -296,6 +405,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   std::vector<int64_t> surface_pts_;
   // whether the picture decoded to each surface is still waiting for the display callback
   std::vector<bool> surface_to_display_;
+  // whether cuvidDecodePicture was called for the picture last assigned to each surface (see
+  // ShouldDecodePicture); a surface whose picture was not decoded must not be mapped
+  std::vector<bool> surface_decoded_;
   int64_t current_pts_ = AV_NOPTS_VALUE;
 
   cudaStream_t stream_ = 0;
@@ -318,6 +430,11 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   // Returns the frame wanted, which has no picture, as a repeat of the last frame read, into `data`
   // (nullptr: skipped, which needs no last frame)
   void RepeatLastFrame(void *data);
+
+  /**
+   * @brief Gives the slot a frame buffer, taking a spare one from another slot if there is any.
+   */
+  void AttachFrameBuffer(BufferedFrame &slot);
 
   bool HasEmptySlot() const;
 
