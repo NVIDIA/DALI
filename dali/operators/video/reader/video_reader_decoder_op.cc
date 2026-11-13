@@ -54,6 +54,8 @@ namespace dali {
 struct VideoFileIndex {
   bool valid = false;          // false if the file is not a valid video (it is skipped)
   AVCodecID codec_id = AV_CODEC_ID_NONE;  // of the video stream, if valid
+  int height = 0, width = 0;   // of the video stream, if valid
+  AVPixelFormat pix_fmt = AV_PIX_FMT_NONE;  // of the video stream, if valid (may be unknown)
   std::exception_ptr error;    // set if indexing the file failed with an exception
   // set if valid and the codec is supported (otherwise, the file is skipped), and there's no error
   std::shared_ptr<const FrameIndex> index;
@@ -84,6 +86,9 @@ static VideoFileIndex IndexVideoFile(const std::string &filename, DALIImageType 
     }
     result.valid = true;
     result.codec_id = indexer.CodecId();
+    result.height = indexer.Height();
+    result.width = indexer.Width();
+    result.pix_fmt = static_cast<AVPixelFormat>(indexer.CodecParameters().format);
     if (std::find(supported_codecs.begin(), supported_codecs.end(), result.codec_id) ==
         supported_codecs.end()) {
       LOG_LINE << "Unsupported codec in video file: " << filename << std::endl;
@@ -412,6 +417,11 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         FramesDecoderImpl::IsCodecSupported(file_index.codec_id);
         continue;
       }
+      // Whether the decoder can decode the format of the stream (for MJPEG, its chroma format and
+      // bit depth depend on the GPU), so that the files that it would reject are skipped here,
+      // and don't make the reader fail later. It needs CUDA (cached), so it is done on this thread.
+      if (!FramesDecoderImpl::IsStreamSupported(file_index.codec_id, file_index.pix_fmt))
+        continue;
       const FrameIndex &index = *file_index.index;
       indices_[entry.filename] = file_index.index;  // kept for the reader's lifetime
       int64_t num_frames = index.size();
