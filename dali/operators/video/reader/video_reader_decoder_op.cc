@@ -432,10 +432,12 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             break;
           case FileListFormat::kTimestamps:
             entry.start_frame = index.GetFrameIdxByTimestamp(
-                SecondsToTimestamp(index.timebase, entry.start),
+                SecondsToTimestamp(index.timebase, entry.start,
+                                   file_list_opts_.should_round_down_start()),
                 file_list_opts_.should_round_down_start());
             entry.end_frame = index.GetFrameIdxByTimestamp(
-                SecondsToTimestamp(index.timebase, entry.end),
+                SecondsToTimestamp(index.timebase, entry.end,
+                                   file_list_opts_.should_round_down_end()),
                 file_list_opts_.should_round_down_end());
             break;
           default:

@@ -22,6 +22,9 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
+#include <algorithm>
+#include <cmath>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include "dali/core/error_handling.h"
@@ -36,8 +39,8 @@ using AVPacketScope = std::unique_ptr<AVPacket, decltype(&av_packet_unref)>;
 struct VideoFileMeta {
   std::string filename;
   int label;
-  float start;
-  float end;
+  double start;
+  double end;
   int start_frame = -1;
   int end_frame = -1;
   bool operator<(const VideoFileMeta& right) {
@@ -49,14 +52,53 @@ inline double TimestampToSeconds(AVRational timebase, int64_t timestamp) {
   return static_cast<double>(timestamp) * timebase.num / timebase.den;
 }
 
-inline int64_t SecondsToTimestamp(AVRational timebase, double seconds) {
-  return static_cast<int64_t>(seconds * timebase.den / timebase.num);
+namespace detail {
+
+/// Largest magnitude SecondsToTimestamp returns: 2^62 ticks, which no real stream reaches, and
+/// which leaves enough headroom for callers to add a pts offset without overflowing int64_t.
+constexpr double kMaxTimestampTicks = 4611686018427387904.0;  // 2^62
+
+/// Converts a whole number of ticks to int64_t, saturating to +-kMaxTimestampTicks -- a plain
+/// cast is UB for values outside of int64_t's range (e.g. a file_list time of 1e20 s).
+inline int64_t SaturateTicks(double ticks) {
+  if (ticks >= kMaxTimestampTicks)
+    return static_cast<int64_t>(kMaxTimestampTicks);
+  if (ticks <= -kMaxTimestampTicks)
+    return -static_cast<int64_t>(kMaxTimestampTicks);
+  return static_cast<int64_t>(ticks);
 }
 
-std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
-                                         const std::vector<std::string>& filenames, bool use_labels,
-                                         const std::vector<int>& labels,
-                                         const std::string& file_list);
+}  // namespace detail
+
+/**
+ * @brief Converts a time in seconds to a timestamp in `timebase` units, rounding down or up.
+ *
+ * The result saturates to +-2^62 ticks for times too large to represent, so a huge start time
+ * is still detected as being past the end of the stream, and a huge end time clamps to the end.
+ */
+inline int64_t SecondsToTimestamp(AVRational timebase, double seconds, bool round_down) {
+  if (std::isnan(seconds))
+    throw std::invalid_argument("Cannot convert a NaN time to a timestamp.");
+  // pts are integers, so floor(x) >= pts <=> x >= pts and ceil(x) <= pts <=> x <= pts:
+  // quantizing in the direction of the lookup keeps GetFrameIdxByTimestamp exact. Rounding to the
+  // nearest tick would not: a time just above the pts of a frame can round down to it.
+  //
+  // Values within a relative 1e-12 of an integer are floating-point noise (e.g. 1.001 s at
+  // 1/1000 is 1000.9999999999999 ticks) and are snapped first. 1e-12 is several thousand times
+  // the error of the conversion (a few 1e-16) and stays below half a tick up to ~5e11 ticks.
+  double ticks = seconds * timebase.den / timebase.num;
+  constexpr double kRelativeEpsilon = 1e-12;
+  double rounded = std::round(ticks);
+  double epsilon = std::max(1.0, std::abs(rounded)) * kRelativeEpsilon;
+  if (std::abs(ticks - rounded) < epsilon) {
+    ticks = rounded;
+  }
+  return detail::SaturateTicks(round_down ? std::floor(ticks) : std::ceil(ticks));
+}
+
+DLL_PUBLIC std::vector<VideoFileMeta> GetVideoFiles(
+    const std::string& file_root, const std::vector<std::string>& filenames, bool use_labels,
+    const std::vector<int>& labels, const std::string& file_list);
 
 enum class FrameNumPolicy {
   None,      // no frame number output

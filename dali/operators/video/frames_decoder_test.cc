@@ -13,10 +13,13 @@
 // limitations under the License.
 
 #include <cuda_runtime_api.h>
+#include <unistd.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <fstream>
 #include <functional>
 #include <limits>
 #include <map>
@@ -29,6 +32,7 @@
 #include <utility>
 #include <vector>
 
+#include "dali/core/call_at_exit.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/core/device_guard.h"
@@ -38,6 +42,7 @@
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/operators/video/video_test.h"
+#include "dali/operators/video/video_utils.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/util/file.h"
 
@@ -253,6 +258,7 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
     EXPECT_EQ(actual.index[i].leading_pictures, expected.index[i].leading_pictures)
         << "frame " << i;
   }
+  EXPECT_EQ(actual.end_pts, expected.end_pts);
   EXPECT_EQ(indexer.NumFrames(), decoder.NumFrames());
   EXPECT_EQ(indexer.Width(), decoder.Width());
   EXPECT_EQ(indexer.Height(), decoder.Height());
@@ -799,6 +805,19 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexDecodeOrder) {
     for (size_t i = 0; i < index.size(); i++)  // VP9 has no reordering
       EXPECT_EQ(index[i].decode_idx, static_cast<int>(i)) << path;
   }
+}
+
+// The end of the stream recorded by BuildIndex is used, not the estimate from the last gap
+// (the clip has a variable frame rate: the recorded end is 30464, the estimate 30976)
+TEST_F(FramesDecoderTest_CpuOnlyTests, EndPtsIsTheRecordedEndOfTheStream) {
+  FramesDecoderCpu decoder(vfr_videos_paths_[0]);
+  decoder.BuildIndex();
+  auto &index = decoder.GetIndex();
+  ASSERT_EQ(index.size(), 50u);
+  EXPECT_EQ(index.end_pts, 30464);
+  EXPECT_EQ(index.EndPts(), 30464);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(30464, true), 50);  // the end: one past the last frame
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(30463, true), 49);  // inside the last frame
 }
 
 // H.264, with reordering (the index of the VP9 files does not depend on the decoder: see the CPU
@@ -2084,6 +2103,228 @@ TEST_F(FramesDecoderGpuTest, RawH265) {
   auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[0]);
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, cfr_videos_[0], false, 1.5);
+}
+
+namespace {
+
+FrameIndex MakeFrameIndex(const std::vector<int64_t> &pts) {
+  FrameIndex index = {};
+  index.timebase = AVRational{1, 1000};
+  for (auto p : pts)
+    index.index.push_back(IndexEntry{p, 0, false, false});
+  return index;
+}
+
+}  // namespace
+
+TEST(FramesDecoderFrameIndexTest, TimestampInsideTheStream) {
+  auto index = MakeFrameIndex({100, 200, 300});
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(200, false), 1);  // exact match
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(200, true), 1);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(250, false), 2);  // between frames 1 and 2
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(250, true), 1);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(50, false), 0);   // before the first frame
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(50, true), 0);
+}
+
+TEST(FramesDecoderFrameIndexTest, EndPtsWithoutRecordedStreamEnd) {
+  auto index = MakeFrameIndex({100, 200, 300});
+  EXPECT_EQ(index.EndPts(), 400);  // last pts + last inter-frame gap
+  EXPECT_EQ(MakeFrameIndex({5}).EndPts(), 6);
+}
+
+TEST(FramesDecoderFrameIndexTest, EndPtsUsesRecordedStreamEnd) {
+  // The last frame lasts 100 ticks, the one before it 200: the gap would give 500.
+  auto index = MakeFrameIndex({0, 100, 300});
+  EXPECT_EQ(index.EndPts(), 500);
+  index.end_pts = 400;
+  EXPECT_EQ(index.EndPts(), 400);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(400, true), 3);   // end of stream: one past the last
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(399, true), 2);   // inside the last frame
+  // Single frame lasting 40 ticks: ranges starting inside it still select it.
+  auto single = MakeFrameIndex({0});
+  single.end_pts = 40;
+  EXPECT_EQ(single.EndPts(), 40);
+  EXPECT_EQ(single.GetFrameIdxByTimestamp(39, true), 0);
+  EXPECT_EQ(single.GetFrameIdxByTimestamp(40, true), 1);
+  // A recorded end not past the last pts is ignored.
+  single.end_pts = 0;
+  EXPECT_EQ(single.EndPts(), 1);
+}
+
+TEST(FramesDecoderFrameIndexTest, PastTheLastFrameReturnsSizeSentinel) {
+  auto index = MakeFrameIndex({100, 200, 300});
+  // Inside the last frame's duration: rounding down selects the last frame.
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(350, true), 2);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(350, false), 3);
+  // At or past the end of the stream: "one past the last frame", never frame 0.
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(400, false), 3);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(400, true), 3);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(100000, true), 3);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(100000, false), 3);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, RoundUpGoesPastTheFrameBelow) {
+  // 24 fps at timebase 1/12288: 512 ticks per frame, so frame 22 has pts 22 * 512 = 11264. A time
+  // a fraction of a tick above that pts must round up to 11265, so that the lookup does not take
+  // it for frame 22's own pts, and exclude frame 22 from a range that ends there.
+  AVRational timebase{1, 12288};
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.9167271357878531, /*round_down=*/false), 11265);
+  // 0.91670 s is 11264.4096 ticks: closer to 11264 than to 11265, but still above frame 22's pts
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.91670, /*round_down=*/false), 11265);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, RoundDownIsTheFloor) {
+  AVRational timebase{1, 12288};
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.9167271357878531, /*round_down=*/true), 11264);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.91670, /*round_down=*/true), 11264);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, RoundsUpOrDownAtTickBoundary) {
+  AVRational timebase{1, 1000};
+  // Exact tick boundaries round the same way regardless of direction.
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.002, /*round_down=*/false), 2);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.002, /*round_down=*/true), 2);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0, /*round_down=*/false), 0);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0, /*round_down=*/true), 0);
+  // Fractional ticks: round up goes to the next tick, round down stays at the current one.
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0015, /*round_down=*/false), 2);  // 1.5 ticks -> 2
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0015, /*round_down=*/true), 1);   // 1.5 ticks -> 1
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0014, /*round_down=*/false), 2);  // 1.4 ticks -> 2
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0014, /*round_down=*/true), 1);   // 1.4 ticks -> 1
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, SnapsFloatingPointNoiseAtExactTickBoundary) {
+  // At timebase 1/1000 (the Matroska/WebM default), 1.001 * 1000 is not exactly 1001.0 in double
+  // precision: it is 1000.9999999999999. Without snapping, floor() would return 1000 instead of
+  // 1001, and a file_list boundary on that frame's pts would select the wrong frame.
+  AVRational timebase{1, 1000};
+  ASSERT_NE(1.001 * timebase.den / timebase.num, 1001.0)
+      << "this test is meant to exercise floating-point noise; if this starts failing because "
+         "1.001 * 1000 became exact, the epsilon-snapping logic is no longer being exercised";
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.001, /*round_down=*/true), 1001);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.001, /*round_down=*/false), 1001);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, GenuineFractionalOffsetIsNotSnapped) {
+  // A real request landing a tenth of a tick off a boundary must NOT be snapped to the
+  // boundary -- only floating-point representation noise (many orders of magnitude smaller)
+  // should be. 1.0001 s at timebase 1/1000 is 1000.1 ticks: 0.1 of a tick off of 1000, which is
+  // far larger than the relative epsilon used for noise snapping.
+  AVRational timebase{1, 1000};
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.0001, /*round_down=*/true), 1000);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.0001, /*round_down=*/false), 1001);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, ExactIntegerTicksRoundTripAcrossCommonTimebases) {
+  // For several common timebases, every millisecond value from 0 to 2 seconds gives exactly the
+  // integer tick count, when it is one, whatever the floating-point noise in `seconds * den / num`.
+  const AVRational timebases[] = {{1, 1000}, {1, 12288}, {1, 90000}, {1, 25}};
+  for (const auto &timebase : timebases) {
+    for (int ms = 0; ms <= 2000; ms++) {
+      // Exact tick count for this millisecond value at this timebase, computed with integer
+      // arithmetic (no floating point) so it's unambiguously correct.
+      int64_t num = static_cast<int64_t>(ms) * timebase.den;
+      int64_t den = static_cast<int64_t>(1000) * timebase.num;
+      if (num % den != 0)
+        continue;  // not a whole number of ticks: see GenuineFractionalOffsetIsNotSnapped
+      int64_t expected_ticks = num / den;
+      double seconds = ms / 1000.0;
+      EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/true), expected_ticks)
+          << "timebase=1/" << timebase.den << " ms=" << ms;
+      EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), expected_ticks)
+          << "timebase=1/" << timebase.den << " ms=" << ms;
+    }
+  }
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, LargeTickCountsStayDirectional) {
+  // The noise-snapping tolerance must stay far below half a tick for long videos at fine
+  // timebases, or every value would snap to the nearest tick instead of being floored/ceiled.
+  AVRational timebase{1, 90000};
+  double seconds = 900000.3 / 90000;  // ~900000.3 ticks (10 s)
+  EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), 900001);
+  EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/true), 900000);
+  seconds = 3240000000.3 / 90000;  // ~3240000000.3 ticks (10 h)
+  EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), 3240000001);
+  EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/true), 3240000000);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, SnapsFloatingPointNoiseAtAnyMagnitude) {
+  // k / 30 s at timebase 1/30 is exactly k ticks, but the double product isn't always exactly k.
+  AVRational timebase{1, 30};
+  for (int64_t k : {123, 500005}) {
+    double seconds = k / 30.0;
+    ASSERT_NE(seconds * timebase.den / timebase.num, static_cast<double>(k))
+        << "meant to exercise floating-point noise at k=" << k;
+    EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/true), k);
+    EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), k);
+  }
+  // NTSC timebase: 1001/30000 s is exactly 1 tick, computed as 1.0000000000000002.
+  AVRational ntsc{1001, 30000};
+  double one_tick = 1001.0 / 30000;
+  ASSERT_NE(one_tick * ntsc.den / ntsc.num, 1.0);
+  EXPECT_EQ(SecondsToTimestamp(ntsc, one_tick, /*round_down=*/false), 1);
+  EXPECT_EQ(SecondsToTimestamp(ntsc, one_tick, /*round_down=*/true), 1);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, DecimalTimesGiveExactTicks) {
+  // At timebase 1/90000, 200.1 s is 18009000 ticks, 128.04 s is 11523600 ticks, and every tenth
+  // of a second is a multiple of 9000 ticks: rounding down or up must give exactly that.
+  AVRational timebase{1, 90000};
+  for (bool round_down : {true, false}) {
+    EXPECT_EQ(SecondsToTimestamp(timebase, std::strtod("200.1", nullptr), round_down), 18009000);
+    EXPECT_EQ(SecondsToTimestamp(timebase, std::strtod("128.04", nullptr), round_down), 11523600);
+  }
+  int wrong = 0;
+  for (int k = 1; k <= 36000; k++) {  // up to one hour
+    double seconds = std::strtod(make_string(k / 10, ".", k % 10).c_str(), nullptr);
+    for (bool round_down : {true, false}) {
+      int64_t ticks = SecondsToTimestamp(timebase, seconds, round_down);
+      if (ticks != int64_t(k) * 9000 && wrong++ == 0)
+        ADD_FAILURE() << k / 10 << "." << k % 10 << " s, round down " << round_down << ": "
+                      << ticks;
+    }
+  }
+  EXPECT_EQ(wrong, 0);
+}
+
+TEST(VideoUtilsGetVideoFilesTest, FileListTimesAreParsedAsDoubles) {
+  // As floats, times from 128 s on can be a tick off at timebase 1/90000, once rounded.
+  char path[] = "/tmp/file_list_times_XXXXXX";
+  int fd = mkstemp(path);
+  ASSERT_GE(fd, 0);
+  close(fd);
+  auto remove_list = AtScopeExit([&] { std::remove(path); });
+  {
+    std::ofstream list(path);
+    // float(200.1) != 200.1, and 16777217 (2^24 + 1) is the first integer a float cannot hold
+    list << "video.mp4 0 200.1 300.25\nvideo.mp4 1 16777217 16777219\n";
+  }
+  auto files = GetVideoFiles("", {}, false, {}, path);
+  ASSERT_EQ(files.size(), 2u);
+  EXPECT_EQ(files[0].start, 200.1);
+  EXPECT_EQ(files[0].end, 300.25);
+  EXPECT_EQ(files[1].start, 16777217.0);
+  EXPECT_EQ(files[1].end, 16777219.0);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, SaturatesOutOfRangeTimes) {
+  AVRational timebase{1, 90000};
+  const int64_t kMax = int64_t(1) << 62;
+  for (bool round_down : {true, false}) {
+    EXPECT_EQ(SecondsToTimestamp(timebase, 1e20, round_down), kMax);
+    EXPECT_EQ(SecondsToTimestamp(timebase, -1e20, round_down), -kMax);
+    EXPECT_EQ(SecondsToTimestamp(timebase, std::numeric_limits<double>::infinity(), round_down),
+              kMax);
+    EXPECT_EQ(SecondsToTimestamp(timebase, -std::numeric_limits<double>::infinity(), round_down),
+              -kMax);
+    EXPECT_THROW(
+        SecondsToTimestamp(timebase, std::numeric_limits<double>::quiet_NaN(), round_down),
+        std::invalid_argument);
+  }
+  // Leaves headroom for adding a pts offset, so a huge start is still "past the end".
+  EXPECT_GT(SecondsToTimestamp(timebase, 1e20, true) + (int64_t(1) << 61), 0);
 }
 
 }  // namespace dali
