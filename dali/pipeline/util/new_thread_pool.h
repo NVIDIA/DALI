@@ -98,6 +98,11 @@ class DLL_PUBLIC ThreadPoolFacade : public ThreadPool {
   std::list<Job> jobs_;
 };
 
+/** Returns whether the executor should use NewThreadPool (default) instead of OldThreadPool.
+ *
+ * The new thread pool can be disabled by setting the environment variable
+ * DALI_USE_NEW_THREAD_POOL=0. The value is read once, on first use.
+ */
 DLL_PUBLIC bool UseNewThreadPool();
 
 }  // namespace dali

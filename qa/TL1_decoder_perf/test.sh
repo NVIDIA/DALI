@@ -20,13 +20,13 @@ do_once() {
 }
 
 LOG_RN50="dali_rn50.log"
-LOG_RN50_TP="dali_rn50_new_tp.log"
+LOG_RN50_OLD_TP="dali_rn50_old_tp.log"
 LOG_NDD="dali_ndd.log"
 LOG_NDD_CAPTURE="dali_ndd_capture.log"
 
 function CLEAN_AND_EXIT {
     rm -rf ${LOG_RN50}
-    rm -rf ${LOG_RN50_TP}
+    rm -rf ${LOG_RN50_OLD_TP}
     rm -rf ${LOG_NDD}
     rm -rf ${LOG_NDD_CAPTURE}
     exit $1
@@ -88,7 +88,8 @@ run_all_benchmarks() {
     TASKSET="taskset --cpu-list ${CPU_LIST}"
     BENCH_ARGS="--width_hint 6000 --height_hint 6000 -b ${BATCH_SIZE} -d 0 -g gpu -w 100 -t 100000 -i ${DALI_EXTRA_PATH}/db/single/jpeg -j ${NUM_CORES} --hw_load ${HW_LOAD}"
     run_bench "${LOG_RN50}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
-    DALI_USE_NEW_THREAD_POOL=1 run_bench "${LOG_RN50_TP}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
+    # The new thread pool is the default; the old one is still run to track regressions against it
+    DALI_USE_NEW_THREAD_POOL=0 run_bench "${LOG_RN50_OLD_TP}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p rn50
     run_bench "${LOG_NDD}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p ndd_rn50
     run_bench "${LOG_NDD_CAPTURE}" ${TASKSET} python hw_decoder_bench.py ${BENCH_ARGS} -p ndd_rn50 --ndd-capture
 }
@@ -119,14 +120,15 @@ test_body() {
     PERF_RESULT=$(perf_check "${LOG_RN50}" "$MIN_PERF")
     PERF_RESULT_NDD=$(perf_check "${LOG_NDD}" "$MIN_PERF_NDD")
     PERF_RESULT_NDD_CAPTURE=$(perf_check "${LOG_NDD_CAPTURE}" "$MIN_PERF")
-    PERF_RESULT_TP=$(perf_check "${LOG_RN50_TP}" "$(extract_perf "${LOG_RN50}")" 2)
+    # Default (new thread pool) vs. old thread pool, with 2% tolerance
+    PERF_RESULT_VS_OLD_TP=$(perf_check "${LOG_RN50}" "$(extract_perf "${LOG_RN50_OLD_TP}")" 2)
 
     echo "PERF_RESULT=${PERF_RESULT}"
     echo "PERF_RESULT_NDD=${PERF_RESULT_NDD}"
     echo "PERF_RESULT_NDD_CAPTURE=${PERF_RESULT_NDD_CAPTURE}"
-    echo "PERF_RESULT_TP=${PERF_RESULT_TP} (informational)"
+    echo "PERF_RESULT_VS_OLD_TP=${PERF_RESULT_VS_OLD_TP} (informational)"
 
-    # PERF_RESULT_TP is informational only (new thread pool is experimental)
+    # PERF_RESULT_VS_OLD_TP is informational only (tracks regressions of the new thread pool vs. the old one)
     if [[ "$PERF_RESULT" == "OK" && "$PERF_RESULT_NDD" == "OK" && "$PERF_RESULT_NDD_CAPTURE" == "OK" ]]; then
         CLEAN_AND_EXIT 0
     fi
