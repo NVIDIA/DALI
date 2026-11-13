@@ -25,6 +25,7 @@ extern "C" {
 
 #include <algorithm>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -53,6 +54,9 @@ struct IndexEntry {
   // For a keyframe: how many leading pictures it has (shown before it, decoded after it), which
   // with FrameIndex::decode_order_timestamps are the frames right after it; -1 if unknown
   int leading_pictures = -1;
+  // The timestamp that a seek to the frame takes (see FrameIndex::SeekTimestamp); AV_NOPTS_VALUE
+  // if unknown
+  int64_t seek_timestamp = AV_NOPTS_VALUE;
 };
 
 struct FrameIndex {
@@ -68,6 +72,19 @@ struct FrameIndex {
    * not known (see FramesDecoderBase::SeekTarget).
    */
   bool decode_order_timestamps = false;
+  // End of the stream (pts + duration of the latest-ending packet), as recorded by the container;
+  // AV_NOPTS_VALUE if unknown. See EndPts().
+  int64_t end_pts = AV_NOPTS_VALUE;
+  /**
+   * @brief Some frames may have no picture: a packet may hold none (an empty packet, or an MPEG-4
+   * Part 2 packet without a coded VOP, e.g. the not-coded VOP of a DivX packed stream, also when
+   * its VOPs cannot be read), or a keyframe may have leading pictures (or it is not known), which
+   * a decoder that starts at it drops.
+   *
+   * With decode_order_timestamps, a frame without a picture repeats the frame before it, which the
+   * GPU decoder then keeps a copy of. Without such frames, it skips that copy.
+   */
+  bool may_have_frames_without_pictures = false;
 
   size_t size() const {
     return index.size();
@@ -102,40 +119,74 @@ struct FrameIndex {
   }
 
   /**
+   * @brief Pts of the first frame.
+   */
+  int64_t StartPts() const {
+    assert(!index.empty());
+    return index.front().pts;
+  }
+
+  /**
+   * @brief Pts one frame past the last frame, i.e. the end of the stream.
+   *
+   * Uses `end_pts` when it is past the last frame's pts. Otherwise it is estimated as the last
+   * frame's pts plus the last inter-frame pts gap (plus 1 when the index has a single frame).
+   */
+  int64_t EndPts() const {
+    assert(!index.empty());
+    int64_t last = index.back().pts;
+    if (end_pts > last)
+      return end_pts;
+    int64_t gap = index.size() >= 2 ? last - index[index.size() - 2].pts : 1;
+    return last + std::max<int64_t>(gap, 1);
+  }
+
+  /**
+   * @brief The timestamp that av_seek_frame (with AVSEEK_FLAG_BACKWARD) takes to land on frame i's
+   * packet, or before it, for a frame that SeekFrame seeks to.
+   *
+   * It is the frame's pts if the demuxer seeks by pts (e.g. MP4, Matroska), and its dts otherwise
+   * (e.g. MPEG-TS, which bisects the file on the dts of any packet: with B-frames, a seek to a
+   * keyframe's pts lands after the keyframe). For frame 0 before the first keyframe, it is the
+   * lowest of them, for the start of the stream. If unknown, the frame's pts.
+   */
+  int64_t SeekTimestamp(int i) const {
+    return index[i].seek_timestamp != AV_NOPTS_VALUE ? index[i].seek_timestamp : index[i].pts;
+  }
+
+  /**
    * @brief Returns the index of the frame that has the given timestamp
    *
    * The entries must be sorted by pts, which BuildIndex guarantees.
    *
    * @param timestamp Timestamp of the frame to seek to
    * @param rounddown If true, the seek will be to a frame that has this timestamp or a previous one
+   * @return A value in [0, size()]. size() is a sentinel meaning "one past the last frame": it is
+   *         returned for timestamps at or after EndPts(), and for timestamps after the last
+   *         frame's pts when rounding up. It is not a valid frame index.
    */
   int GetFrameIdxByTimestamp(int64_t timestamp, bool rounddown = false) const {
     LOG_LINE << "GetFrameIdxByTimestamp: timestamp=" << timestamp << ", rounddown=" << rounddown
              << ", index_size=" << index.size() << std::endl;
+    if (index.empty())
+      return 0;
     // The first frame with pts >= timestamp
     auto it = std::lower_bound(index.begin(), index.end(), timestamp,
                                [](const IndexEntry &e, int64_t ts) { return e.pts < ts; });
-    int frame_idx = 0;  // returned when the timestamp is past the last frame
-  #if LOGS_ENABLED
-    std::optional<int64_t> pts_found = {};
-  #endif
     if (it != index.end()) {
-      frame_idx = it - index.begin();
-      if (it->pts > timestamp && rounddown && frame_idx > 0)
-        frame_idx--;
-    #if LOGS_ENABLED
-      pts_found = index[frame_idx].pts;
-    #endif
+      int i = it - index.begin();
+      int frame_idx = (it->pts > timestamp && rounddown && i > 0) ? i - 1 : i;
+      LOG_LINE << "Returning frame_idx=" << frame_idx << " with pts=" << index[frame_idx].pts
+               << std::endl;
+      return frame_idx;
     }
-    assert(frame_idx >= 0 && frame_idx < static_cast<int>(index.size()));
-  #if LOGS_ENABLED
-    if (pts_found) {
-      LOG_LINE << "Returning frame_idx=" << frame_idx << " with pts=" << *pts_found << std::endl;
-    } else {
-      LOG_LINE << "Returning frame_idx=" << frame_idx << " (frame not found)" << std::endl;
+    // The timestamp is past the last frame's pts.
+    if (rounddown && timestamp < EndPts()) {
+      LOG_LINE << "Timestamp inside the last frame; returning " << index.size() - 1 << std::endl;
+      return index.size() - 1;
     }
-  #endif
-    return frame_idx;
+    LOG_LINE << "Timestamp past the end of the stream; returning " << index.size() << std::endl;
+    return index.size();
   }
 };
 
@@ -212,6 +263,35 @@ class AVUniquePtr : public UniqueHandle<T *, AVUniquePtr<T>> {
   T **operator&() { return &handle_; }  // NOLINT(runtime/operator)
 };
 
+namespace detail {
+
+/**
+ * @brief The size of the length that precedes each NAL unit in the packets of an H.264 or HEVC
+ * stream (from its avcC/hvcC extradata), or 0 if start codes precede them (Annex B). Extradata
+ * too short for avcC/hvcC that does not start with a start code gives 4.
+ */
+DLL_PUBLIC int NalLengthSize(const AVCodecParameters &par);
+
+/**
+ * @brief Whether a packet of an H.264 or HEVC stream has a NAL unit that decoding can start from:
+ * an IDR picture in H.264, an IRAP picture (IDR, CRA or BLA) in HEVC.
+ *
+ * @param length_size The size of the length before each NAL unit, or 0 for start codes
+ *        (see NalLengthSize)
+ * @param nal_type If there is such a NAL unit, set to the type of the first one (in H.264 5, in
+ *        HEVC 16 to 21; 20 is IDR_N_LP)
+ */
+DLL_PUBLIC bool HasKeyframeNal(const AVPacket &packet, AVCodecID codec_id, int length_size,
+                               int *nal_type);
+
+/**
+ * @brief Whether av_seek_frame takes a presentation timestamp (pts) for this demuxer, rather than a
+ * decoding timestamp (dts), e.g. for MP4 and Matroska.
+ */
+DLL_PUBLIC bool SeeksByPts(const AVInputFormat &format);
+
+}  // namespace detail
+
 /**
  * @brief Object representing a video file. Allows access to frames and seeking.
  */
@@ -264,16 +344,19 @@ class DLL_PUBLIC FramesDecoderBase {
 
   /**
    * @brief Width of a video frame in pixels
+   *
+   * The size from the container, unless a decoder overrides it with SetDisplaySize. Only
+   * FramesDecoderGpu does: FramesIndexer and the CPU decoder keep the container size.
    */
   int Width() const {
-    return codec_params_->width;
+    return display_width_ > 0 ? display_width_ : codec_params_->width;
   }
 
   /**
    * @brief Height of a video frame in pixels
    */
   int Height() const {
-    return codec_params_->height;
+    return display_height_ > 0 ? display_height_ : codec_params_->height;
   }
 
   /**
@@ -367,9 +450,10 @@ class DLL_PUBLIC FramesDecoderBase {
   };
 
   /**
-   * @brief Estimated work of a decoder: the pictures it decodes and the times it reopens the file.
+   * @brief Estimated work of a decoder: the pictures it goes through (those it
+   * decodes and those it leaves out) and the times it reopens the file.
    *
-   * A picture is a packet of the stream (see IndexEntry::decode_idx). The GPU decoder decodes
+   * A picture is a packet of the stream (see IndexEntry::decode_idx). The GPU decoder goes through
    * more than one picture for a packet that holds several, e.g. a VP9 superframe with a hidden
    * frame, or the two fields of an interlaced frame (see DecodedPictures).
    */
@@ -393,12 +477,13 @@ class DLL_PUBLIC FramesDecoderBase {
   /**
    * @brief Adds the work of returning `frame` from `pos` and advances `pos`.
    *
-   * Follows SeekFrame (through SeekTarget) and ReadNextFrame, counting the pictures decoded, also
-   * the hidden ones (see IndexEntry::decode_idx), and a Reset as a reopening. A `frame` out of
-   * range (e.g. -1, a constant frame from HandleBoundary) is not decoded: it adds nothing and
-   * leaves `pos` as it is. Not modelled: a failed av_seek_frame (after which every seek resets
-   * the decoder), and the RASL pictures of an HEVC CRA, which are counted after a seek to it
-   * although a decoder skips them there (they reference pictures before the seek).
+   * Follows SeekFrame (through SeekTarget) and ReadNextFrame, counting the pictures gone through
+   * (decoded_pictures_ + not_decoded_pictures_), also the hidden ones (see IndexEntry::decode_idx),
+   * and a Reset as a reopening. A `frame` out of range (e.g. -1, a constant frame from HandleBoundary) is not
+   * decoded: it adds nothing and leaves `pos` as it is. Not modelled: a failed av_seek_frame
+   * (after which every seek resets the decoder), and the RASL pictures of an HEVC CRA, which are
+   * counted after a seek to it although a decoder skips them there (they reference pictures
+   * before the seek).
    *
    * The CPU decoder accepts only codecs without frame reordering (VP8, VP9, MJPEG, see
    * FramesDecoderCpu::SelectVideoStream), where the estimate is exact. If it ever accepted a
@@ -475,11 +560,14 @@ class DLL_PUBLIC FramesDecoderBase {
    * @brief Returns the index of the frame that has the given timestamp
    *
    * @param timestamp Timestamp of the frame to seek to
-   * @param inclusive If true, the seek will be to a frame that has this timestamp or a previous one
+   * @param rounddown If true, the seek will be to a frame that has this timestamp or a previous one
+   * @return A value in [0, NumFrames()]. NumFrames() is a sentinel meaning "one past the last
+   *         frame": it is returned for timestamps at or after the end of the stream, and for
+   *         timestamps after the last frame's pts when rounding up. It is not a valid frame index.
    */
-  int GetFrameIdxByTimestamp(int64_t timestamp, bool inclusive = false) const {
+  int GetFrameIdxByTimestamp(int64_t timestamp, bool rounddown = false) const {
     DALI_ENFORCE(HasIndex(), "No index available, cannot seek by timestamp");
-    return index_.GetFrameIdxByTimestamp(timestamp, inclusive);
+    return index_.GetFrameIdxByTimestamp(timestamp, rounddown);
   }
 
   /**
@@ -488,8 +576,10 @@ class DLL_PUBLIC FramesDecoderBase {
   virtual void Reset();
 
   /**
-   * @brief Seeks to the frame given by id using avformat_seek_file
+   * @brief Seeks to the frame given by id using av_seek_frame
    *
+   * @param timestamp What av_seek_frame takes to land on the frame (for a frame that SeekFrame
+   *        seeks to, FrameIndex::SeekTimestamp)
    * @param frame_id Id of the frame to seek to
    *
    * @return Boolean indicating whether the seek was successful
@@ -525,6 +615,12 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
   void SetIndex(const FrameIndex& index) {
+    // sorted by timestamp, as BuildIndex makes it (the GPU decoder searches it). Checked in release
+    // builds too: an unsorted index makes the decoder drop frames it should read.
+    if (!std::is_sorted(index.index.begin(), index.index.end(),
+                        [](const IndexEntry &a, const IndexEntry &b) { return a.pts < b.pts; })) {
+      throw std::invalid_argument("The frame index must be sorted by timestamp.");
+    }
     index_ = index;
     num_frames_ = index.size();
   }
@@ -550,6 +646,8 @@ class DLL_PUBLIC FramesDecoderBase {
    *
    * The CPU decoder counts the packets it sends to FFmpeg, the GPU decoder the pictures that
    * NVDEC decodes: more than the packets when a packet holds several pictures (see DecodeWork).
+   * The pictures that the GPU decoder does not decode at all are not counted (see
+   * not_decoded_pictures_); DecodeWork estimates both.
    */
   int64_t DecodedPictures() const {
     return decoded_pictures_;
@@ -587,6 +685,15 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   bool HasDecodeOrderTimestamps() const;
 
+  /**
+   * @brief Overrides the size reported by Width() and Height(), when the size of the pictures in
+   *        the stream differs from the one declared by the container.
+   */
+  void SetDisplaySize(int width, int height) {
+    display_width_ = width;
+    display_height_ = height;
+  }
+
   AVUniquePtr<AVFormatContext> ctx_;
   AVUniquePtr<AVCodecContext> codec_ctx_;
   AVUniquePtr<AVFrame> frame_;
@@ -611,8 +718,53 @@ class DLL_PUBLIC FramesDecoderBase {
 
   int64_t decoded_pictures_ = 0;  // see DecodedPictures
   int64_t reopens_ = 0;  // see Reopens
+  // The pictures that the GPU decoder goes through without decoding: H.264 non-reference pictures
+  // that are never read with their pixels (see FramesDecoderGpu::ShouldDecodePicture). The CPU
+  // decoder decodes every picture: 0. Together with decoded_pictures_, the pictures that DecodeWork
+  // estimates. Read by tests through FramesDecoderTestAccess.
+  int64_t not_decoded_pictures_ = 0;
+
+  /**
+   * @brief The frames read with their data next, in order, when known: DecodeFrames sets those it
+   * has yet to read and SeekFrame the one it seeks to. Empty: any frame may be read.
+   *
+   * A frame decoded on the way to them that is not one of them is only skipped.
+   */
+  span<const int> frames_to_read_;
+
+  /**
+   * @brief Declares the frames read with their data next (frames_to_read_) for the lifetime of the
+   *        object, and clears the declaration when the outermost scope ends.
+   *
+   * A scope created while another one is alive (SeekFrame called by DecodeFrames) leaves the
+   * declaration of the outer one alone. The frames passed to Declare must outlive the scope.
+   */
+  class FramesToReadScope {
+   public:
+    explicit FramesToReadScope(FramesDecoderBase &decoder)
+    : decoder_(decoder), outermost_(decoder.frames_to_read_.empty()) {}
+
+    ~FramesToReadScope() {
+      if (outermost_)
+        decoder_.frames_to_read_ = {};
+    }
+
+    FramesToReadScope(const FramesToReadScope &) = delete;
+    FramesToReadScope &operator=(const FramesToReadScope &) = delete;
+
+    void Declare(span<const int> frames) {
+      if (outermost_)
+        decoder_.frames_to_read_ = frames;
+    }
+
+   private:
+    FramesDecoderBase &decoder_;
+    bool outermost_;
+  };
 
  private:
+  friend struct FramesDecoderTestAccess;  // reads the counters of the pictures (in tests)
+
   void DetectVariableFrameRate();
 
   bool CheckDimensions();
@@ -637,6 +789,8 @@ class DLL_PUBLIC FramesDecoderBase {
                    int buffer_size);
 
   int channels_ = 3;
+  int display_width_ = 0;
+  int display_height_ = 0;
   bool is_vfr_ = false;
 
   std::string filename_ = {};
@@ -653,7 +807,7 @@ class DLL_PUBLIC FramesDecoderBase {
  * It only demuxes the file: it has no codec context, parser or frame buffers, so it is much
  * cheaper to create than a decoder. It is valid for the files whose container has a video stream.
  * Whether a backend can decode the codec of that stream is up to the caller to check, for example
- * with `Decoder::IsCodecSupported(indexer.CodecId())`.
+ * with `Decoder::IsStreamSupported(indexer.CodecParameters())`.
  */
 class DLL_PUBLIC FramesIndexer : public FramesDecoderBase {
  public:
@@ -664,6 +818,13 @@ class DLL_PUBLIC FramesIndexer : public FramesDecoderBase {
    */
   AVCodecID CodecId() const {
     return codec_params_->codec_id;
+  }
+
+  /**
+   * @brief Parameters of the selected video stream. Only valid when IsValid().
+   */
+  const AVCodecParameters &CodecParameters() const {
+    return *codec_params_;
   }
 
   bool ReadNextFrame(uint8_t *data) override;

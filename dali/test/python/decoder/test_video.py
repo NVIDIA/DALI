@@ -18,8 +18,13 @@ import numpy as np
 import cv2
 import av
 import io
+import shutil
 import struct
+import subprocess
+from fractions import Fraction
 import tempfile
+import contextlib
+import functools
 import nvidia.dali.types as types
 import glob
 import os
@@ -155,6 +160,215 @@ def test_video_reader_matching_frame_dimensions(width, image_type):
 
         output = pipeline().run()[0].at(0)
         np.testing.assert_allclose(output, mjpeg_reference(data, image_type), atol=2, rtol=0)
+
+
+def make_video(width, height, codec="libx264", num_frames=8, container_format="mp4", shift=0):
+    """Encodes a moving gradient to an in-memory video. The stream crops the size to a coded one.
+
+    A nonzero ``shift`` moves the timestamps back by that many frames, so that the first packets
+    have negative ones (the muxer is told to keep them).
+    """
+    y, x = np.mgrid[:height, :width]
+    encoded = io.BytesIO()
+    options = {"avoid_negative_ts": "disabled"} if shift else {}
+    with av.open(encoded, mode="w", format=container_format, options=options) as container:
+        try:
+            stream = container.add_stream(codec, rate=24)
+        except Exception:
+            raise SkipTest(f"{codec} is not available")
+        stream.width, stream.height, stream.pix_fmt = width, height, "yuv420p"
+        stream.time_base = Fraction(1, 24)
+        if codec == "libx265":
+            stream.options = {"x265-params": "keyint=4:bframes=0:log-level=none", "crf": "10"}
+        else:
+            stream.options = {"g": "4", "bf": "0", "crf": "10"}
+        packets = []
+        for i in range(num_frames):
+            pixels = np.stack(
+                ((x * 255 // width + 8 * i) % 256, y * 255 // height, (x + y + 20 * i) % 256),
+                axis=-1,
+            ).astype(np.uint8)
+            frame = av.VideoFrame.from_ndarray(pixels, format="rgb24")
+            frame.pts = i
+            packets.extend(stream.encode(frame))
+        packets.extend(stream.encode())
+        for packet in packets:
+            if shift:
+                packet.pts -= shift
+                packet.dts -= shift
+            container.mux(packet)
+    return bytearray(encoded.getvalue())
+
+
+def make_h264_video(width, height, num_frames=8):
+    return make_video(width, height, "libx264", num_frames)
+
+
+def set_mp4_container_size(data, width, height):
+    """Rewrites the size in the sample entry. The size in the SPS is not changed."""
+    stsd = data.index(b"stsd")
+    entry = min(i for i in (data.find(tag, stsd) for tag in (b"avc1", b"hvc1", b"hev1")) if i > 0)
+    struct.pack_into(">HH", data, entry + 28, width, height)
+
+
+def recrop_with_ffmpeg(data, crop_options):
+    """Rewrites the crop in the SPS of an H.264 stream, leaving the container size as it is."""
+    ffmpeg = os.environ.get("FFMPEG") or shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise SkipTest("the ffmpeg executable is not available")
+    src = write_video(data, ".mp4")
+    dst = src + ".crop.mp4"
+    try:
+        command = [ffmpeg, "-y", "-loglevel", "error", "-i", src, "-c", "copy"]
+        subprocess.run(command + ["-bsf:v", f"h264_metadata={crop_options}", dst], check=True)
+        with open(dst, "rb") as video:
+            return bytearray(video.read())
+    finally:
+        for path in (src, dst):
+            if os.path.exists(path):
+                os.remove(path)
+
+
+def decode_with_pyav(path):
+    with av.open(path) as container:
+        return np.stack([f.to_ndarray(format="rgb24") for f in container.decode(video=0)])
+
+
+def read_video_gpu(path, num_frames, reader):
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipeline():
+        if reader == "decoder":
+            data = fn.external_source(
+                source=lambda: [np.fromfile(path, dtype=np.uint8)], dtype=types.UINT8
+            )
+            return fn.decoders.video(data, device="mixed")
+        if reader == "input":
+            return fn.experimental.inputs.video(
+                name="video_input",
+                device="mixed",
+                blocking=False,
+                sequence_length=num_frames,
+            )
+        return fn.experimental.readers.video(
+            filenames=[path], sequence_length=num_frames, device="gpu", random_shuffle=False
+        )
+
+    pipe = pipeline()
+    if reader == "input":
+        pipe.feed_input("video_input", [np.fromfile(path, dtype=np.uint8)])
+    return np.array(pipe.run()[0].as_cpu().at(0))
+
+
+def write_video(data, suffix):
+    handle, path = tempfile.mkstemp(suffix=suffix)
+    with os.fdopen(handle, "wb") as video:
+        video.write(data)
+    return path
+
+
+READERS = ("reader", "decoder", "input")
+
+
+@params(
+    ("libx264", 300, 232, (320, 240)),  # right and bottom
+    ("libx264", 320, 232, (320, 240)),  # bottom only
+    ("libx264", 300, 240, (320, 240)),  # right only
+    ("libx264", 304, 240, (320, 256)),  # no crop in the stream, only the container is bigger
+    ("libx264", 320, 240, (304, 232)),  # the container is smaller than the stream
+    ("libx265", 300, 232, (320, 240)),
+    ("libx265", 304, 240, (320, 256)),
+)
+def test_video_container_size_differs_from_stream_size(codec, width, height, container_size):
+    """The output has the size of the picture in the stream, not the one from the container."""
+    skip_if_m60()
+    data = make_video(width, height, codec)
+    set_mp4_container_size(data, *container_size)
+    path = write_video(data, ".mp4")
+    try:
+        reference = decode_with_pyav(path)
+        assert reference.shape[1:] == (height, width, 3), reference.shape
+        for reader in READERS:
+            output = read_video_gpu(path, len(reference), reader)
+            assert output.shape == reference.shape, (reader, output.shape, reference.shape)
+            diff = np.abs(output.astype(int) - reference.astype(int)).mean()
+            assert diff < 2.0, (reader, diff)
+    finally:
+        os.remove(path)
+
+
+@params("reader", "decoder")
+def test_video_probe_keeps_leading_frames(reader):
+    """Guards that a file with negative timestamps in the first packets (the seek to 0 skips them)
+    returns the same frames as the sequential decoding, once the probe has rewound the file.
+
+    The decoder builds the index of the file, which reopens it and so hides a wrong rewind. The
+    reader only gives its decoder the index, so it decodes from where the probe left the file."""
+    skip_if_m60()
+    data = make_video(64, 64, num_frames=48, container_format="mpegts", shift=24)
+    path = write_video(data, ".ts")
+    try:
+        with av.open(path) as container:
+            frames = list(container.decode(video=0))
+        assert len(frames) == 48 and sum(f.pts >= 0 for f in frames) == 24
+        # the frames with negative timestamps are not indexed by DALI
+        reference = np.stack([f.to_ndarray(format="rgb24") for f in frames if f.pts >= 0])
+        output = read_video_gpu(path, len(reference), reader)
+        assert output.shape == reference.shape, (output.shape, reference.shape)
+        diff = np.abs(output.astype(int) - reference.astype(int)).mean(axis=(1, 2, 3))
+        assert diff.max() < 3.5, diff
+    finally:
+        os.remove(path)
+
+
+def make_video_without_leading_timestamps():
+    return make_video(64, 64, num_frames=48, container_format="matroska", shift=24)
+
+
+def test_video_no_timestamps_in_first_packets_decoder():
+    """A file whose first packets have no timestamps is rejected by the index, as without the
+    probe. The seek after the probe lands after those packets and must not hide them.
+    Update the test if the index starts to accept such files."""
+    skip_if_m60()
+    path = write_video(make_video_without_leading_timestamps(), ".mkv")
+    try:
+        for reader in ("reader", "decoder"):
+            with assert_raises(RuntimeError, regex="has no valid timestamps"):
+                read_video_gpu(path, 48, reader)
+    finally:
+        os.remove(path)
+
+
+def test_video_no_timestamps_in_first_packets_input():
+    """The input operator does not index the file: all the frames are returned, as without the
+    probe (and not the ones after the packets that the seek skipped)."""
+    skip_if_m60()
+    path = write_video(make_video_without_leading_timestamps(), ".mkv")
+    try:
+        reference = decode_with_pyav(path)
+        output = read_video_gpu(path, len(reference), "input")
+        assert output.shape == reference.shape, (output.shape, reference.shape)
+        assert np.abs(output[0].astype(int) - reference[0].astype(int)).mean() < 2.0
+    finally:
+        os.remove(path)
+
+
+@params(
+    # a pure left/top crop is ignored by NVDEC: the full frame is output
+    ("crop_left=64:crop_top=8", (240, 320)),
+    # of a mixed crop, the right and bottom one is applied and the left and top one is not
+    ("crop_left=16:crop_right=16:crop_top=8:crop_bottom=8", (232, 304)),
+)
+def test_video_left_top_crop_is_not_supported(crop_options, expected_size):
+    """Documents the limitation: NVDEC does not report the left and top crop of the stream."""
+    skip_if_m60()
+    data = recrop_with_ffmpeg(make_h264_video(320, 240), crop_options)
+    path = write_video(data, ".mp4")
+    try:
+        for reader in READERS:
+            output = read_video_gpu(path, 8, reader)
+            assert output.shape[1:3] == expected_size, (reader, output.shape)
+    finally:
+        os.remove(path)
 
 
 def assert_unsupported_cpu_codec(run_pipeline):
@@ -1910,3 +2124,324 @@ def test_non_idr_keyframes_warm_seeks(codec, sequence_length=4):
         assert_non_idr_frames_equal(
             frames, expected[start : start + sequence_length], start, f"{codec}, sequence {start}"
         )
+
+
+@functools.lru_cache(maxsize=4)
+def _reference_frames(filename):
+    """All frames of the file, decoded with PyAV, in presentation order (the last few files are
+    kept: the tests check one file after another)."""
+    with av.open(filename) as container:
+        return [f.to_ndarray(format="rgb24") for f in container.decode(video=0)]
+
+
+def _assert_frames_match_file(frames, frame_nums, filename, window=32):
+    """Checks that frames[i] is the frame frame_nums[i] of the file (negative: padding, skipped).
+
+    Decoders differ slightly in color conversion, so a frame must be close to the reference and
+    closer to it than to any other frame up to `window` frames away (None: of the whole file)."""
+    reference = _reference_frames(filename)
+    for frame, num in zip(frames, frame_nums, strict=True):
+        if num < 0:
+            continue
+        start = 0 if window is None else max(0, num - window)
+        end = len(reference) if window is None else min(len(reference), num + window + 1)
+        diffs = {i: np.abs(frame.astype(np.int32) - reference[i]).mean() for i in range(start, end)}
+        closest = min(diffs, key=diffs.get)
+        assert (
+            diffs[num] < 10
+        ), f"{filename}: frame {num} differs from the reference by {diffs[num]}"
+        assert (
+            diffs[num] <= diffs[closest] + 0.5
+        ), f"{filename}: frame {num} is closer to frame {closest}"
+
+
+# The reader decodes the samples of a batch in parallel, by up to num_threads decoders (decode
+# lanes). Its output must not depend on how many there are.
+_lanes_reader_cases = [
+    dict(sequence_length=5),  # consecutive sequences of each file
+    dict(sequence_length=4, stride=3, step=20),  # sparse samples of each file
+    dict(sequence_length=5, step=2),  # overlapping samples
+    dict(sequence_length=6, random_shuffle=True, initial_fill=8),
+    dict(sequence_length=6, uniform_sample=True),
+    dict(sequence_length=7, pad_mode="constant", fill_value=[30, 60, 90], enable_timestamps=True),
+    dict(sequence_length=5, pad_last_batch=True, num_shards=3, shard_id=2),
+]
+
+
+_sintel_dir = os.path.join(get_dali_extra_path(), "db", "video", "sintel")
+
+# H.264 clips that start with packets hidden by an edit list (62 and 16), which are decoded before
+# the first frame, and after a seek that lands on them
+lead_in_files = [
+    os.path.join(_sintel_dir, "labelled_videos", "0", "sintel_trailer-720p_6.mp4"),
+    os.path.join(_sintel_dir, "labelled_videos", "2", "sintel_trailer-720p_5.mp4"),
+]
+
+
+def _lanes_reader_files(device):
+    # H.264 is not enabled on the CPU backend
+    gpu_files = codec_files["h264"] + lead_in_files
+    return cfr_files + vfr_files + (gpu_files if device == "gpu" else [])
+
+
+@contextlib.contextmanager
+def _strict_plans():
+    """Readers created in it fail a batch if a decode lane's decoder is not where the batch's plan
+    expects it (otherwise, decoding only follows a worse plan)."""
+    name = "DALI_VIDEO_READER_STRICT_PLANS"
+    old = os.environ.get(name)
+    os.environ[name] = "1"
+    try:
+        yield
+    finally:
+        if old is None:
+            del os.environ[name]
+        else:
+            os.environ[name] = old
+
+
+@_strict_plans()
+def _check_reader_output_independent_of_num_threads(
+    device, kwargs, batch_size, num_threads, files=None, window=32, epochs=None
+):
+    """With `epochs`, compares that many epochs (and one more batch), otherwise 8 batches."""
+    files = files or _lanes_reader_files(device)
+
+    @pipeline_def(batch_size=batch_size, device_id=0, seed=42)
+    def pipe():
+        # videos, labels (the index of the file), frame numbers and, with enable_timestamps,
+        # timestamps
+        return tuple(
+            fn.experimental.readers.video(
+                filenames=files,
+                labels=list(range(len(files))),
+                device=device,
+                enable_frame_num="sequence",
+                name="Reader",
+                **kwargs,
+            )
+        )
+
+    ref = pipe(num_threads=1)
+    iterations = 8
+    if epochs:
+        ref.build()
+        iterations = -(-epochs * ref.epoch_size("Reader") // batch_size) + 1
+    compare_pipelines(
+        ref, pipe(num_threads=num_threads), batch_size=batch_size, N_iterations=iterations
+    )
+
+    # The two runs could agree on wrong frames, so check the frames against PyAV as well
+    p = pipe(num_threads=num_threads)
+    for _ in range(4):
+        videos, labels, frame_nums, *_ = (t.as_cpu() for t in p.run())
+        for i in range(batch_size):
+            _assert_frames_match_file(
+                np.array(videos[i]),
+                np.array(frame_nums[i]),
+                files[int(np.array(labels[i])[0])],
+                window,
+            )
+
+
+@cartesian_params(["cpu", "gpu"], range(len(_lanes_reader_cases)))
+def test_reader_output_independent_of_num_threads(device, case):
+    skip_if_m60()
+    _check_reader_output_independent_of_num_threads(
+        device, _lanes_reader_cases[case], batch_size=4, num_threads=4
+    )
+
+
+# One sample per batch: one lane decodes, whatever the number of threads, and its decoder carries
+# over from batch to batch
+@cartesian_params(["cpu", "gpu"], (0, 1, 3))
+def test_reader_batch_size_1_output_independent_of_num_threads(device, case):
+    skip_if_m60()
+    _check_reader_output_independent_of_num_threads(
+        device, _lanes_reader_cases[case], batch_size=1, num_threads=4
+    )
+
+
+# An H.264 clip with a long lead-in hidden by an edit list (188 pictures). The GPU decoder decodes
+# those pictures, but does not map or convert them, nor the pictures that it only skips
+long_lead_in_files = [
+    os.path.join(_sintel_dir, "video_files", "sintel_trailer-720p_4.mp4"),
+]
+
+
+# Consecutive sequences (from the start of a file, after its lead-in), sparse samples (frames
+# skipped in between) and shuffled samples (seeks, also back to the lead-in)
+@params(0, 1, 3)
+def test_reader_lead_in_output_independent_of_num_threads(case):
+    skip_if_m60()
+    _check_reader_output_independent_of_num_threads(
+        "gpu",
+        _lanes_reader_cases[case],
+        batch_size=4,
+        num_threads=4,
+        files=long_lead_in_files,
+        window=16,
+    )
+
+
+# With fewer lanes than samples, a lane decodes several runs, of one file or more, in an order
+# picked from their estimated work: tails padded with the last frame (decoding it again reopens
+# the file) and uniformly sampled frames
+_multi_run_lanes_cases = [
+    dict(sequence_length=7, pad_mode="edge", random_shuffle=True, initial_fill=16),
+    dict(sequence_length=7, step=4, pad_mode="edge"),
+    dict(sequence_length=6, uniform_sample=True),
+]
+
+
+@cartesian_params(["cpu", "gpu"], range(len(_multi_run_lanes_cases)))
+def test_reader_multi_run_lanes_output_independent_of_num_threads(device, case):
+    skip_if_m60()
+    _check_reader_output_independent_of_num_threads(
+        device, _multi_run_lanes_cases[case], batch_size=8, num_threads=2
+    )
+
+
+# With more than one lane, the lanes decode the next batch while the slowest lane finishes the
+# current one, and while the reader's queue (prefetch_queue_depth) holds earlier batches. Two
+# epochs, so that decoders carry over from batch to batch and into the next epoch
+@cartesian_params(["cpu", "gpu"], (0, 3, 6), (1, 2))
+def test_reader_output_independent_of_num_threads_reader_depth(device, case, reader_depth):
+    skip_if_m60()
+    _check_reader_output_independent_of_num_threads(
+        device,
+        dict(_lanes_reader_cases[case], prefetch_queue_depth=reader_depth),
+        batch_size=4,
+        num_threads=4,
+        files=cfr_files + vfr_files,
+        epochs=2,
+    )
+
+
+# 26 samples in 3 shards (pad_last_batch): shard 0 has samples 0-7, padded to 9 samples, so that
+# its third batch is sample 7, four times (decoded in the batch before it); shard 2 has samples
+# 17-25, so that its third batch is sample 25 and three repeats of it
+@cartesian_params(("cpu", "gpu"), (0, 2), (1, 2))
+@_strict_plans()
+def test_reader_pad_last_batch_repeats_last_sample(device, shard_id, reader_depth):
+    """With pad_last_batch, a shard's last sample is repeated, in its own batch or as the whole
+    next batch: the same sample, which must not be decoded again while an earlier batch may still
+    be in use."""
+    skip_if_m60()
+    batch_size = 4
+    files = _lanes_reader_files(device)
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as file_list:
+        for i in range(26):
+            start = (i // len(files)) * 4
+            file_list.write(f"{files[i % len(files)]} {i} {start} {start + 4}\n")
+
+    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, prefetch_queue_depth=3)
+    def pipe():
+        videos, labels = fn.experimental.readers.video(
+            file_list=file_list.name,
+            file_list_format="frames",
+            file_list_include_end=False,
+            device=device,
+            sequence_length=4,
+            pad_last_batch=True,
+            num_shards=3,
+            shard_id=shard_id,
+            prefetch_queue_depth=reader_depth,
+        )
+        return videos, labels
+
+    try:
+        p = pipe()
+        samples = []
+        for _ in range(3):
+            videos, labels = p.run()
+            videos = videos.as_cpu() if device == "gpu" else videos
+            labels = labels.as_cpu() if device == "gpu" else labels
+            samples += [
+                (np.array(videos[i]), int(np.array(labels[i])[0])) for i in range(batch_size)
+            ]
+    finally:
+        os.remove(file_list.name)
+    first, end = 26 * shard_id // 3, 26 * (shard_id + 1) // 3
+    num_read = end - first
+    assert [label for _, label in samples] == list(range(first, end)) + [end - 1] * (12 - num_read)
+    for video, _ in samples[num_read:]:
+        np.testing.assert_array_equal(video, samples[num_read - 1][0])
+    for video, label in samples[:num_read]:
+        start = (label // len(files)) * 4
+        _assert_frames_match_file(video, range(start, start + 4), files[label % len(files)])
+
+
+def _num_frames(filename, device):
+    """The frames of a file, as the reader counts them."""
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            filenames=[filename], sequence_length=1, device=device, name="Reader"
+        )
+
+    p = pipe()
+    p.build()
+    return p.reader_meta("Reader")["epoch_size"]
+
+
+@cartesian_params(("cpu", "gpu"), (1, 4), (1, 2))
+@_strict_plans()
+def test_reader_reports_first_error_of_batch(device, num_threads, reader_depth):
+    """Samples fail in two lanes of a batch and in the next batch, which lanes may be decoding
+    already: the error is the first one of the batch, at that batch, whatever the lanes' timing."""
+    skip_if_m60()
+    batch_size = 4
+    files = cfr_files  # with different numbers of frames
+    num_frames = [_num_frames(f, device) for f in files]
+    assert num_frames[0] != num_frames[1]
+    # (file, start) of each sample, with sequences that start past the end of the file
+    samples = [(0, 0), (1, 0), (0, 4), (1, 4)]  # batch 0
+    samples += [(0, 8), (0, num_frames[0] + 10), (1, 8), (1, num_frames[1] + 20)]  # batch 1
+    samples += [(0, num_frames[0] + 30), (1, 12), (0, 12), (1, 16)]  # batch 2
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as file_list:
+        for i, (f, start) in enumerate(samples):
+            file_list.write(f"{files[f]} {i} {start} {start + 4}\n")
+
+    @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=0)
+    def pipe():
+        videos, _ = fn.experimental.readers.video(
+            file_list=file_list.name,
+            file_list_format="frames",
+            file_list_include_end=False,
+            device=device,
+            sequence_length=4,
+            prefetch_queue_depth=reader_depth,
+        )
+        return videos
+
+    try:
+        p = pipe()
+        p.run()  # batch 0
+        expected = rf"frame index {num_frames[0] + 10} .*\[0, {num_frames[0]}\)"
+        with assert_raises(RuntimeError, regex=expected):
+            p.run()
+        del p  # destroyed right after the error, while lanes may still be decoding batch 2
+    finally:
+        os.remove(file_list.name)
+
+
+@params("cpu", "gpu")
+@_strict_plans()
+def test_reader_destroyed_while_decoding(device):
+    """The reader is destroyed with its lanes decoding batches ahead, or before it starts them."""
+    skip_if_m60()
+
+    @pipeline_def(batch_size=4, num_threads=4, device_id=0)
+    def pipe(lazy_init):
+        return fn.experimental.readers.video(
+            filenames=cfr_files + vfr_files, device=device, sequence_length=5, lazy_init=lazy_init
+        )
+
+    for i in range(30):
+        p = pipe(lazy_init=i % 2 == 1)
+        p.build()
+        for _ in range(i % 3):  # none: destroyed before the lanes are started
+            p.run()
+        del p

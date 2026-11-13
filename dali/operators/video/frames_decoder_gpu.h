@@ -32,6 +32,7 @@ extern "C" {
 #include "dali/operators/video/dynlink_nvcuvid/dynlink_nvcuvid.h"
 #include "dali/core/unique_handle.h"
 
+#include "dali/core/cuda_event.h"
 #include "dali/core/dev_buffer.h"
 
 namespace dali {
@@ -69,6 +70,8 @@ struct DecInstance {
   int display_left = 0;
   int display_top = 0;
   unsigned num_decode_surfaces = 0;
+  // What the decoder was created for, so what it can be reconfigured for
+  unsigned max_num_decode_surfaces = 0;
   unsigned max_height = 0;
   unsigned max_width = 0;
   unsigned int bit_depth_luma_minus8 = 0;
@@ -117,15 +120,34 @@ class NVDECLease {
     DecInstance *decoder = nullptr;
 };
 
+// The three functions below are for tests: the counters show which path the decoder cache took,
+// and NVDECDestroyUnusedDecoders lets a test start from an empty cache. They are exported because
+// the tests are built into a separate binary that links the operators library.
+
 /**
- * @brief Returns how many NVDEC decoders were created so far for a device, i.e. how many times
- *        the decoder cache could not provide a matching one.
+ * @brief Returns how many NVDEC decoders were created (cuvidCreateDecoder) so far for a device.
  *
- * The count includes decoders that were evicted from the cache since.
+ * The count includes decoders that were evicted from the cache since. A cached decoder that was
+ * reconfigured for a stream instead is not counted here, but by NVDECDecodersReconfigured().
  *
  * @param device_id CUDA device ordinal or -1 for the current device.
  */
 DLL_PUBLIC size_t NVDECDecodersCreated(int device_id = -1);
+
+/**
+ * @brief Returns how many times a cached NVDEC decoder was reconfigured for a stream of another
+ *        format (size, number of decode surfaces) so far for a device, instead of creating one.
+ *
+ * @param device_id CUDA device ordinal or -1 for the current device.
+ */
+DLL_PUBLIC size_t NVDECDecodersReconfigured(int device_id = -1);
+
+/**
+ * @brief Destroys the cached NVDEC decoders that are not in use, e.g. to start from an empty cache.
+ *
+ * @param device_id CUDA device ordinal or -1 for the current device.
+ */
+DLL_PUBLIC void NVDECDestroyUnusedDecoders(int device_id = -1);
 
 }  // namespace frame_dec_gpu_impl
 
@@ -136,11 +158,52 @@ struct NvDecodeState {
   CUVIDSOURCEDATAPACKET packet = { 0 };
 
   uint8_t *decoded_frame_yuv = nullptr;
+
+  // The surface of the last picture that was sent to the decoder, and whether it was mapped (the
+  // map waits for the decode of the picture)
+  int last_decoded = -1;
+  bool last_mapped = true;
+
+  /**
+   * @brief Waits for the pictures that were sent to the decoder, before it goes back to the cache.
+   *
+   * A picture that is decoded but never mapped (the parser holds some for the display delay, and
+   * skipped reads and seeks leave others) can still be queued on NVDEC. The decoder may be
+   * reconfigured for another stream right after, and the driver does not wait for the queue then:
+   * cuvidReconfigureDecoder returns while pictures of the previous stream are in progress.
+   * NVDEC decodes the pictures of a decoder in the order that they were sent, and the map of a
+   * picture waits for its decode, so mapping the last one is enough.
+   */
+  ~NvDecodeState();
 };
 
+/**
+ * @brief A place for a frame that the parser displayed before it was read.
+ *
+ * The state changes only through SetTimestamp, MarkPixelsValid and Clear, so that a slot never
+ * keeps the flag of the frame that it held before.
+ */
 struct BufferedFrame {
-  DeviceBuffer<uint8_t> frame_;
-  int pts_;
+  DeviceBuffer<uint8_t> frame_;  // may be empty when the slot keeps no frame data
+  int64_t pts_ = -1;             // -1: the slot is empty
+  bool has_data_ = false;        // false: the frame is never read with its data, only pts_ is kept
+
+  /** @brief Takes a frame in, with no pixels yet (see MarkPixelsValid). */
+  void SetTimestamp(int64_t pts) {
+    pts_ = pts;
+    has_data_ = false;
+  }
+
+  /** @brief The frame is mapped and converted into frame_: it can be read with its data. */
+  void MarkPixelsValid() {
+    has_data_ = true;
+  }
+
+  /** @brief Empties the slot. It keeps frame_ for the next frame. */
+  void Clear() {
+    pts_ = -1;
+    has_data_ = false;
+  }
 };
 
 class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
@@ -204,9 +267,18 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   static bool SupportsHevc();
 
   /**
+   * @brief Whether NVDEC on the current device can decode `codec_type` with the given chroma
+   * format and bit depth. Safe to call before any CUDA context exists on the calling thread.
+   * Uses the per-process cache of cuvidGetDecoderCaps.
+   */
+  static bool CanNvdecDecode(cudaVideoCodec codec_type, cudaVideoChromaFormat chroma_format,
+                             int bit_depth = 8);
+
+  /**
    * @brief Checks if the codec can be decoded by this decoder, as it is done when the video stream
    *        is selected: it is supported by the decoder and by NVDEC on this platform
-   *        (8-bit 4:2:0). It warns if it is not, unless `warn` is false.
+   *        (8-bit 4:2:0). It warns if it is not, unless `warn` is false. MJPEG's actual chroma
+   *        format and bit depth are checked by IsStreamSupported.
    *
    * It queries NVDEC of the current device (once per codec, cached per process), so the calling
    * thread must have a current CUDA context.
@@ -220,8 +292,33 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    */
   static std::vector<AVCodecID> SupportedCodecs();
 
+  /**
+   * @brief Checks if the video stream with the given parameters can be decoded by this decoder:
+   *        IsCodecSupported plus, for MJPEG, whether NVDEC on this device supports the stream's
+   *        chroma format and bit depth. It warns if it does not. It is what the stream selection
+   *        checks, so it can be used to skip the files that would be rejected by the decoder.
+   */
+  static bool IsStreamSupported(const AVCodecParameters &params) {
+    return IsStreamSupported(params.codec_id, static_cast<AVPixelFormat>(params.format));
+  }
+
+  /**
+   * @brief As above, from the codec and the pixel format of the stream (`AV_PIX_FMT_NONE` if
+   *        unknown). Same requirements as `IsCodecSupported`.
+   */
+  static bool IsStreamSupported(AVCodecID codec_id, AVPixelFormat pix_fmt);
+
+  /**
+   * @brief Number of NVDEC engines of the device; 0 if unknown.
+   */
+  static int NumEngines(int device_id);
+
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
+  /**
+   * @brief Gets the NVDEC decoder for the sequence. Throws if the size of the decoded pictures is
+   *        not the size of the output.
+   */
   void InitGpuDecoder(CUVIDEOFORMAT *video_format);
 
   /**
@@ -251,8 +348,89 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
 
+  /**
+   * @brief Number of frame buffers (device memory for one frame each) held by the decoder, for
+   *        tests.
+   */
+  int NumFrameBuffers() const;
+
+  /**
+   * @brief Number of places for a buffered frame (with or without a frame buffer), for tests.
+   */
+  int NumBufferSlots() const {
+    return static_cast<int>(frame_buffer_.size());
+  }
+
+  /**
+   * @brief Number of pictures mapped and converted so far (for tests and diagnostics).
+   *
+   * Pictures that cannot be read with their data when they are displayed (MayNeedPixelsLater is
+   * false), or that are displayed as the next frame while it is only skipped, are not.
+   */
+  int64_t MappedPictures() const {
+    return mapped_pictures_;
+  }
+
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
+
+  /**
+   * @brief Which of the buffered frames are mapped and converted.
+   *
+   * The pictures are mapped in display order, when the parser displays them (HandlePictureDisplay).
+   * A picture displayed when it is not the next frame is buffered: a frame shown after the next
+   * one, which the parser displays in the same cuvidParseVideoData call as the next one, or at the
+   * end of the stream, when it displays all the pictures it holds; or a frame that is never read
+   * (e.g. one hidden by an edit list, or one shown before the next frame after a seek), which
+   * kIfRead drops instead (see IsAmongNextFrames).
+   */
+  enum class BufferedFrameData {
+    // those that may be read with their data (see MayNeedPixelsLater)
+    kIfRead,
+    // all of them; every picture is then decoded (see ShouldDecodePicture)
+    kAll,
+    // none of them; an H.264 non-reference picture is then decoded only if it is the next frame,
+    // read with its data, when it is decoded
+    kNone,
+  };
+
+  /**
+   * @brief For tests: maps all the buffered frames and decodes every picture (to compare the frames
+   *        read with the default) or maps none of them (to check that reading a frame without its
+   *        data fails).
+   */
+  void SetBufferedFrameDataForTesting(BufferedFrameData data) {
+    buffered_frame_data_ = data;
+  }
+
+  /**
+   * @brief Whether a frame with this timestamp may still be read with its pixels, until the
+   *        decoder is flushed. False for a frame that is only skipped or never read.
+   */
+  bool MayNeedPixelsLater(int64_t pts) const;
+
+  /**
+   * @brief Whether a frame with this timestamp is among the frames from the next one on, which are
+   *        the only ones looked up in the buffer until the decoder is flushed (true without an
+   *        index, or past the last frame).
+   */
+  bool IsAmongNextFrames(int64_t pts) const;
+
+  /**
+   * @brief Whether the parser displays a frame with this timestamp, that is not the next one, with
+   *        its pixels (mapped and converted) in the buffer, or only its timestamp.
+   *
+   * It follows MayNeedPixelsLater, unless SetBufferedFrameDataForTesting says otherwise.
+   */
+  bool ShouldBufferPixels(int64_t pts) const;
+
+  /**
+   * @brief Whether the picture with this timestamp, about to be decoded, is decoded at all.
+   *
+   * False only if its pixels are never read (see ShouldBufferPixels), which lets the decoder skip
+   * a picture that no other picture refers to.
+   */
+  bool ShouldDecodePicture(int64_t pts) const;
 
  private:
   /**
@@ -262,6 +440,10 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   void ParseVideoData(CUVIDSOURCEDATAPACKET *packet);
 
   std::unique_ptr<NvDecodeState> nvdecode_state_;
+
+  int64_t mapped_pictures_ = 0;  // see MappedPictures
+  BufferedFrameData buffered_frame_data_ = BufferedFrameData::kIfRead;
+
   void *current_frame_output_ = nullptr;
   bool current_copy_to_output_ = false;
   bool frame_returned_ = false;
@@ -278,7 +460,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   bool labels_from_parser_ = false;
   // With labels_from_parser_: a copy of the last frame read, which a frame without a picture of its
   // own (e.g. the not-coded VOP of a DivX packed stream) repeats. Unknown after a flush: such a
-  // frame then takes the next picture shown.
+  // frame then takes the next picture shown. Only kept when the index says that such frames may
+  // exist (see KeepsLastFrame).
   DeviceBuffer<uint8_t> last_frame_;
   bool has_last_frame_ = false;
 
@@ -296,9 +479,18 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   std::vector<int64_t> surface_pts_;
   // whether the picture decoded to each surface is still waiting for the display callback
   std::vector<bool> surface_to_display_;
+  // whether cuvidDecodePicture was called for the picture last assigned to each surface (see
+  // ShouldDecodePicture); a surface whose picture was not decoded must not be mapped
+  std::vector<bool> surface_decoded_;
   int64_t current_pts_ = AV_NOPTS_VALUE;
 
   cudaStream_t stream_ = 0;
+
+  // JPEG only: NVDEC decodes JPEG pictures in stream order with the legacy default stream, and
+  // cuvidMapVideoFrame doesn't order output_stream after that. Before mapping a picture,
+  // stream_ waits for this event, recorded on the legacy default stream (see
+  // HandlePictureDisplay).
+  CUDAEvent legacy_stream_event_;
 
   VideoColorSpaceConversionType conversion_type_ = VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB;
 
@@ -308,6 +500,13 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   // Bytes of a frame in the output type
   size_t FrameBytes() const;
+
+  // Whether the frames read are kept in last_frame_: with labels_from_parser_, and only for a
+  // stream that may have frames without pictures. Otherwise a skipped frame needs no color
+  // conversion and a frame read needs no copy.
+  bool KeepsLastFrame() const {
+    return labels_from_parser_ && index_.may_have_frames_without_pictures;
+  }
 
   // The buffer for the last frame read (see last_frame_), allocated for the output type
   uint8_t *LastFrame();
@@ -319,11 +518,38 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   // (nullptr: skipped, which needs no last frame)
   void RepeatLastFrame(void *data);
 
+  /**
+   * @brief Gives the slot a frame buffer, taking a spare one from another slot if there is any.
+   */
+  void AttachFrameBuffer(BufferedFrame &slot);
+
   bool HasEmptySlot() const;
 
   bool IsBufferEmpty() const;
 
-  void InitBitStreamFilter();
+  void InitBitStreamFilter(AVUniquePtr<AVBSFContext> &bsfc);
+
+  /**
+   * @brief Asks the NVDEC parser for the size of the pictures in the stream and, if it differs
+   *        from the one in the container, uses it as the size of the output.
+   *
+   * The parser applies the right and bottom crop of the SPS, but ignores the left and top one: a
+   * stream with a left or top crop is decoded to the full frame (a pure left/top crop gives the
+   * uncropped size) and, with a mixed crop, to a frame cropped on the right and the bottom only.
+   * The position of the file is restored to the first packet.
+   */
+  void ProbeDisplaySize();
+
+  /**
+   * @brief Reads the next packet of the selected stream. Returns false at the end of the file.
+   */
+  bool ReadSelectedStreamPacket(AVPacket *packet);
+
+  /**
+   * @brief Seeks back to the start of the file and checks that the first packet is the next one
+   *        read. Returns false if the seek failed or landed elsewhere.
+   */
+  bool RewindToFirstPacket(const AVPacket *first);
 
   static cudaVideoCodec GetCodecType(AVCodecID codec_id);
 

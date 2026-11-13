@@ -13,19 +13,30 @@
 // limitations under the License.
 
 #include <cuda_runtime_api.h>
+#include <unistd.h>
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
+#include <cstdlib>
 #include <cstdlib>
 #include <exception>
+#include <fstream>
+#include <functional>
+#include <limits>
 #include <map>
+#include <memory>
 #include <numeric>
 #include <random>
 #include <set>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
+#include "dali/core/call_at_exit.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_stream.h"
 #include "dali/core/dev_buffer.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/dynlink_cuda.h"
@@ -34,12 +45,29 @@
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
 #include "dali/operators/video/video_test.h"
+#include "dali/operators/video/video_utils.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/util/file.h"
 
 #include "dali/pipeline/pipeline.h"
 
 namespace dali {
+
+// Reads the counters of the decoders that are not part of their interface (a friend of
+// FramesDecoderBase)
+struct FramesDecoderTestAccess {
+  // The pictures that the decoder did not decode at all
+  static int64_t NotDecodedPictures(const FramesDecoderBase &decoder) {
+    return decoder.not_decoded_pictures_;
+  }
+
+  // The pictures that the decoder went through: those it decoded and those it left out (what
+  // AddDecodeWork estimates)
+  static int64_t ParsedPictures(const FramesDecoderBase &decoder) {
+    return decoder.decoded_pictures_ + decoder.not_decoded_pictures_;
+  }
+};
+
 class FramesDecoderTestBase : public VideoTestBase {
  public:
   virtual void RunSequentialForwardTest(
@@ -221,6 +249,7 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
   EXPECT_EQ(actual.timebase.num, expected.timebase.num);
   EXPECT_EQ(actual.timebase.den, expected.timebase.den);
   EXPECT_EQ(actual.decode_order_timestamps, expected.decode_order_timestamps);
+  EXPECT_EQ(actual.may_have_frames_without_pictures, expected.may_have_frames_without_pictures);
   for (size_t i = 0; i < expected.size(); i++) {
     EXPECT_EQ(actual.index[i].pts, expected.index[i].pts) << "frame " << i;
     EXPECT_EQ(actual.index[i].is_keyframe, expected.index[i].is_keyframe) << "frame " << i;
@@ -232,7 +261,9 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
         << "frame " << i;
     EXPECT_EQ(actual.index[i].leading_pictures, expected.index[i].leading_pictures)
         << "frame " << i;
+    EXPECT_EQ(actual.index[i].seek_timestamp, expected.index[i].seek_timestamp) << "frame " << i;
   }
+  EXPECT_EQ(actual.end_pts, expected.end_pts);
   EXPECT_EQ(indexer.NumFrames(), decoder.NumFrames());
   EXPECT_EQ(indexer.Width(), decoder.Width());
   EXPECT_EQ(indexer.Height(), decoder.Height());
@@ -254,8 +285,8 @@ std::set<int> SeekTargets(const FrameIndex &index) {
   return targets;
 }
 
-// The timestamps of the packets where seeks to `timestamps` land, as AvSeekFrame seeks, asked to
-// a demuxer of its own
+// The timestamps (pts) of the packets where seeks to `timestamps` land, with av_seek_frame as
+// AvSeekFrame seeks, asked to a demuxer of its own
 std::vector<int64_t> SeekLandings(const std::string &path, const std::vector<int64_t> &timestamps) {
   AVUniquePtr<AVFormatContext> ctx;
   if (avformat_open_input(&ctx, path.c_str(), nullptr, nullptr) < 0) {
@@ -299,6 +330,9 @@ void CheckDecodeOrder(const FrameIndex &index, const std::string &path) {
   std::sort(decode_idx.begin(), decode_idx.end());
   for (int i = 0; i < n; i++)
     ASSERT_EQ(decode_idx[i], i) << "not a permutation of the decoding positions [0, " << n << ")";
+  int first_packet = 0;  // the frame of the packet at decoding position 0
+  while (index[first_packet].decode_idx != 0)
+    first_packet++;
   auto targets = SeekTargets(index);
   for (int i = 0; i < n; i++) {
     if (index[i].is_keyframe) {
@@ -312,18 +346,46 @@ void CheckDecodeOrder(const FrameIndex &index, const std::string &path) {
       EXPECT_EQ(index[i].seek_decode_idx, -1) << "frame " << i << " is not a seek target";
     }
   }
-  std::vector<int64_t> timestamps;
-  for (int target : targets)
-    timestamps.push_back(index[target].pts);
+  std::vector<int64_t> timestamps, expected;
+  for (int target : targets) {
+    timestamps.push_back(index.SeekTimestamp(target));
+    expected.push_back(index[target].is_keyframe ? index[target].pts : index[first_packet].pts);
+  }
   auto landings = SeekLandings(path, timestamps);
   ASSERT_EQ(landings.size(), timestamps.size());
-  for (size_t i = 0; i < landings.size(); i++)
-    EXPECT_EQ(landings[i], timestamps[i]) << path << ": a seek to " << timestamps[i];
+  for (size_t i = 0; i < landings.size(); i++) {
+    EXPECT_EQ(landings[i], expected[i]) << path << ": a seek to " << timestamps[i]
+                                        << " is to land on the packet with the pts " << expected[i];
+  }
 }
 
 std::string SintelVideoFile(int clip) {
   return make_string(testing::dali_extra_path(), "/db/video/sintel/video_files/",
                      "sintel_trailer-720p_", clip, ".mp4");
+}
+
+// An MPEG-TS copy of a clip and the MP4 clip it was copied from: the same packets (in Annex B) with
+// their timestamps moved, and the same frames
+struct MpegTsClip {
+  std::string ts, mp4;
+  bool hevc;
+  int keyframes;  // the pictures that decoding can start from
+};
+
+std::vector<MpegTsClip> MpegTsClips() {
+  auto dir = make_string(testing::dali_extra_path(), "/db/video/");
+  return {{make_string(dir, "mpegts/test_1.ts"), make_string(dir, "cfr/test_1.mp4"), false, 6},
+          {make_string(dir, "mpegts/test_2_hevc.ts"), make_string(dir, "cfr/test_2_hevc.mp4"), true,
+           2},
+          // only the first picture is an IDR picture, but the MPEG-TS demuxer also flags the
+          // I-pictures with a recovery point (open GOPs) as keyframes
+          {make_string(dir, "mpegts/open_gop_h264.ts"),
+           make_string(dir, "non_idr_keyframes/open_gop_h264.mp4"), false, 1}};
+}
+
+// cfr/test_1.mp4 copied to Matroska: H.264 with B-frames, 50 frames and 6 IDR keyframes
+std::string MatroskaClip() {
+  return make_string(testing::dali_extra_path(), "/db/video/matroska/test_1.mkv");
 }
 
 // One Sintel clip of each kind, all with B-frames: no lead-in, only the IDR hidden (a single GOP),
@@ -411,8 +473,8 @@ struct DecodeLead {
 
 /**
  * @brief Decodes `frame_ids` as the reader does (padded by clamping) and checks that the decoder
- * decodes the pictures that AddDecodeWork estimates from `pos`, reopens the file as estimated,
- * and ends where `pos` does.
+ * goes through the pictures that AddDecodeWork estimates from `pos` (those it
+ * decodes and those it leaves out), reopens the file as estimated, and ends where `pos` does.
  *
  * The decoder may be ahead of the estimate by the pictures of the next `lookahead` frames (see
  * kPacketLag). `lead` carries how far ahead it is from the previous samples: the next frames
@@ -459,10 +521,10 @@ void CheckDecodeWork(FramesDecoderBase &decoder, FramesDecoderBase::DecodePositi
   int64_t end_allowed = LeadAllowance(index, pos, lookahead);
   allowed += end_allowed;
 
-  int64_t before = decoder.DecodedPictures();
+  int64_t before = FramesDecoderTestAccess::ParsedPictures(decoder);
   int64_t reopens_before = decoder.Reopens();
   decoder.DecodeFrames(buffer, make_cspan(frame_ids), boundary::BoundaryType::CLAMP);
-  int64_t ahead = decoder.DecodedPictures() - before - work.pictures;
+  int64_t ahead = FramesDecoderTestAccess::ParsedPictures(decoder) - before - work.pictures;
   EXPECT_GE(ahead, -lead.max) << what << ": the decoder is behind the estimate by more than it "
                               << "was ahead";
   EXPECT_LE(ahead, allowed - lead.min)
@@ -529,15 +591,15 @@ void CheckDecodeWorkScenarios(FramesDecoderBase &decoder, uint8_t *buffer, int l
 
 /**
  * @brief Reads the frames in a row and checks that, from PositionAt, AddDecodeWork estimates the
- * pictures decoded for each frame: in total, the decoder is never behind the estimate and at most
- * the pictures of the next `lookahead` frames ahead of it (see kPacketLag). Returns the number of
- * frames that cost nothing (decoded earlier, for a frame shown before them).
+ * pictures gone through (FramesDecoderTestAccess::ParsedPictures) for each frame: in total, the decoder is never behind the
+ * estimate and at most the pictures of the next `lookahead` frames ahead of it (see kPacketLag).
+ * Returns the number of frames that cost nothing (decoded earlier, for a frame shown before them).
  */
 int CheckPositionAt(FramesDecoderBase &decoder, uint8_t *frame, int lookahead,
                     const std::string &path) {
   auto &index = decoder.GetIndex();
   int free_frames = 0;
-  int64_t start = decoder.DecodedPictures(), estimate = 0;
+  int64_t start = FramesDecoderTestAccess::ParsedPictures(decoder), estimate = 0;
   for (int k = 0; k < static_cast<int>(index.size()); k++) {
     auto pos = FramesDecoderBase::PositionAt(index, k);
     FramesDecoderBase::DecodeWork work;
@@ -545,7 +607,7 @@ int CheckPositionAt(FramesDecoderBase &decoder, uint8_t *frame, int lookahead,
     estimate += work.pictures;
     EXPECT_EQ(decoder.NextFrameIdx(), k) << path;
     decoder.ReadNextFrame(frame);
-    int64_t ahead = decoder.DecodedPictures() - start - estimate;
+    int64_t ahead = FramesDecoderTestAccess::ParsedPictures(decoder) - start - estimate;
     EXPECT_GE(ahead, 0) << path << ": frame " << k;
     EXPECT_LE(ahead, LeadAllowance(index, pos, lookahead)) << path << ": frame " << k;
     free_frames += work.pictures == 0;
@@ -751,6 +813,13 @@ TEST_F(FramesDecoderGpuTest, DecodeWork) {
   paths.push_back(make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4"));
   if (FramesDecoderGpu::SupportsHevc())
     paths.push_back(vfr_hevc_videos_paths_[0]);
+  // MPEG-TS, whose demuxer seeks by decoding timestamp
+  for (auto &clip : MpegTsClips()) {
+    if (!clip.hevc || FramesDecoderGpu::SupportsHevc())
+      paths.push_back(clip.ts);
+  }
+  // Matroska, whose demuxer seeks by pts
+  paths.push_back(MatroskaClip());
   int across_keyframe = 0;
   for (size_t i = 0; i < paths.size(); i++) {
     auto &path = paths[i];
@@ -779,6 +848,19 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexDecodeOrder) {
     for (size_t i = 0; i < index.size(); i++)  // VP9 has no reordering
       EXPECT_EQ(index[i].decode_idx, static_cast<int>(i)) << path;
   }
+}
+
+// The end of the stream recorded by BuildIndex is used, not the estimate from the last gap
+// (the clip has a variable frame rate: the recorded end is 30464, the estimate 30976)
+TEST_F(FramesDecoderTest_CpuOnlyTests, EndPtsIsTheRecordedEndOfTheStream) {
+  FramesDecoderCpu decoder(vfr_videos_paths_[0]);
+  decoder.BuildIndex();
+  auto &index = decoder.GetIndex();
+  ASSERT_EQ(index.size(), 50u);
+  EXPECT_EQ(index.end_pts, 30464);
+  EXPECT_EQ(index.EndPts(), 30464);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(30464, true), 50);  // the end: one past the last frame
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(30463, true), 49);  // inside the last frame
 }
 
 // H.264, with reordering (the index of the VP9 files does not depend on the decoder: see the CPU
@@ -863,6 +945,586 @@ TEST_F(FramesDecoderGpuTest, IndexDecodeOrderLeadIn) {
   }
 }
 
+namespace {
+
+// A decoder that decodes every picture, and maps and converts every picture that it buffers (see
+// FramesDecoderGpu::BufferedFrameData): it leaves out none of the pictures that are not read. It
+// takes the frame buffers for them as the default decoder does (AttachFrameBuffer).
+class GpuDecoderMappingAll : public FramesDecoderGpu {
+ public:
+  template <typename... Args>
+  explicit GpuDecoderMappingAll(Args &&...args) : FramesDecoderGpu(std::forward<Args>(args)...) {
+    SetBufferedFrameDataForTesting(BufferedFrameData::kAll);
+  }
+};
+
+// A decoder that maps none of the pictures that it buffers, and decodes an H.264 non-reference
+// picture only if it is the next frame, read with its data, when it is decoded
+class GpuDecoderMappingNone : public FramesDecoderGpu {
+ public:
+  template <typename... Args>
+  explicit GpuDecoderMappingNone(Args &&...args) : FramesDecoderGpu(std::forward<Args>(args)...) {
+    SetBufferedFrameDataForTesting(BufferedFrameData::kNone);
+  }
+};
+
+// The pictures that a decoder maps past the last frame it reads: those shown after it that the
+// parser displays in the same cuvidParseVideoData call as that frame (or, at the end of the stream,
+// all those it holds), which a next sample of a decode lane may read
+constexpr int kMaxMappedAhead = 4;
+
+// The stream of the decoders of these tests: the default one
+constexpr cudaStream_t kStream = 0;
+
+// Hashes of the `num_frames` frames in `frames` (on the device)
+std::vector<size_t> HashFrames(const uint8_t *frames, int num_frames, size_t frame_size,
+                               cudaStream_t stream) {
+  std::vector<char> host(frame_size);
+  std::vector<size_t> hashes;
+  for (int i = 0; i < num_frames; i++) {
+    MemCopy(host.data(), frames + i * frame_size, frame_size, stream);
+    CUDA_CALL(cudaStreamSynchronize(stream));
+    hashes.push_back(std::hash<std::string_view>()(std::string_view(host.data(), frame_size)));
+  }
+  return hashes;
+}
+
+std::vector<int> Strided(int start, int end, int stride) {
+  std::vector<int> frames;
+  for (int i = start; i < end; i += stride)
+    frames.push_back(i);
+  return frames;
+}
+
+// Decodes `frame_ids` with DecodeFrames (padding with a constant frame) and hashes them
+std::vector<size_t> DecodeAndHash(
+    FramesDecoderGpu &decoder, const std::vector<int> &frame_ids,
+    boundary::BoundaryType boundary_type = boundary::BoundaryType::ISOLATED) {
+  size_t frame_size = decoder.FrameSize();
+  DeviceBuffer<uint8_t> frames, constant;
+  frames.resize(frame_ids.size() * frame_size);
+  constant.resize(frame_size);
+  CUDA_CALL(cudaMemsetAsync(constant.data(), 77, frame_size, kStream));
+  decoder.DecodeFrames(frames.data(), make_cspan(frame_ids), boundary_type, constant.data());
+  return HashFrames(frames.data(), frame_ids.size(), frame_size, kStream);
+}
+
+// Reads `frame_ids` in this order with ReadNextFrame, seeking to a frame that is not the next one,
+// and hashes them
+std::vector<size_t> ReadAndHash(FramesDecoderGpu &decoder, const std::vector<int> &frame_ids) {
+  DeviceBuffer<uint8_t> frames;
+  frames.resize(frame_ids.size() * decoder.FrameSize());
+  uint8_t *out = frames.data();
+  for (int frame : frame_ids) {
+    if (decoder.NextFrameIdx() != frame)
+      decoder.SeekFrame(frame);
+    EXPECT_TRUE(decoder.ReadNextFrame(out)) << "frame " << frame;
+    out += decoder.FrameSize();
+  }
+  return HashFrames(frames.data(), frame_ids.size(), decoder.FrameSize(), kStream);
+}
+
+using HashedFramesScenario = std::function<std::vector<size_t>(FramesDecoderGpu &)>;
+
+struct ScenarioResult {
+  std::vector<size_t> frames;
+  int64_t decoded = 0, not_decoded = 0, mapped = 0;
+};
+
+// Runs `scenario` with a new decoder
+template <typename Decoder>
+ScenarioResult RunScenario(const std::string &path, const FrameIndex &index,
+                           const HashedFramesScenario &scenario) {
+  Decoder decoder(path);
+  decoder.SetIndex(index);
+  ScenarioResult result;
+  result.frames = scenario(decoder);
+  result.decoded = decoder.DecodedPictures();
+  result.not_decoded = FramesDecoderTestAccess::NotDecodedPictures(decoder);
+  result.mapped = decoder.MappedPictures();
+  return result;
+}
+
+// A scenario run with a decoder (`result`) and with a GpuDecoderMappingAll (`expected`)
+struct ComparedScenario {
+  ScenarioResult result, expected;
+};
+
+/**
+ * @brief Runs `scenario` with a decoder and with one that decodes every picture and maps every
+ * picture that it buffers (GpuDecoderMappingAll), and checks that they return the same frames,
+ * after going through the same pictures, of which the decoder decodes and maps no more.
+ */
+ComparedScenario CheckSameFramesAsMappingAll(const std::string &path, const FrameIndex &index,
+                                             const std::string &what,
+                                             const HashedFramesScenario &scenario) {
+  auto result = RunScenario<FramesDecoderGpu>(path, index, scenario);
+  auto expected = RunScenario<GpuDecoderMappingAll>(path, index, scenario);
+  EXPECT_EQ(result.frames, expected.frames) << path << ": " << what;
+  EXPECT_EQ(result.decoded + result.not_decoded, expected.decoded + expected.not_decoded)
+      << path << ": " << what;
+  EXPECT_EQ(expected.not_decoded, 0) << path << ": " << what << ": the reference left some out";
+  EXPECT_LE(result.decoded, expected.decoded) << path << ": " << what;
+  EXPECT_LE(result.mapped, expected.mapped) << path << ": " << what;
+  return {result, expected};
+}
+
+/**
+ * @brief Hashes of `frames`, read in a row by a new decoder with their data, from the first frame
+ * up to the last of `frames`.
+ *
+ * The decoder decodes every picture and maps every picture that it buffers
+ * (GpuDecoderMappingAll), and it reads every frame in a row: these frames do not depend on which
+ * pictures a decoder leaves out when it skips frames, or reads them after a seek.
+ */
+std::map<int, size_t> SequentialFrameHashes(const std::string &path, const FrameIndex &index,
+                                            const std::set<int> &frames) {
+  GpuDecoderMappingAll decoder(path);
+  decoder.SetIndex(index);
+  size_t frame_size = decoder.FrameSize();
+  DeviceBuffer<uint8_t> frame;
+  frame.resize(frame_size);
+  std::map<int, size_t> hashes;
+  for (int i = 0; i <= *frames.rbegin(); i++) {
+    EXPECT_EQ(decoder.NextFrameIdx(), i) << path;
+    EXPECT_TRUE(decoder.ReadNextFrame(frame.data())) << path << ": frame " << i;
+    if (frames.count(i))
+      hashes[i] = HashFrames(frame.data(), 1, frame_size, kStream)[0];
+  }
+  return hashes;
+}
+
+/**
+ * @brief Checks that a decoder that does not map the pictures it does not read returns the same
+ * frames as GpuDecoderMappingAll, when it decodes samples (with skipped frames, duplicates and
+ * padding), when it seeks, also with AvSeekFrame to a frame that is not a keyframe, and when one
+ * decoder decodes a sample after another (a decode lane), also one that starts before the end of
+ * the previous one.
+ *
+ * GpuDecoderMappingAll differs from the decoder only in which pictures it leaves out, so the frames
+ * of the samples within the clip (not padded) are also compared with those of a sequential read
+ * (SequentialFrameHashes); except after AvSeekFrame to a frame that is not a keyframe, where the
+ * demuxer lands decides which frames come.
+ *
+ * @param skips_non_reference The clip has H.264 non-reference pictures among the frames that the
+ *        "stride 3" and "seeks" samples skip (not in a lead-in): the decoder must not decode them.
+ */
+void CheckSameFramesAsMappingAll(const std::string &path, bool skips_non_reference = false) {
+  FramesDecoderGpu indexed(path);
+  indexed.BuildIndex();
+  auto &index = indexed.GetIndex();
+  int n = index.size();
+  ASSERT_GE(n, 40) << path;
+  bool is_h264 = FramesIndexer(path).CodecId() == AV_CODEC_ID_H264;
+  static_assert(FramesDecoderBase::kMinimumSeekLeap >= 3);
+  constexpr int leap = FramesDecoderBase::kMinimumSeekLeap;
+  const auto stride_3 = Strided(0, 40, 3);
+  const std::vector<int> duplicate = {5, 5, 7, 30, 31, std::min(90, n - 1)};
+  const std::vector<int> seeks = {0, leap, 2 * leap + 1, 2 * leap + 3, n / 2, n / 2 + 3, 1};
+  const std::vector<std::vector<int>> lane = {Strided(0, 9, 2), FrameRange(9, 17),
+                                              FrameRange(16, 20)};
+  const std::vector<int> lane_frames = [&]() {
+    std::vector<int> frames;
+    for (auto &sample : lane)
+      frames.insert(frames.end(), sample.begin(), sample.end());
+    return frames;
+  }();
+
+  std::set<int> in_clip;
+  for (auto *frames : {&stride_3, &duplicate, &seeks, &lane_frames})
+    in_clip.insert(frames->begin(), frames->end());
+  auto sequential = SequentialFrameHashes(path, index, in_clip);
+
+  // `frames`: what the scenario returns, if it is to be compared with a sequential read
+  auto check = [&](const std::string &what, const HashedFramesScenario &scenario,
+                   const std::vector<int> &frames = {}, bool skips_frames = false) {
+    auto run = CheckSameFramesAsMappingAll(path, index, what, scenario);
+    if (!is_h264) {
+      EXPECT_EQ(run.result.not_decoded, 0) << path << ": " << what << ": only H.264 pictures "
+                                           << "are left out";
+    }
+    if (!frames.empty()) {
+      std::vector<size_t> expected;
+      for (int frame : frames)
+        expected.push_back(sequential[frame]);
+      EXPECT_EQ(run.result.frames, expected) << path << ": " << what << ": not the frames that a "
+                                             << "sequential read gives";
+    }
+    if (skips_frames && skips_non_reference) {
+      EXPECT_GT(run.result.not_decoded, 0) << path << ": " << what;
+      EXPECT_LT(run.result.decoded, run.expected.decoded) << path << ": " << what;
+    }
+  };
+  check("stride 3", [&](FramesDecoderGpu &d) { return DecodeAndHash(d, stride_3); }, stride_3,
+        true);
+  check("a duplicate", [&](FramesDecoderGpu &d) { return DecodeAndHash(d, duplicate); },
+        duplicate);
+  for (auto pad : {boundary::BoundaryType::REFLECT_101, boundary::BoundaryType::CLAMP,
+                   boundary::BoundaryType::CONSTANT}) {
+    check(make_string("padded with ", boundary::to_string(pad)), [&](FramesDecoderGpu &d) {
+      return DecodeAndHash(d, FrameRange(n - 4, n + 4), pad);
+    });
+  }
+  check("seeks", [&](FramesDecoderGpu &d) { return ReadAndHash(d, seeks); }, seeks, true);
+  check("a decode lane", [&](FramesDecoderGpu &d) {
+    std::vector<size_t> frames;
+    for (auto &sample : lane) {
+      auto more = DecodeAndHash(d, sample);
+      frames.insert(frames.end(), more.begin(), more.end());
+    }
+    return frames;
+  }, lane_frames);
+  int frame = n / 2;
+  while (frame < n - 3 && index[frame].is_keyframe)
+    frame++;
+  check("AvSeekFrame to a frame that is not a keyframe", [&](FramesDecoderGpu &d) {
+    EXPECT_TRUE(d.AvSeekFrame(index[frame].pts, frame));
+    return ReadAndHash(d, FrameRange(frame, frame + 3));
+  });
+}
+
+// The error of reading a frame without its data, as its picture was not decoded or as only its
+// timestamp was kept (the internal errors of FramesDecoderGpu, std::logic_error)
+constexpr char kPictureNotDecoded[] = "its picture was not decoded";
+constexpr char kOnlyTimestampKept[] = "only its timestamp was kept";
+
+// Checks that `e` is the error of reading a frame without its data: for this `reason`, if given
+void ExpectReadWithoutData(const std::exception &e, const char *reason = nullptr) {
+  std::string what = e.what();
+  EXPECT_NE(what.find("Internal error: frame "), std::string::npos) << what;
+  EXPECT_NE(what.find(" is read, but "), std::string::npos) << what;
+  if (reason) {
+    EXPECT_NE(what.find(reason), std::string::npos) << what;
+  }
+}
+
+}  // namespace
+
+// A decoder decodes the pictures that it does not return (hidden by an edit list, or skipped) only
+// when other pictures refer to them (H.264 non-reference pictures are left out), and it does not
+// map or convert them, nor keep a frame buffer for them (nor a place in the buffer, if they are
+// never read)
+TEST_F(FramesDecoderGpuTest, PicturesNotReadAreNotMapped) {
+  // 188 pictures hidden by an edit list, decoded before the first frame
+  auto path = SintelVideoFile(4);
+  FramesDecoderGpu indexed(path);
+  indexed.BuildIndex();
+  auto &index = indexed.GetIndex();
+  auto check = [&](const std::string &what, const std::vector<int> &frame_ids) {
+    auto run = CheckSameFramesAsMappingAll(path, index, what, [&](FramesDecoderGpu &d) {
+      auto frames = DecodeAndHash(d, frame_ids);
+      EXPECT_GT(FramesDecoderTestAccess::ParsedPictures(d), 188);
+      if (dynamic_cast<GpuDecoderMappingAll *>(&d)) {
+        // one for each picture hidden by the edit list (the frames read are returned as the
+        // parser displays them, unless it displays one with the frame before it)
+        EXPECT_GE(d.NumFrameBuffers(), 188);
+      } else {
+        EXPECT_LE(d.NumFrameBuffers(), 10);
+        // the hidden pictures are never read: they do not take a place in the buffer either
+        EXPECT_LE(d.NumBufferSlots(), 10);
+        // 86 of the 188 hidden pictures are H.264 non-reference pictures
+        EXPECT_GE(FramesDecoderTestAccess::NotDecodedPictures(d), 80);
+      }
+      return frames;
+    });
+    EXPECT_LE(run.result.mapped, static_cast<int64_t>(frame_ids.size()) + kMaxMappedAhead)
+        << what;
+  };
+  check("in a row", FrameRange(0, 32));
+  // the frames skipped are not mapped either: between the frames read, and before the first one
+  check("stride 3", Strided(0, 40, 3));
+  check("from frame 30", {30, 31});
+}
+
+TEST_F(FramesDecoderGpuTest, SameFramesAsMappingAll) {
+  auto video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  // H.264 without a lead-in: 13 I- and P-frames, then B-frames, of which the non-reference ones
+  // (nal_ref_idc 0) are the frames 13, 16, 19, 21, 24, 26, 28, 31, 34, 37, 39 and more
+  CheckSameFramesAsMappingAll(SintelVideoFile(0), true);
+  // H.264 with 188 pictures hidden by an edit list, and with B-frames; HEVC
+  std::vector<std::string> paths = {SintelVideoFile(4), SintelClip(2, 8),
+                                    make_string(video_dir, "/vfr/test_1.mp4")};
+  if (FramesDecoderGpu::SupportsHevc()) {
+    paths.push_back(make_string(video_dir, "/hevc/sintel_trailer-720p.mp4"));
+    paths.push_back(make_string(video_dir, "/vfr/test_2_hevc.mp4"));
+  }
+  // Every picture of these is decoded (see FramesDecoderGpu::ProcessPictureDecode): only the
+  // mapping differs
+  const std::pair<std::string, AVCodecID> without_decode_skip[] = {
+      {make_string(video_dir, "/vp8/vp8.webm"), AV_CODEC_ID_VP8},
+      {make_string(video_dir, "/vp9/vp9_0.mp4"), AV_CODEC_ID_VP9}};
+  for (const auto &[path, codec_id] : without_decode_skip) {
+    if (FramesDecoderGpu::IsCodecSupported(codec_id)) {
+      paths.push_back(path);
+    } else {
+      GTEST_LOG_(WARNING) << "Skipping " << path << ": the codec is not supported by this GPU";
+    }
+  }
+  for (auto &path : paths)
+    CheckSameFramesAsMappingAll(path);
+}
+
+// Frames that share a pts. In this H.264 clip (the first 65 frames of SintelVideoFile(0), remuxed
+// to MPEG-TS), every non-reference picture (nal_ref_idc 0) takes the pts of the frame shown right
+// before it: 22 pairs of frames share one. Reading every other frame, one frame of each pair is
+// read and the other one skipped. A non-reference picture decoded while the frame before it, with
+// the same pts, is the next frame but only skipped must still be decoded, as it may be the frame
+// read after it: otherwise reading that frame fails, as its picture was not decoded. Whether it
+// is decoded at that point depends on when the parser decodes and displays the pictures. This
+// checks the frames read, not which pictures are left out (see SameFramesAsMappingAll).
+TEST_F(FramesDecoderGpuTest, SameFramesAsMappingAllWithSharedPts) {
+  auto path = make_string(testing::dali_extra_path(),
+                          "/db/video/duplicate_pts/h264_nonref_dup_pts.ts");
+  FramesDecoderGpu indexed(path);
+  ASSERT_TRUE(indexed.IsValid()) << path;
+  indexed.BuildIndex();
+  auto &index = indexed.GetIndex();
+  int n = index.size();
+  ASSERT_EQ(n, 65) << path;
+  int shared_pts = 0;
+  for (int i = 1; i < n; i++) {
+    if (index[i].pts != index[i - 1].pts)
+      continue;
+    shared_pts++;
+    // the frames of a pair are in decoding order (the reference picture first): the sort by pts
+    // alone could give either order
+    EXPECT_LT(index[i - 1].decode_idx, index[i].decode_idx)
+        << path << ": frames " << i - 1 << " and " << i << " share a pts";
+  }
+  ASSERT_EQ(shared_pts, 22) << path;
+
+  std::set<int> all_frames;
+  for (int i = 0; i < n; i++)
+    all_frames.insert(i);
+  auto sequential = SequentialFrameHashes(path, index, all_frames);
+  // the frames of a pair are different pictures: a decoder that returned the same one for both
+  // would not pass for the reference
+  for (int i = 1; i < n; i++) {
+    if (index[i].pts == index[i - 1].pts) {
+      EXPECT_NE(sequential[i], sequential[i - 1])
+          << path << ": frames " << i - 1 << " and " << i << " share a pts, but not a picture";
+    }
+  }
+  for (int start : {0, 1}) {
+    auto frames = Strided(start, n, 2);
+    auto what = make_string("every other frame from ", start);
+    try {
+      auto run = CheckSameFramesAsMappingAll(path, index, what, [&](FramesDecoderGpu &d) {
+        return DecodeAndHash(d, frames);
+      });
+      std::vector<size_t> expected;
+      for (int frame : frames)
+        expected.push_back(sequential[frame]);
+      EXPECT_EQ(run.result.frames, expected) << path << ": " << what << ": not the frames that a "
+                                             << "sequential read gives";
+    } catch (std::exception &e) {
+      ADD_FAILURE() << path << ": " << what << ": " << e.what();
+    }
+  }
+}
+
+// Timestamps that do not fit in 32 bits (MPEG-TS has 33-bit timestamps, and a capture often starts
+// above 2^31). This H.264 clip is the first 65 frames of SintelVideoFile(0), remuxed to MPEG-TS with
+// every timestamp moved 30000 s later. A buffered frame is looked up by its whole timestamp: it is
+// found, and the frames are the same pictures as those of the source, read in a row or with a
+// stride (without a seek).
+TEST_F(FramesDecoderGpuTest, TimestampsAbove32Bits) {
+  auto path = make_string(testing::dali_extra_path(), "/db/video/large_pts/h264_large_pts.ts");
+  FramesDecoderGpu indexed(path);
+  ASSERT_TRUE(indexed.IsValid()) << path;
+  indexed.BuildIndex();
+  auto &index = indexed.GetIndex();
+  int n = index.size();
+  ASSERT_EQ(n, 65) << path;
+  ASSERT_GT(index[0].pts, std::numeric_limits<int32_t>::max()) << path;
+
+  auto source = SintelVideoFile(0);
+  FramesDecoderGpu source_indexed(source);
+  source_indexed.BuildIndex();
+  std::set<int> all_frames;
+  for (int i = 0; i < n; i++)
+    all_frames.insert(i);
+  auto expected = SequentialFrameHashes(source, source_indexed.GetIndex(), all_frames);
+  EXPECT_EQ(SequentialFrameHashes(path, index, all_frames), expected)
+      << path << ": not the frames of " << source;
+  static_assert(FramesDecoderBase::kMinimumSeekLeap > 3, "the frames below are read without a seek");
+  for (int stride : {2, 3}) {
+    auto frames = Strided(0, n, stride);
+    auto what = make_string("stride ", stride);
+    auto run = CheckSameFramesAsMappingAll(path, index, what, [&](FramesDecoderGpu &d) {
+      return DecodeAndHash(d, frames);
+    });
+    std::vector<size_t> expected_frames;
+    for (int frame : frames)
+      expected_frames.push_back(expected[frame]);
+    EXPECT_EQ(run.result.frames, expected_frames) << path << ": " << what << ": not the frames of "
+                                                  << source;
+  }
+}
+
+// Reading a frame without its data is an internal error, not a frame of garbage. This decoder maps
+// none of the frames that it buffers, and does not decode a non-reference picture that is decoded
+// before it is the frame read (GpuDecoderMappingNone). Reading in a row, a frame is buffered when
+// the parser displays it in the same cuvidParseVideoData call as the frame before it, or at the end
+// of the stream; and a non-reference B-frame whose picture the parser decodes before it is the
+// frame read is not decoded. Which of the two errors comes first depends on when the parser decodes
+// and displays the pictures (the tests below cover each one), but one of them comes, at the end of
+// the stream at the latest.
+TEST_F(FramesDecoderGpuTest, ReadingFrameNotMappedFails) {
+  GpuDecoderMappingNone decoder(SintelVideoFile(0));
+  decoder.BuildIndex();
+  DeviceBuffer<uint8_t> frame;
+  frame.resize(decoder.FrameSize());
+  try {
+    for (int i = 0; i < decoder.NumFrames(); i++)
+      decoder.ReadNextFrame(frame.data());
+    FAIL() << "a frame that was not mapped was read";
+  } catch (std::exception &e) {
+    ExpectReadWithoutData(e);
+  }
+}
+
+// At the end of the stream, the parser displays all the pictures that it still holds, in one call:
+// the frame read is returned, and the frames shown after it are buffered (here, without their
+// data). It holds at least the last three frames of this clip there: the last packet in decoding
+// order is a B-frame shown before the last two frames, and the parser decodes it only at the end of
+// the stream, as it takes a picture as complete only when the next one starts (see kPacketLag).
+TEST_F(FramesDecoderGpuTest, ReadingBufferedFrameNotMappedFails) {
+  GpuDecoderMappingNone decoder(SintelVideoFile(0));
+  decoder.BuildIndex();
+  int last = decoder.NumFrames() - 1;
+  DeviceBuffer<uint8_t> frame;
+  frame.resize(decoder.FrameSize());
+  // seeks to the keyframe before it and skips the frames up to it (no error: they are not read)
+  decoder.SeekFrame(last);
+  ASSERT_EQ(decoder.NextFrameIdx(), last);
+  try {
+    decoder.ReadNextFrame(frame.data());
+    FAIL() << "the last frame was read, although it was buffered without its data";
+  } catch (std::exception &e) {
+    ExpectReadWithoutData(e, kOnlyTimestampKept);
+  }
+}
+
+// A non-reference picture that the parser decodes before it is the frame read is not decoded by
+// GpuDecoderMappingNone: when the parser then displays it as the frame read, reading it fails.
+// Unless the parser displays it in the same call as the frame before it (it is then buffered, and
+// reading it fails as in ReadingBufferedFrameNotMappedFails), or decodes it only once it is the
+// frame read (it is then decoded, and read fine). Which non-reference frames this happens to
+// depends on when the parser decodes and displays the pictures, which a test cannot set with a
+// real parser: this reads each of the non-reference B-frames below after skipping the frames
+// before it, and checks that this fails so for at least one of them.
+TEST_F(FramesDecoderGpuTest, ReadingFrameNotDecodedFails) {
+  auto path = SintelVideoFile(0);
+  FramesDecoderGpu indexed(path);
+  indexed.BuildIndex();
+  int not_decoded = 0, buffered = 0, read = 0;
+  // the first non-reference pictures of the clip (nal_ref_idc 0), all of them with the keyframe 0
+  for (int frame : {13, 16, 19, 21, 24, 26, 28, 31, 34, 37, 39}) {
+    GpuDecoderMappingNone decoder(path);
+    decoder.SetIndex(indexed.GetIndex());
+    DeviceBuffer<uint8_t> out;
+    out.resize(decoder.FrameSize());
+    decoder.SeekFrame(frame);  // decodes through, skipping the frames before it
+    ASSERT_EQ(decoder.NextFrameIdx(), frame);
+    try {
+      decoder.ReadNextFrame(out.data());
+      read++;
+    } catch (std::exception &e) {
+      ExpectReadWithoutData(e);
+      if (std::string(e.what()).find(kPictureNotDecoded) != std::string::npos)
+        not_decoded++;
+      else
+        buffered++;
+    }
+  }
+  EXPECT_GT(not_decoded, 0) << "no frame read failed as its picture was not decoded (" << buffered
+                            << " failed as buffered without their data, " << read << " were read)";
+}
+// MPEG-TS stores H.264 and HEVC in Annex B (NAL units after start codes, not after their length),
+// and its demuxer seeks by decoding timestamp, on any packet: the index of an MPEG-TS copy has the
+// keyframes (also where the demuxer flags other pictures as keyframes) and the decoding order of the
+// MP4 clip, and a seek to each keyframe lands on it
+TEST_F(FramesDecoderGpuTest, MpegTsIndex) {
+  for (auto &clip : MpegTsClips()) {
+    FramesIndexer ts_indexer(clip.ts), mp4_indexer(clip.mp4);
+    ASSERT_TRUE(ts_indexer.IsValid()) << clip.ts;
+    ASSERT_TRUE(mp4_indexer.IsValid()) << clip.mp4;
+    ts_indexer.BuildIndex();
+    mp4_indexer.BuildIndex();
+    auto &index = ts_indexer.GetIndex();
+    auto &expected = mp4_indexer.GetIndex();
+    ASSERT_EQ(index.size(), expected.size()) << clip.ts;
+    int keyframes = 0;
+    for (size_t i = 0; i < index.size(); i++) {
+      EXPECT_EQ(index[i].is_keyframe, expected[i].is_keyframe) << clip.ts << ": frame " << i;
+      EXPECT_EQ(index[i].last_keyframe_id, expected[i].last_keyframe_id)
+          << clip.ts << ": frame " << i;
+      EXPECT_EQ(index[i].decode_idx, expected[i].decode_idx) << clip.ts << ": frame " << i;
+      keyframes += index[i].is_keyframe;
+    }
+    EXPECT_EQ(keyframes, clip.keyframes) << clip.ts;
+    CheckDecodeOrder(index, clip.ts);
+  }
+}
+
+// A capture can start in the middle of a GOP. This MPEG-TS copy of cfr/test_1.mp4 starts at its
+// packet 8, which is shown after the next one (frame 0), two packets before the first keyframe. A
+// seek to frame 0, which is not a keyframe, is to land on the first packet: it takes the lowest
+// decoding timestamp of the stream, not the one of frame 0. Only the index is checked: the pictures
+// before the first keyframe refer to pictures that are not in the file.
+TEST_F(FramesDecoderGpuTest, MpegTsIndexFromTheMiddleOfAGop) {
+  auto path = make_string(testing::dali_extra_path(), "/db/video/mpegts/test_1_mid_gop.ts");
+  FramesIndexer indexer(path);
+  ASSERT_TRUE(indexer.IsValid()) << path;
+  indexer.BuildIndex();
+  auto &index = indexer.GetIndex();
+  ASSERT_EQ(index.size(), 42u) << path;
+  EXPECT_FALSE(index[0].is_keyframe);
+  EXPECT_EQ(index[0].decode_idx, 1);
+  EXPECT_EQ(index[1].decode_idx, 0);
+  EXPECT_TRUE(index[2].is_keyframe);
+  EXPECT_EQ(index.SeekDecodeIdx(0), 0);
+  CheckDecodeOrder(index, path);
+}
+
+// The Matroska demuxer seeks to the keyframes by pts: a seek to a keyframe takes its pts and lands
+// on it
+TEST_F(FramesDecoderGpuTest, MatroskaIndex) {
+  auto path = MatroskaClip();
+  FramesIndexer indexer(path);
+  ASSERT_TRUE(indexer.IsValid()) << path;
+  indexer.BuildIndex();
+  auto &index = indexer.GetIndex();
+  int n = static_cast<int>(index.size());
+  ASSERT_EQ(n, 50) << path;
+  int keyframes = 0, reordered = 0;
+  for (int i = 0; i < n; i++) {
+    reordered += index[i].decode_idx != i;
+    if (index[i].is_keyframe) {
+      keyframes++;
+      EXPECT_EQ(index.SeekTimestamp(i), index[i].pts) << path << ": frame " << i;
+    }
+  }
+  EXPECT_EQ(keyframes, 6) << path;
+  EXPECT_GT(reordered, 0) << path << ": the decoding order is the display order";
+  CheckDecodeOrder(index, path);
+}
+
+// Matroska has no AVFMT_SEEK_TO_PTS flag, and stores no dts. libavformat can derive one for a
+// stream with B-frames (for H.264 once it has probed the stream, for MPEG-4 Part 2 with its
+// parser): below the pts of each keyframe, so that a seek to it lands on the keyframe before. The
+// decoder does not probe a Matroska file and DALI's FFmpeg has no MPEG-4 Part 2 parser, so no clip
+// shows the difference: the rule is checked here.
+TEST(FramesDecoderSeekTest, SeeksByPts) {
+  for (auto [name, by_pts] : std::vector<std::pair<const char *, bool>>{
+           {"mov", true}, {"matroska", true}, {"webm", true}, {"mpegts", false}, {"avi", false}}) {
+    const AVInputFormat *format = av_find_input_format(name);
+    ASSERT_NE(format, nullptr) << name;
+    EXPECT_EQ(detail::SeeksByPts(*format), by_pts) << name;
+  }
+}
+
 TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
   FramesDecoderCpu decoder(cfr_videos_paths_[0]);
   decoder.BuildIndex();
@@ -875,12 +1537,105 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
   RunTest(decoder, vfr_videos_[1]);
 }
 
+// Uses the GPU backend, so it belongs to the GPU fixture (not *CpuOnly*, which runs without CUDA).
+TEST_F(FramesDecoderGpuTest, YCbCrMatchesCpuBackendWithinTolerance) {
+  // The CPU backend's YCbCr conversion (libswscale) and the GPU backend's (a custom CUDA
+  // kernel matching the legacy reader's conversion) are independent implementations of 4:2:0
+  // chroma upsampling (libswscale's SWS_BILINEAR vs. the GPU kernel's own bilinear sampling),
+  // so they aren't guaranteed to be byte-identical (on the test file they currently are, but
+  // SIMD paths on other platforms may round differently by a step). What is guaranteed is
+  // colorimetry: on both backends, YCbCr output keeps the source's range (no limited <-> full
+  // range conversion, DALI-4916). When the CPU backend expanded limited-range sources to full
+  // range, the two disagreed by up to 20/255 per channel; now differences should be at most rounding noise, not a systematic offset.
+  FramesDecoderCpu cpu_decoder(cfr_videos_paths_[0], DALI_YCbCr);
+  cpu_decoder.BuildIndex();
+  std::vector<uint8_t> frame_cpu(cpu_decoder.FrameSize());
+  ASSERT_TRUE(cpu_decoder.ReadNextFrame(frame_cpu.data()));
+
+  FramesDecoderGpu gpu_decoder(cfr_videos_paths_[0], 0, DALI_YCbCr);
+  gpu_decoder.BuildIndex();
+  DeviceBuffer<uint8_t> frame_gpu_device;
+  frame_gpu_device.resize(gpu_decoder.FrameSize());
+  ASSERT_TRUE(gpu_decoder.ReadNextFrame(frame_gpu_device.data()));
+  std::vector<uint8_t> frame_gpu(gpu_decoder.FrameSize());
+  MemCopy(frame_gpu.data(), frame_gpu_device.data(), gpu_decoder.FrameSize());
+
+  ASSERT_EQ(frame_cpu.size(), frame_gpu.size());
+  int max_abs_diff = 0;
+  int64_t sum_abs_diff = 0;
+  for (size_t i = 0; i < frame_cpu.size(); ++i) {
+    int d = std::abs(static_cast<int>(frame_cpu[i]) - static_cast<int>(frame_gpu[i]));
+    max_abs_diff = std::max(max_abs_diff, d);
+    sum_abs_diff += d;
+  }
+  double avg_abs_diff = static_cast<double>(sum_abs_diff) / frame_cpu.size();
+  EXPECT_LE(max_abs_diff, 2) << "Max abs diff " << max_abs_diff
+                             << " suggests a systematic mismatch, not rounding noise";
+  EXPECT_LE(avg_abs_diff, 0.05) << "Avg abs diff " << avg_abs_diff
+                                << " suggests a systematic mismatch, not rounding noise";
+}
+// MPEG program streams are rejected, with a message that names the container. The files of the
+// reader skip them because of that (as before: this checks the message only).
+TEST_F(FramesDecoderTest_CpuOnlyTests, MpegProgramStreamIsRejected) {
+  auto path = make_string(testing::dali_extra_path(), "/db/video/containers/mpeg/cfr.mpeg");
+  ::testing::internal::CaptureStderr();
+  FramesIndexer indexer(path);
+  EXPECT_FALSE(indexer.IsValid());
+  std::string log = ::testing::internal::GetCapturedStderr();
+  EXPECT_NE(log.find("MPEG-PS"), std::string::npos) << log;
+}
+
 TEST_F(FramesDecoderTest_CpuOnlyTests, InvalidSeek) {
   FramesDecoderCpu decoder(cfr_videos_paths_[0]);
   decoder.BuildIndex();
   RunFailureTest([&]() -> void {
     decoder.SeekFrame(60);},
     "Invalid seek frame id. frame_id = 60, num_frames = 50");
+}
+
+// An index that is not sorted by timestamp is refused (also in a release build): the GPU decoder
+// searches it by timestamp
+TEST_F(FramesDecoderTest_CpuOnlyTests, SetIndexRejectsUnsortedIndex) {
+  FramesDecoderCpu indexed(cfr_videos_paths_[0]);
+  indexed.BuildIndex();
+  FrameIndex index = indexed.GetIndex();
+  ASSERT_GE(index.size(), 2u);
+  FramesDecoderCpu decoder(cfr_videos_paths_[0]);
+  decoder.SetIndex(index);  // a sorted index is accepted
+  std::swap(index.index.front(), index.index.back());
+  EXPECT_THROW(decoder.SetIndex(index), std::invalid_argument);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, HandleBoundaryReflectsWithinRoi) {
+  using boundary::BoundaryType;
+  FramesDecoderCpu decoder(cfr_videos_paths_[0]);
+  // ROI [10, 20), e.g. a file_list entry that doesn't start at frame 0. Reflecting must stay
+  // within the ROI; reflecting within [0, roi_end) instead would give 9, 5 and 9 below.
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_101, 29, 10, 20), 11);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_101, 5, 10, 20), 15);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_1001, 5, 10, 20), 14);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_1001, 30, 10, 20), 10);
+  for (auto type : {BoundaryType::REFLECT_101, BoundaryType::REFLECT_1001}) {
+    for (int frame_id = -50; frame_id < 80; frame_id++) {
+      int idx = decoder.HandleBoundary(type, frame_id, 10, 20);
+      EXPECT_GE(idx, 10) << "frame_id=" << frame_id << " type=" << boundary::to_string(type);
+      EXPECT_LT(idx, 20) << "frame_id=" << frame_id << " type=" << boundary::to_string(type);
+    }
+  }
+  // In-range indices are returned as is; clamping is unaffected.
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::REFLECT_101, 12, 10, 20), 12);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::CLAMP, 3, 10, 20), 10);
+  EXPECT_EQ(decoder.HandleBoundary(BoundaryType::CLAMP, 25, 10, 20), 19);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, HandleBoundarySingleFrameRoi) {
+  using boundary::BoundaryType;
+  FramesDecoderCpu decoder(cfr_videos_paths_[0]);
+  // A one-frame ROI [10, 11): every index maps to its only frame.
+  for (auto type : {BoundaryType::REFLECT_101, BoundaryType::REFLECT_1001, BoundaryType::CLAMP})
+    for (int frame_id : {-7, 9, 10, 11, 12, 25})
+      EXPECT_EQ(decoder.HandleBoundary(type, frame_id, 10, 11), 10)
+          << "frame_id=" << frame_id << " type=" << boundary::to_string(type);
 }
 
 TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
@@ -943,6 +1698,171 @@ TEST_F(FramesDecoderGpuTest, SurfaceUnmappedAfterFailedConversion) {
   EXPECT_EQ(frame_dec_gpu_impl::NVDECDecodersCreated(), num_created);
 }
 
+// When none of the cached decoders that were set up for the format of a stream is free, a larger
+// free one is reconfigured for it, instead of creating a decoder, which takes much longer (and
+// destroying one, when the cache is full). It has to decode the stream as a new decoder would.
+TEST_F(FramesDecoderGpuTest, DecoderCacheReconfiguresLargerDecoder) {
+  using frame_dec_gpu_impl::NVDECDecodersCreated;
+  using frame_dec_gpu_impl::NVDECDecodersReconfigured;
+  // 800x600, coded as 800x608: the reconfigured decoder has to crop it
+  std::string small_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
+  // 1280x720
+  std::string large_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4");
+  auto open = [](const std::string &path) {
+    auto decoder = std::make_unique<FramesDecoderGpu>(path);
+    decoder->BuildIndex();
+    return decoder;
+  };
+  auto num_set_up = [] { return NVDECDecodersCreated() + NVDECDecodersReconfigured(); };
+
+  // Take the cached decoders that are set up for the small video, until one has to be set up for
+  // it (created, or reconfigured from a larger one): then none that is set up for it is free.
+  // A decoder gets its NVDEC decoder when it starts decoding.
+  std::vector<std::unique_ptr<FramesDecoderGpu>> taken;
+  for (size_t before = num_set_up(); num_set_up() == before;) {
+    ASSERT_LT(taken.size(), 200u);
+    taken.push_back(open(small_path));
+    ASSERT_TRUE(taken.back()->IsValid());
+    taken.back()->ReadNextFrame(FrameData());
+  }
+
+  // A larger decoder is free when this one is gone
+  {
+    auto large = open(large_path);
+    ASSERT_TRUE(large->IsValid());
+    ASSERT_EQ(large->Width(), 1280);
+    large->ReadNextFrame(FrameData());
+  }
+
+  size_t num_created = NVDECDecodersCreated();
+  size_t num_reconfigured = NVDECDecodersReconfigured();
+  auto decoder = open(small_path);
+  ASSERT_TRUE(decoder->IsValid());
+  RunTest(*decoder, cfr_videos_[1]);
+  EXPECT_EQ(NVDECDecodersCreated(), num_created);
+  EXPECT_EQ(NVDECDecodersReconfigured(), num_reconfigured + 1);
+}
+
+// A decoder that is destroyed after a partial read goes back to the cache with pictures that NVDEC
+// decoded and nobody mapped: the ones that the parser holds for the display delay, the ones that a
+// read without output or a seek leaves behind. Reconfiguring it for another stream has to give the
+// same frames as a new decoder does, whatever was left behind.
+TEST_F(FramesDecoderGpuTest, DecoderCacheReconfigureAfterPartialReads) {
+  using frame_dec_gpu_impl::NVDECDecodersCreated;
+  using frame_dec_gpu_impl::NVDECDecodersReconfigured;
+  using frame_dec_gpu_impl::NVDECDestroyUnusedDecoders;
+  // 800x600
+  std::string small_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
+  // 1280x720, with B-frames
+  std::string large_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4");
+  auto open = [](const std::string &path) {
+    auto decoder = std::make_unique<FramesDecoderGpu>(path);
+    decoder->BuildIndex();
+    return decoder;
+  };
+
+  // frames read with output, frames read without output (skipped), frame to seek to (or -1)
+  struct Partial {
+    int read, skipped, seek_to;
+  };
+  const Partial partial_reads[] = {
+    {1, 0, -1}, {2, 0, -1}, {3, 0, -1}, {5, 0, -1}, {8, 0, -1}, {13, 0, -1},
+    {0, 1, -1}, {0, 2, -1}, {0, 5, -1}, {1, 3, -1}, {2, 7, -1}, {0, 20, -1},
+    {1, 0, 9}, {1, 0, 10}, {2, 4, 17}, {0, 3, 23}, {3, 0, 31}, {0, 1, 40},
+  };
+  for (int round = 0; round < 3; round++) {
+    for (const auto &p : partial_reads) {
+      SCOPED_TRACE(make_string("round ", round, ": read ", p.read, ", skipped ", p.skipped,
+                               ", seek to ", p.seek_to));
+      // Only the decoder that is created for the large video is cached, so the small video
+      // reconfigures it
+      NVDECDestroyUnusedDecoders();
+      {
+        auto large = open(large_path);
+        ASSERT_TRUE(large->IsValid());
+        if (p.seek_to >= 0)
+          large->SeekFrame(p.seek_to);
+        for (int i = 0; i < p.skipped; i++)
+          large->ReadNextFrame(nullptr);
+        for (int i = 0; i < p.read; i++)
+          large->ReadNextFrame(FrameData());
+      }
+      size_t num_created = NVDECDecodersCreated();
+      size_t num_reconfigured = NVDECDecodersReconfigured();
+      auto decoder = open(small_path);
+      ASSERT_TRUE(decoder->IsValid());
+      RunTest(*decoder, cfr_videos_[1]);
+      EXPECT_EQ(NVDECDecodersCreated(), num_created);
+      EXPECT_EQ(NVDECDecodersReconfigured(), num_reconfigured + 1);
+      if (HasFatalFailure() || HasNonfatalFailure())
+        return;
+    }
+  }
+}
+
+// A cached decoder that is smaller than the stream cannot be reconfigured for it: a decoder is
+// created instead and the small one stays in the cache. A failed reconfiguration would also end
+// with a created decoder, but it would drop the small one, so the cache is checked as well.
+TEST_F(FramesDecoderGpuTest, DecoderCacheDoesNotReconfigureSmallerDecoder) {
+  using frame_dec_gpu_impl::NVDECDecodersCreated;
+  using frame_dec_gpu_impl::NVDECDecodersReconfigured;
+  using frame_dec_gpu_impl::NVDECDestroyUnusedDecoders;
+  // 800x600
+  std::string small_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
+  // 1280x720
+  std::string large_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4");
+  auto open = [](const std::string &path) {
+    auto decoder = std::make_unique<FramesDecoderGpu>(path);
+    decoder->BuildIndex();
+    return decoder;
+  };
+  auto num_set_up = [] { return NVDECDecodersCreated() + NVDECDecodersReconfigured(); };
+
+  // Start from an empty cache: when earlier tests filled it up, creating a decoder evicts a free
+  // one, which could be the small decoder checked at the end.
+  NVDECDestroyUnusedDecoders();
+
+  // Take cached decoders until one has to be created for the large video: none that is free fits
+  // it any more (it would have been reconfigured), and they stay taken.
+  std::vector<std::unique_ptr<FramesDecoderGpu>> taken;
+  for (size_t before = NVDECDecodersCreated(); NVDECDecodersCreated() == before;) {
+    ASSERT_LT(taken.size(), 200u);
+    taken.push_back(open(large_path));
+    ASSERT_TRUE(taken.back()->IsValid());
+    taken.back()->ReadNextFrame(FrameData());
+  }
+
+  // Take the free decoders for the small video, until one has to be set up for it. That one is
+  // the only free decoder when it is put back: it is smaller than the large video.
+  for (size_t before = num_set_up(); num_set_up() == before;) {
+    ASSERT_LT(taken.size(), 200u);
+    taken.push_back(open(small_path));
+    ASSERT_TRUE(taken.back()->IsValid());
+    taken.back()->ReadNextFrame(FrameData());
+  }
+  taken.pop_back();
+
+  size_t num_created = NVDECDecodersCreated();
+  size_t num_reconfigured = NVDECDecodersReconfigured();
+  {
+    auto large = open(large_path);
+    ASSERT_TRUE(large->IsValid());
+    large->ReadNextFrame(FrameData());
+    EXPECT_EQ(NVDECDecodersCreated(), num_created + 1);
+    EXPECT_EQ(NVDECDecodersReconfigured(), num_reconfigured);
+  }
+
+  // The small decoder was not touched: it is reused as it is, and not reconfigured from the new
+  // large one that was just put back.
+  num_created = NVDECDecodersCreated();
+  num_reconfigured = NVDECDecodersReconfigured();
+  auto small = open(small_path);
+  ASSERT_TRUE(small->IsValid());
+  small->ReadNextFrame(FrameData());
+  EXPECT_EQ(NVDECDecodersCreated(), num_created);
+  EXPECT_EQ(NVDECDecodersReconfigured(), num_reconfigured);
+}
+
 TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
   std::vector<std::string> paths;
   for (const auto *list : {&cfr_videos_paths_, &vfr_videos_paths_, &cfr_mpeg4_videos_paths_,
@@ -977,7 +1897,8 @@ TEST_F(FramesDecoderGpuTest, IndexerIsValidForTheSameFilesAsTheDecoder) {
     SCOPED_TRACE(path);
     FramesDecoderGpu decoder(path);
     FramesIndexer indexer(path);
-    bool indexer_valid = indexer.IsValid() && FramesDecoderGpu::IsCodecSupported(indexer.CodecId());
+    bool indexer_valid =
+        indexer.IsValid() && FramesDecoderGpu::IsStreamSupported(indexer.CodecParameters());
     EXPECT_EQ(indexer_valid, decoder.IsValid());
   }
 }
@@ -989,6 +1910,22 @@ TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevc) {
   FramesDecoderGpu decoder(cfr_hevc_videos_paths_[0]);
   decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[0]);
+}
+
+// Seeks in MPEG-TS (see MpegTsIndex), checked against the frames of the clips
+TEST_F(FramesDecoderGpuTest, ConstantFrameRateMpegTs) {
+  FramesDecoderGpu decoder(MpegTsClips()[0].ts);
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevcMpegTs) {
+  if (!FramesDecoderGpu::SupportsHevc()) {
+    GTEST_SKIP();
+  }
+  FramesDecoderGpu decoder(MpegTsClips()[1].ts);
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[1]);
 }
 
 // After a seek to an HEVC CRA picture, the parser drops the CRA's leading pictures, which reference
@@ -1185,6 +2122,27 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, LeadingPicturesOfIdrKeyframes) {
   }
 }
 
+// Only a stream with packets that may hold no picture, or keyframes that may have leading pictures
+// (dropped by a decoder that starts there), needs the GPU decoder to keep the last frame read,
+// which a frame without a picture repeats (with timestamps in decoding order)
+TEST_F(FramesDecoderTest_CpuOnlyTests, IndexKnowsFramesWithoutPictures) {
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  std::vector<std::pair<std::string, bool>> files = {
+      // DivX packed: a not-coded VOP after each packet that holds a P-VOP and a B-VOP
+      {make_string(video_dir, "/ucf101_test/packed_bframes_test.avi"), true},
+      {make_string(video_dir, "/cfr/test_1.avi"), false},          // MPEG-4 Part 2, all coded
+      {make_string(video_dir, "/containers/avi/cfr.avi"), false},  // H.264, one closed GOP
+      {make_string(video_dir, "/cfr/test_1.mp4"), false},  // H.264, IDR keyframes
+      // HEVC, open GOPs: CRA keyframes, whose leading pictures are not known
+      {make_string(video_dir, "/hevc/sintel_trailer-720p.mp4"), true}};
+  for (const auto &[path, expected] : files) {
+    SCOPED_TRACE(path);
+    FramesIndexer indexer(path);
+    indexer.BuildIndex();
+    EXPECT_EQ(indexer.GetIndex().may_have_frames_without_pictures, expected);
+  }
+}
+
 // The files that the video reader skips as invalid are the same with the indexer as with the
 // decoder: a missing file, a file without a video stream, and a codec that is not supported by the
 // CPU decoder. The indexer only reports the codec, the reader checks it with the decoder.
@@ -1196,7 +2154,8 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerIsValidForTheSameFilesAsTheDecoder
     SCOPED_TRACE(path);
     FramesDecoderCpu decoder(path);
     FramesIndexer indexer(path);
-    bool indexer_valid = indexer.IsValid() && FramesDecoderCpu::IsCodecSupported(indexer.CodecId());
+    bool indexer_valid =
+        indexer.IsValid() && FramesDecoderCpu::IsStreamSupported(indexer.CodecParameters());
     EXPECT_EQ(indexer_valid, decoder.IsValid());
   }
 }
@@ -1389,6 +2348,497 @@ TEST_F(FramesDecoderGpuTest, RawH265) {
   auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[0]);
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, cfr_videos_[0], false, 1.5);
+}
+
+namespace {
+
+FrameIndex MakeFrameIndex(const std::vector<int64_t> &pts) {
+  FrameIndex index = {};
+  index.timebase = AVRational{1, 1000};
+  for (auto p : pts)
+    index.index.push_back(IndexEntry{p, 0, false, false});
+  return index;
+}
+
+double AvgAbsDiff(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) {
+  int64_t sum = 0;
+  for (size_t i = 0; i < a.size(); ++i) {
+    sum += std::abs(static_cast<int>(a[i]) - static_cast<int>(b[i]));
+  }
+  return static_cast<double>(sum) / a.size();
+}
+
+}  // namespace
+
+TEST(FramesDecoderFrameIndexTest, TimestampInsideTheStream) {
+  auto index = MakeFrameIndex({100, 200, 300});
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(200, false), 1);  // exact match
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(200, true), 1);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(250, false), 2);  // between frames 1 and 2
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(250, true), 1);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(50, false), 0);   // before the first frame
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(50, true), 0);
+}
+
+TEST(FramesDecoderFrameIndexTest, EndPtsWithoutRecordedStreamEnd) {
+  auto index = MakeFrameIndex({100, 200, 300});
+  EXPECT_EQ(index.EndPts(), 400);  // last pts + last inter-frame gap
+  EXPECT_EQ(MakeFrameIndex({5}).EndPts(), 6);
+}
+
+TEST(FramesDecoderFrameIndexTest, EndPtsUsesRecordedStreamEnd) {
+  // The last frame lasts 100 ticks, the one before it 200: the gap would give 500.
+  auto index = MakeFrameIndex({0, 100, 300});
+  EXPECT_EQ(index.EndPts(), 500);
+  index.end_pts = 400;
+  EXPECT_EQ(index.EndPts(), 400);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(400, true), 3);   // end of stream: one past the last
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(399, true), 2);   // inside the last frame
+  // Single frame lasting 40 ticks: ranges starting inside it still select it.
+  auto single = MakeFrameIndex({0});
+  single.end_pts = 40;
+  EXPECT_EQ(single.EndPts(), 40);
+  EXPECT_EQ(single.GetFrameIdxByTimestamp(39, true), 0);
+  EXPECT_EQ(single.GetFrameIdxByTimestamp(40, true), 1);
+  // A recorded end not past the last pts is ignored.
+  single.end_pts = 0;
+  EXPECT_EQ(single.EndPts(), 1);
+}
+
+TEST(FramesDecoderFrameIndexTest, PastTheLastFrameReturnsSizeSentinel) {
+  auto index = MakeFrameIndex({100, 200, 300});
+  // Inside the last frame's duration: rounding down selects the last frame.
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(350, true), 2);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(350, false), 3);
+  // At or past the end of the stream: "one past the last frame", never frame 0.
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(400, false), 3);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(400, true), 3);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(100000, true), 3);
+  EXPECT_EQ(index.GetFrameIdxByTimestamp(100000, false), 3);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, RoundUpGoesPastTheFrameBelow) {
+  // 24 fps at timebase 1/12288: 512 ticks per frame, so frame 22 has pts 22 * 512 = 11264. A time
+  // a fraction of a tick above that pts must round up to 11265, so that the lookup does not take
+  // it for frame 22's own pts, and exclude frame 22 from a range that ends there.
+  AVRational timebase{1, 12288};
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.9167271357878531, /*round_down=*/false), 11265);
+  // 0.91670 s is 11264.4096 ticks: closer to 11264 than to 11265, but still above frame 22's pts
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.91670, /*round_down=*/false), 11265);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, RoundDownIsTheFloor) {
+  AVRational timebase{1, 12288};
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.9167271357878531, /*round_down=*/true), 11264);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.91670, /*round_down=*/true), 11264);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, RoundsUpOrDownAtTickBoundary) {
+  AVRational timebase{1, 1000};
+  // Exact tick boundaries round the same way regardless of direction.
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.002, /*round_down=*/false), 2);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.002, /*round_down=*/true), 2);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0, /*round_down=*/false), 0);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0, /*round_down=*/true), 0);
+  // Fractional ticks: round up goes to the next tick, round down stays at the current one.
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0015, /*round_down=*/false), 2);  // 1.5 ticks -> 2
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0015, /*round_down=*/true), 1);   // 1.5 ticks -> 1
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0014, /*round_down=*/false), 2);  // 1.4 ticks -> 2
+  EXPECT_EQ(SecondsToTimestamp(timebase, 0.0014, /*round_down=*/true), 1);   // 1.4 ticks -> 1
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, SnapsFloatingPointNoiseAtExactTickBoundary) {
+  // At timebase 1/1000 (the Matroska/WebM default), 1.001 * 1000 is not exactly 1001.0 in double
+  // precision: it is 1000.9999999999999. Without snapping, floor() would return 1000 instead of
+  // 1001, and a file_list boundary on that frame's pts would select the wrong frame.
+  AVRational timebase{1, 1000};
+  ASSERT_NE(1.001 * timebase.den / timebase.num, 1001.0)
+      << "this test is meant to exercise floating-point noise; if this starts failing because "
+         "1.001 * 1000 became exact, the epsilon-snapping logic is no longer being exercised";
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.001, /*round_down=*/true), 1001);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.001, /*round_down=*/false), 1001);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, GenuineFractionalOffsetIsNotSnapped) {
+  // A real request landing a tenth of a tick off a boundary must NOT be snapped to the
+  // boundary -- only floating-point representation noise (many orders of magnitude smaller)
+  // should be. 1.0001 s at timebase 1/1000 is 1000.1 ticks: 0.1 of a tick off of 1000, which is
+  // far larger than the relative epsilon used for noise snapping.
+  AVRational timebase{1, 1000};
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.0001, /*round_down=*/true), 1000);
+  EXPECT_EQ(SecondsToTimestamp(timebase, 1.0001, /*round_down=*/false), 1001);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, ExactIntegerTicksRoundTripAcrossCommonTimebases) {
+  // For several common timebases, every millisecond value from 0 to 2 seconds gives exactly the
+  // integer tick count, when it is one, whatever the floating-point noise in `seconds * den / num`.
+  const AVRational timebases[] = {{1, 1000}, {1, 12288}, {1, 90000}, {1, 25}};
+  for (const auto &timebase : timebases) {
+    for (int ms = 0; ms <= 2000; ms++) {
+      // Exact tick count for this millisecond value at this timebase, computed with integer
+      // arithmetic (no floating point) so it's unambiguously correct.
+      int64_t num = static_cast<int64_t>(ms) * timebase.den;
+      int64_t den = static_cast<int64_t>(1000) * timebase.num;
+      if (num % den != 0)
+        continue;  // not a whole number of ticks: see GenuineFractionalOffsetIsNotSnapped
+      int64_t expected_ticks = num / den;
+      double seconds = ms / 1000.0;
+      EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/true), expected_ticks)
+          << "timebase=1/" << timebase.den << " ms=" << ms;
+      EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), expected_ticks)
+          << "timebase=1/" << timebase.den << " ms=" << ms;
+    }
+  }
+}
+
+TEST_F(FramesDecoderGpuTest, MjpegRejectsFramesOfOtherSizeThanDeclared) {
+  if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
+    GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
+  }
+  auto memory_video = MemoryVideo(
+      make_string(testing::dali_extra_path(), "/db/video/mjpeg/mjpeg.avi"));
+  // Declare a size that differs from the one of the frames, in the stream format chunk of the AVI
+  // ('strf', the chunk size, the bitmap header size, the width and the height).
+  const std::string strf = "strf";
+  auto it = std::search(memory_video.begin(), memory_video.end(), strf.begin(), strf.end());
+  ASSERT_NE(it, memory_video.end());
+  int32_t *size = reinterpret_cast<int32_t *>(&*it + 12);
+  ASSERT_EQ(size[0], 1280);
+  ASSERT_EQ(size[1], 720);
+  size[0] = 640;
+  size[1] = 360;
+
+  FramesDecoderCpu cpu_decoder(memory_video.data(), memory_video.size());
+  ASSERT_TRUE(cpu_decoder.IsValid());
+  std::vector<uint8_t> frame(cpu_decoder.FrameSize());
+  EXPECT_THROW(cpu_decoder.ReadNextFrame(frame.data()), std::runtime_error);
+
+  FramesDecoderGpu gpu_decoder(memory_video.data(), memory_video.size());
+  ASSERT_TRUE(gpu_decoder.IsValid());
+  DeviceBuffer<uint8_t> frame_device;
+  frame_device.resize(gpu_decoder.FrameSize());
+  EXPECT_THROW(gpu_decoder.ReadNextFrame(frame_device.data()), std::runtime_error);
+}
+
+TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
+  // DALI-4918: for MJPEG the driver can report a minimum of 1 decode surface, with which decoding
+  // the 2nd frame used to fail with CUDA_ERROR_INVALID_VALUE.
+  //
+  // Every frame is also compared against the CPU backend: NVDEC writes JPEG pictures in stream
+  // order with the legacy default stream, so a color conversion on a non-blocking stream used to
+  // read surfaces that weren't written yet and return blank frames (mostly the first ~20 frames
+  // of a freshly created NVDEC decoder). Hence the non-blocking streams, and several decoders
+  // alive at once: each one holds its NVDEC decoder, so the others can't reuse it from
+  // NVDECCache and get freshly created ones.
+
+  // The test file is 8-bit 4:4:4 (yuvj444p), which not every NVDEC generation can decode.
+  if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
+    GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
+  }
+  auto mjpeg_path = make_string(testing::dali_extra_path(), "/db/video/mjpeg/mjpeg.avi");
+  FramesDecoderCpu cpu_decoder(mjpeg_path, DALI_RGB);
+  ASSERT_TRUE(cpu_decoder.IsValid());
+  cpu_decoder.BuildIndex();
+  int num_frames = cpu_decoder.NumFrames();
+  ASSERT_GT(num_frames, 1);
+
+  constexpr int kNumGpuDecoders = 3;
+  std::vector<CUDAStream> streams;
+  std::vector<std::unique_ptr<FramesDecoderGpu>> gpu_decoders;
+  for (int d = 0; d < kNumGpuDecoders; ++d) {
+    streams.push_back(CUDAStream::Create(true));
+    gpu_decoders.push_back(std::make_unique<FramesDecoderGpu>(mjpeg_path, streams[d], DALI_RGB));
+    ASSERT_TRUE(gpu_decoders[d]->IsValid());
+    gpu_decoders[d]->BuildIndex();
+    ASSERT_EQ(gpu_decoders[d]->NumFrames(), num_frames);
+    ASSERT_EQ(gpu_decoders[d]->FrameSize(), cpu_decoder.FrameSize());
+  }
+
+  std::vector<uint8_t> expected(cpu_decoder.FrameSize());
+  std::vector<uint8_t> actual(cpu_decoder.FrameSize());
+  DeviceBuffer<uint8_t> frame_device;
+  frame_device.resize(cpu_decoder.FrameSize());
+  for (int i = 0; i < num_frames; ++i) {
+    ASSERT_TRUE(cpu_decoder.ReadNextFrame(expected.data())) << "CPU: failed decoding frame " << i;
+    for (int d = 0; d < kNumGpuDecoders; ++d) {
+      ASSERT_TRUE(gpu_decoders[d]->ReadNextFrame(frame_device.data()))
+          << "GPU decoder " << d << ": failed decoding frame " << i;
+      CUDA_CALL(cudaMemcpyAsync(actual.data(), frame_device.data(), actual.size(),
+                                cudaMemcpyDeviceToHost, streams[d]));
+      CUDA_CALL(cudaStreamSynchronize(streams[d]));
+      // The two backends use different JPEG decoders and color conversions, so they differ by
+      // rounding noise (below 1 on average); a blank frame is off by tens.
+      double diff = AvgAbsDiff(actual, expected);
+      EXPECT_LT(diff, 1.5) << "GPU decoder " << d << ": frame " << i
+                           << " differs from the CPU backend's (avg abs diff " << diff << ")";
+    }
+  }
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, LargeTickCountsStayDirectional) {
+  // The noise-snapping tolerance must stay far below half a tick for long videos at fine
+  // timebases, or every value would snap to the nearest tick instead of being floored/ceiled.
+  AVRational timebase{1, 90000};
+  double seconds = 900000.3 / 90000;  // ~900000.3 ticks (10 s)
+  EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), 900001);
+  EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/true), 900000);
+  seconds = 3240000000.3 / 90000;  // ~3240000000.3 ticks (10 h)
+  EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), 3240000001);
+  EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/true), 3240000000);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, SnapsFloatingPointNoiseAtAnyMagnitude) {
+  // k / 30 s at timebase 1/30 is exactly k ticks, but the double product isn't always exactly k.
+  AVRational timebase{1, 30};
+  for (int64_t k : {123, 500005}) {
+    double seconds = k / 30.0;
+    ASSERT_NE(seconds * timebase.den / timebase.num, static_cast<double>(k))
+        << "meant to exercise floating-point noise at k=" << k;
+    EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/true), k);
+    EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), k);
+  }
+  // NTSC timebase: 1001/30000 s is exactly 1 tick, computed as 1.0000000000000002.
+  AVRational ntsc{1001, 30000};
+  double one_tick = 1001.0 / 30000;
+  ASSERT_NE(one_tick * ntsc.den / ntsc.num, 1.0);
+  EXPECT_EQ(SecondsToTimestamp(ntsc, one_tick, /*round_down=*/false), 1);
+  EXPECT_EQ(SecondsToTimestamp(ntsc, one_tick, /*round_down=*/true), 1);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, DecimalTimesGiveExactTicks) {
+  // At timebase 1/90000, 200.1 s is 18009000 ticks, 128.04 s is 11523600 ticks, and every tenth
+  // of a second is a multiple of 9000 ticks: rounding down or up must give exactly that.
+  AVRational timebase{1, 90000};
+  for (bool round_down : {true, false}) {
+    EXPECT_EQ(SecondsToTimestamp(timebase, std::strtod("200.1", nullptr), round_down), 18009000);
+    EXPECT_EQ(SecondsToTimestamp(timebase, std::strtod("128.04", nullptr), round_down), 11523600);
+  }
+  int wrong = 0;
+  for (int k = 1; k <= 36000; k++) {  // up to one hour
+    double seconds = std::strtod(make_string(k / 10, ".", k % 10).c_str(), nullptr);
+    for (bool round_down : {true, false}) {
+      int64_t ticks = SecondsToTimestamp(timebase, seconds, round_down);
+      if (ticks != int64_t(k) * 9000 && wrong++ == 0)
+        ADD_FAILURE() << k / 10 << "." << k % 10 << " s, round down " << round_down << ": "
+                      << ticks;
+    }
+  }
+  EXPECT_EQ(wrong, 0);
+}
+
+TEST(VideoUtilsGetVideoFilesTest, FileListTimesAreParsedAsDoubles) {
+  // As floats, times from 128 s on can be a tick off at timebase 1/90000, once rounded.
+  char path[] = "/tmp/file_list_times_XXXXXX";
+  int fd = mkstemp(path);
+  ASSERT_GE(fd, 0);
+  close(fd);
+  auto remove_list = AtScopeExit([&] { std::remove(path); });
+  {
+    std::ofstream list(path);
+    // float(200.1) != 200.1, and 16777217 (2^24 + 1) is the first integer a float cannot hold
+    list << "video.mp4 0 200.1 300.25\nvideo.mp4 1 16777217 16777219\n";
+  }
+  auto files = GetVideoFiles("", {}, false, {}, path);
+  ASSERT_EQ(files.size(), 2u);
+  EXPECT_EQ(files[0].start, 200.1);
+  EXPECT_EQ(files[0].end, 300.25);
+  EXPECT_EQ(files[1].start, 16777217.0);
+  EXPECT_EQ(files[1].end, 16777219.0);
+}
+
+TEST(VideoUtilsSecondsToTimestampTest, SaturatesOutOfRangeTimes) {
+  AVRational timebase{1, 90000};
+  const int64_t kMax = int64_t(1) << 62;
+  for (bool round_down : {true, false}) {
+    EXPECT_EQ(SecondsToTimestamp(timebase, 1e20, round_down), kMax);
+    EXPECT_EQ(SecondsToTimestamp(timebase, -1e20, round_down), -kMax);
+    EXPECT_EQ(SecondsToTimestamp(timebase, std::numeric_limits<double>::infinity(), round_down),
+              kMax);
+    EXPECT_EQ(SecondsToTimestamp(timebase, -std::numeric_limits<double>::infinity(), round_down),
+              -kMax);
+    EXPECT_THROW(
+        SecondsToTimestamp(timebase, std::numeric_limits<double>::quiet_NaN(), round_down),
+        std::invalid_argument);
+  }
+  // Leaves headroom for adding a pts offset, so a huge start is still "past the end".
+  EXPECT_GT(SecondsToTimestamp(timebase, 1e20, true) + (int64_t(1) << 61), 0);
+}
+namespace {
+
+// A NAL unit of `size` bytes that starts with `header` (the rest is filler), after its length
+void AppendLengthPrefixedNal(std::vector<uint8_t> &buf, int length_size,
+                             const std::vector<uint8_t> &header, uint32_t size) {
+  for (int i = length_size - 1; i >= 0; i--)
+    buf.push_back(static_cast<uint8_t>(size >> (8 * i)));
+  for (uint32_t i = 0; i < size; i++)
+    buf.push_back(i < header.size() ? header[i] : 0xAB);
+}
+
+// A NAL unit of `size` bytes that starts with `header` (the rest is filler), after a start code
+void AppendAnnexBNal(std::vector<uint8_t> &buf, const std::vector<uint8_t> &header,
+                     uint32_t size) {
+  buf.insert(buf.end(), {0, 0, 0, 1});
+  for (uint32_t i = 0; i < size; i++)
+    buf.push_back(i < header.size() ? header[i] : 0xAB);
+}
+
+const std::vector<uint8_t> kAvcC = {0x01, 0x64, 0x00, 0x20, 0xff, 0xe1, 0x00, 0x19,
+                                    0x67, 0x64, 0x00, 0x20, 0xac, 0xd9, 0x40, 0x50};
+const std::vector<uint8_t> kAnnexBExtradata = {0x00, 0x00, 0x01, 0x67, 0x64, 0x00, 0x20, 0xac,
+                                               0xd9, 0x40, 0x50, 0x05, 0xbb, 0x01, 0x10, 0x00};
+const std::vector<uint8_t> kHvcC = {0x01, 0x01, 0x60, 0x00, 0x00, 0x00, 0x90, 0x00,
+                                    0x00, 0x00, 0x00, 0x00, 0x5d, 0xf0, 0x00, 0xfc,
+                                    0xfd, 0xf8, 0xf8, 0x00, 0x00, 0x0f, 0x04, 0x20};
+
+// The NAL length size for the extradata, of which only the first `size` bytes are given (all if < 0)
+int LengthSize(AVCodecID codec, const std::vector<uint8_t> &extradata, int size = -1) {
+  AVCodecParameters par = {};
+  par.codec_id = codec;
+  // FFmpeg's field is not const, but the extradata is only read
+  par.extradata = extradata.empty() ? nullptr : const_cast<uint8_t *>(extradata.data());
+  par.extradata_size = size < 0 ? static_cast<int>(extradata.size()) : size;
+  return detail::NalLengthSize(par);
+}
+
+// The type of the keyframe NAL unit in the first `size` bytes of a packet, or -1 if there is none
+int KeyframeNalType(AVCodecID codec, const std::vector<uint8_t> &data, size_t size,
+                    int length_size) {
+  AVPacket packet = {};
+  packet.data = const_cast<uint8_t *>(data.data());  // only read
+  packet.size = static_cast<int>(size);
+  int type = -1;
+  return detail::HasKeyframeNal(packet, codec, length_size, &type) ? type : -1;
+}
+
+}  // namespace
+
+TEST(NalFramingTest, LengthSizeFromExtradata) {
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAvcC), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, kHvcC), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAnnexBExtradata), 0);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, {}), 0) << "no extradata: start codes";
+
+  // Annex B extradata starts with a 3 or 4 byte start code, in HEVC too
+  std::vector<uint8_t> hevc_annex_b(32, 0xAB);
+  hevc_annex_b[0] = hevc_annex_b[1] = hevc_annex_b[2] = 0;
+  hevc_annex_b[3] = 1;
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hevc_annex_b), 0);
+  hevc_annex_b[2] = 1;
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hevc_annex_b), 0);
+
+  auto avcc_2 = kAvcC;
+  avcc_2[4] = 0xfd;  // lengthSizeMinusOne = 1
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, avcc_2), 2);
+  auto hvcc_1 = kHvcC;
+  hvcc_1[21] = 0x0c;  // lengthSizeMinusOne = 0
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc_1), 1);
+
+  // hvcC is told from Annex B by its start code, not by configurationVersion
+  for (int version : {0, 2, 0xff}) {
+    auto hvcc = kHvcC;
+    hvcc[0] = static_cast<uint8_t>(version);
+    EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc), 4) << "configurationVersion " << version;
+  }
+
+  // shorter than an avcC/hvcC header, and no start code: malformed, the usual 4-byte lengths
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAvcC, 6), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAvcC, 1), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc_1, 22), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc_1, 2), 4);
+  // ...but a start code, however short the extradata, is Annex B
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAnnexBExtradata, 3), 0);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hevc_annex_b, 4), 0);
+}
+
+TEST(NalFramingTest, LengthPrefixes) {
+  for (int length_size : {1, 2, 4}) {
+    std::vector<uint8_t> idr;  // SEI, then an IDR picture
+    AppendLengthPrefixedNal(idr, length_size, {0x06, 0x05}, 20);
+    AppendLengthPrefixedNal(idr, length_size, {0x65}, 200);
+    EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, idr.size(), length_size), 5)
+        << "length of " << length_size << " bytes";
+
+    std::vector<uint8_t> p_slice;
+    AppendLengthPrefixedNal(p_slice, length_size, {0x41}, 200);
+    EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, p_slice, p_slice.size(), length_size), -1)
+        << "length of " << length_size << " bytes";
+  }
+
+  // a NAL unit of 1 byte (an access unit delimiter) before the IDR picture
+  std::vector<uint8_t> multi;
+  AppendLengthPrefixedNal(multi, 4, {0x09}, 1);
+  AppendLengthPrefixedNal(multi, 4, {0x06, 0x05}, 300);
+  AppendLengthPrefixedNal(multi, 4, {0x65}, 1000);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, multi, multi.size(), 4), 5);
+}
+
+TEST(NalFramingTest, StartCodes) {
+  std::vector<uint8_t> idr;
+  AppendAnnexBNal(idr, {0x67, 0x64}, 20);  // SPS
+  AppendAnnexBNal(idr, {0x68}, 5);         // PPS
+  AppendAnnexBNal(idr, {0x65}, 300);       // IDR picture
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, idr.size(), 0), 5);
+
+  std::vector<uint8_t> p_slice;
+  AppendAnnexBNal(p_slice, {0x41}, 300);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, p_slice, p_slice.size(), 0), -1);
+
+  // a 3 byte start code
+  std::vector<uint8_t> short_start_code = {0, 0, 1, 0x65, 0xAB, 0xAB};
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, short_start_code, short_start_code.size(), 0), 5);
+
+  std::vector<uint8_t> hevc;
+  AppendAnnexBNal(hevc, {0x40, 0x01}, 20);   // VPS
+  AppendAnnexBNal(hevc, {0x2a, 0x01}, 300);  // CRA picture
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_HEVC, hevc, hevc.size(), 0), 21);
+}
+
+TEST(NalFramingTest, TruncatedPacket) {
+  std::vector<uint8_t> idr;
+  AppendLengthPrefixedNal(idr, 4, {0x65}, 300);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, idr.size(), 4), 5);
+  // the NAL unit is cut short, and so is its length
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, idr.size() - 1, 4), -1);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, 3, 4), -1);
+}
+
+// The type is what BuildIndex takes the leading pictures of a keyframe from: none after an H.264
+// IDR picture or an HEVC IDR_N_LP picture
+TEST(NalFramingTest, ReportsTheTypeOfTheKeyframeNal) {
+  struct Case {
+    AVCodecID codec;
+    std::vector<uint8_t> header;
+    int type;
+  };
+  std::vector<Case> cases = {
+      {AV_CODEC_ID_H264, {0x65}, 5},        // IDR
+      {AV_CODEC_ID_H264, {0x25}, 5},        // IDR, with another nal_ref_idc
+      {AV_CODEC_ID_HEVC, {0x26, 0x01}, 19},  // IDR_W_RADL
+      {AV_CODEC_ID_HEVC, {0x28, 0x01}, 20},  // IDR_N_LP
+      {AV_CODEC_ID_HEVC, {0x2a, 0x01}, 21},  // CRA
+      {AV_CODEC_ID_HEVC, {0x20, 0x01}, 16},  // BLA_W_LP
+  };
+  for (auto &c : cases) {
+    for (int length_size : {0, 4}) {
+      std::vector<uint8_t> packet;
+      if (length_size == 0)
+        AppendAnnexBNal(packet, c.header, 50);
+      else
+        AppendLengthPrefixedNal(packet, length_size, c.header, 50);
+      EXPECT_EQ(KeyframeNalType(c.codec, packet, packet.size(), length_size), c.type)
+          << "header " << static_cast<int>(c.header[0]) << ", length size " << length_size;
+    }
+  }
+  // not keyframes: a P slice, and an HEVC TRAIL_R
+  std::vector<uint8_t> trail;
+  AppendLengthPrefixedNal(trail, 4, {0x02, 0x01}, 50);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_HEVC, trail, trail.size(), 4), -1);
+
+  // the first keyframe NAL unit of the packet gives the type
+  std::vector<uint8_t> two;
+  AppendLengthPrefixedNal(two, 4, {0x28, 0x01}, 50);
+  AppendLengthPrefixedNal(two, 4, {0x2a, 0x01}, 50);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_HEVC, two, two.size(), 4), 20);
 }
 
 }  // namespace dali
