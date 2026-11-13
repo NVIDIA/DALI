@@ -1563,3 +1563,30 @@ def test_lazy_init_reader_meta_before_the_first_run():
         proc.join()
         raise AssertionError("The child process did not finish in 120 s")
     assert proc.exitcode == 0, f"The child process failed with exit code {proc.exitcode}"
+
+
+def test_mpeg_program_stream_is_skipped():
+    """MPEG program streams are not supported: the reader skips them (with a warning that names
+    the container). A file list that mixes one with a supported file only has the latter."""
+    mpeg_ps_file = os.path.join(DALI_EXTRA_PATH, "db", "video", "containers", "mpeg", "cfr.mpeg")
+    avi_file = os.path.join(DALI_EXTRA_PATH, "db", "video", "containers", "avi", "cfr.avi")
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def alone_pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=[mpeg_ps_file], sequence_length=1
+        )
+
+    with assert_raises(RuntimeError, glob="*number of input samples: 0*"):
+        alone_pipe().build()
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def mixed_pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=[mpeg_ps_file, avi_file], sequence_length=1, name="r"
+        )
+
+    p = mixed_pipe()
+    p.build()
+    assert p.reader_meta("r")["epoch_size"] == 180, "expected only the 180 frames of the avi file"
+    p.run()

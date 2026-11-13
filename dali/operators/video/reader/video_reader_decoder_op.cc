@@ -917,6 +917,8 @@ DALI_SCHEMA(experimental__readers__Video)
     .DocStr(R"code(Loads and decodes video files from disk.
 
 The operator supports most common video container formats using libavformat (FFmpeg).
+MPEG program streams (``.mpg``, ``.vob``) are not supported: such files are skipped with a warning.
+Remux them to another container, for example with ``ffmpeg -i in.mpg -c copy out.mp4``.
 The operator utilizes either libavcodec (FFmpeg) or NVIDIA Video Codec SDK (NVDEC) for decoding the frames.
 
 The following video codecs are supported by both CPU and GPU backends:
