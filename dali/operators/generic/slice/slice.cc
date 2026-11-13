@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,6 +45,11 @@ Alternatively, two extra positional inputs can be provided, specifying `__anchor
 When using positional inputs, two extra boolean arguments `normalized_anchor`/`normalized_shape`
 can be used to specify the nature of the arguments provided. Using positional inputs for anchor
 and shape is incompatible with the named arguments specified above.
+
+Unlike the named arguments, the positional inputs are interpreted according to their type: integer
+coordinates are absolute, while floating point ones are relative unless `normalized_anchor` (for
+the anchor) or `normalized_shape` (for the shape) is ``False``. Relative coordinates given as named
+arguments go to `rel_start`, `rel_end` and `rel_shape`.
 
 .. note::
     For GPU backend and positional inputs `__anchor` and `__shape`, both CPU and GPU data nodes
