@@ -508,6 +508,12 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
 
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
+    # fn_call only tests membership in these, once per keyword argument
+    fixed_args = frozenset(fixed_args)
+    tensor_args = frozenset(tensor_args)
+    # Keyword arguments that never need the call-site static analysis
+    no_analysis_args = fixed_args | {"max_batch_size"}
+
     nvtx_get_instance_range = NVTXRange(f"get instance {op._op_name}", category="op_builder")
 
     @mark_transparent
@@ -524,7 +530,11 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             _caller_frame = resolve_callsite_frame(depth_hint=3)
 
         # TODO(michalz): utilize constant inputs
-        constant_args = constant_kwargs(_caller_frame, raw_kwargs)
+        # Static analysis is only necessary when there are non-fixed args
+        if raw_kwargs.keys() <= no_analysis_args:
+            constant_args = None
+        else:
+            constant_args = constant_kwargs(_caller_frame, raw_kwargs)
 
         init_args = {}
         call_args = {}
