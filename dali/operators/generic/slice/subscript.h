@@ -256,10 +256,10 @@ class TensorSubscript : public StatelessOperator<Backend> {
 
         start_.tensor_shape_span(i)[d] = lo;
 
-        int64_t out_extent = step > 0 ? div_ceil(hi - lo, step) : div_ceil(lo - hi, -step);
-
-        if (out_extent < 0)
-          out_extent = 0;
+        // A range that runs against the step is empty. Check it before div_ceil, which
+        // takes an unsigned divisor and would turn a negative length into a huge extent.
+        int64_t length = step > 0 ? hi - lo : lo - hi;
+        int64_t out_extent = length > 0 ? div_ceil(length, step > 0 ? step : -step) : 0;
         shape_.tensor_shape_span(i)[d] = out_extent;
       }
     }
