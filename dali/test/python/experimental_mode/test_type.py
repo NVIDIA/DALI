@@ -16,6 +16,7 @@ import numpy as np
 
 import nvidia.dali.experimental.dynamic as ndd
 import nvidia.dali.types as types
+from nose_utils import attr
 
 
 def test_type_ids():
@@ -166,3 +167,85 @@ def test_type_significand_bits():
     assert ndd.float16.significand_bits == 10
     assert ndd.float32.significand_bits == 23
     assert ndd.float64.significand_bits == 52
+
+
+def test_type_call():
+    t = ndd.int16([1, 2, 3])
+    assert isinstance(t, ndd.Tensor)
+    assert t.dtype == ndd.int16
+    assert np.array_equal(np.asarray(t), np.int16([1, 2, 3]))
+    t = ndd.float32([[1, 2]], layout="AB")
+    assert t.dtype == ndd.float32
+    assert t.layout == "AB"
+    assert np.array_equal(np.asarray(t), np.float32([[1, 2]]))
+
+
+def test_type_compare_with_other_objects():
+    assert ndd.int32 != None  # noqa: E711
+    assert not (ndd.int32 == None)  # noqa: E711
+    assert ndd.int32 in [None, ndd.int32]
+    assert None not in [ndd.int32]
+    assert ndd.int32 == ndd.dtype("i32")
+    assert not (ndd.int32 != ndd.dtype("i32"))
+    assert ndd.int32 != ndd.uint32
+    # objects that cannot be converted to a DType
+    for other in [object(), 32, "foo", "", "int32", types.STRING, types.NO_TYPE]:
+        assert not (ndd.int32 == other)
+        assert ndd.int32 != other
+        assert not (other == ndd.int32)
+        assert other != ndd.int32
+
+
+def test_type_compare_with_type_names():
+    assert ndd.int32 == "i32"
+    assert not (ndd.int32 != "i32")
+    assert ndd.int32 != "u32"
+    assert ndd.float16 == "f16"
+    assert ndd.bfloat16 == "bfloat16"
+    assert ndd.bfloat16 != "f16"
+    assert ndd.DataType == "DataType"
+    assert ndd.DataType != "ImageType"
+
+
+def test_type_compare_with_dali_type_ids():
+    assert ndd.uint16 == types.UINT16
+    assert not (ndd.uint16 != types.UINT16)
+    assert ndd.uint16 != types.INT16
+    assert ndd.float32 == types.FLOAT
+    assert ndd.DataType == types.DATA_TYPE
+    assert ndd.DataType != types.IMAGE_TYPE
+
+
+def test_type_compare_with_numpy():
+    assert ndd.int32 == np.int32
+    assert np.int32 == ndd.int32
+    assert not (ndd.int32 != np.int32)
+    assert ndd.int32 == np.dtype(np.int32)
+    assert np.dtype(np.int32) == ndd.int32
+    assert not (ndd.int32 != np.dtype(np.int32))
+    assert ndd.int32 != np.uint32
+    assert ndd.int32 != np.dtype(np.int64)
+    assert np.dtype(np.int64) != ndd.int32
+    assert ndd.float64 == np.float64
+    assert ndd.bool == np.bool_
+    assert ndd.int32 != np.dtype(">i4")  # not a native byte order
+    assert ndd.int32 != np.str_
+
+
+@attr("pytorch")
+def test_type_compare_with_torch():
+    import torch
+
+    assert ndd.float64 == torch.float64
+    assert not (ndd.float64 != torch.float64)
+    assert ndd.int32 == torch.int32
+    assert ndd.uint8 == torch.uint8
+    assert ndd.float64 != torch.float32
+
+
+def test_type_name_without_type_id():
+    t = ndd.dtype("f8e5m2")
+    assert t.kind == ndd.DType.Kind.float
+    assert (t.bits, t.exponent_bits, t.significand_bits) == (8, 5, 2)
+    assert t.type_id is None
+    assert ndd.dtype("f8e5m2") is t

@@ -197,6 +197,14 @@ class DType:
         return repr_str
 
     def __eq__(self, other):
+        if not isinstance(other, DType):
+            # Compare with anything `dtype` accepts, e.g. DALIDataType, a type name,
+            # a NumPy or PyTorch type. `dtype` raises TypeError for unknown objects,
+            # ValueError for invalid type names and KeyError for type ids without a DType.
+            try:
+                other = dtype(other)
+            except (TypeError, ValueError, KeyError):
+                return NotImplemented
         if not (
             self.kind == other.kind
             and self.bits == other.bits
@@ -208,10 +216,9 @@ class DType:
             return self.type_id == other.type_id
         return True
 
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
     def __hash__(self):
+        # Hashes only the DType fields, so equal DTypes hash equally. Objects of other types that
+        # compare equal (e.g. np.int32) keep their own hash, as np.dtype("int32") and np.int32 do.
         h = hash((self.kind, self.bits, self.exponent_bits, self.significand_bits))
         if self.kind == DType.Kind.enum:
             h = hash((h, self.type_id))
@@ -278,7 +285,7 @@ class DType:
 
         t = parse_internal(name)
         if t.type_id is None:
-            t.type_id = _type2id[t]
+            t.type_id = _type2id.get(t)
         if t.type_id is not None:
             t = _id2type[t.type_id]  # use the same DType instance as the one registered with the id
         _name2type[name] = t
@@ -292,7 +299,7 @@ class DType:
             raise ValueError("dtype cannot be overridden")
         from . import _tensor
 
-        return _tensor.tensor(self, *args, dtype=self, **kwargs)
+        return _tensor.tensor(*args, dtype=self, **kwargs)
 
 
 int8 = DType(DType.Kind.signed, 8, type_id=nvidia.dali.types.INT8)
