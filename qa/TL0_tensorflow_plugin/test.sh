@@ -17,12 +17,13 @@ fi
 test_body() {
     # Test the installer shipped in the source distribution; framework images do not
     # contain the dali_tf_plugin source directory.
-    local plugin_test_dir
-    plugin_test_dir=$(mktemp -d)
-    tar -xzf ../../../nvidia_dali_tf_plugin*.tar.gz -C "$plugin_test_dir" --strip-components=1
-    PYTHONPATH="$plugin_test_dir${PYTHONPATH:+:$PYTHONPATH}" \
-        ${python_new_invoke_test} test_dali_tf_plugin_compiler
-    rm -rf "$plugin_test_dir"
+    (
+        plugin_test_dir=$(mktemp -d)
+        trap 'rm -rf "$plugin_test_dir"' EXIT
+        tar -xzf ../../../nvidia_dali_tf_plugin*.tar.gz -C "$plugin_test_dir" --strip-components=1
+        PYTHONPATH="$plugin_test_dir${PYTHONPATH:+:$PYTHONPATH}" \
+            ${python_new_invoke_test} test_dali_tf_plugin_compiler
+    )
 
     # The package name can be nvidia_dali_tf_plugin,  nvidia_dali_tf_plugin-weekly or  nvidia_dali_tf_plugin-nightly
     pip uninstall -y `pip list | grep nvidia-dali-tf-plugin | cut -d " " -f1` || true

@@ -71,12 +71,14 @@ class CompilerTest(unittest.TestCase):
 
 
 class InstallerCompilerTest(unittest.TestCase):
-    def make_helper(self, compiler_error, prebuilt_version="2.23"):
+    def make_helper(
+        self, compiler_error, prebuilt_version="2.23", tf_cflags="-std=c++20 -stdlib=libc++"
+    ):
         with contextlib.ExitStack() as stack:
             overrides = {
                 "get_module_path": "/installed",
                 "get_tf_version": "2.23",
-                "get_tf_build_flags": ("-std=c++20 -stdlib=libc++", "-ltensorflow_framework"),
+                "get_tf_build_flags": (tf_cflags, "-ltensorflow_framework"),
                 "get_tf_compiler_version": "11.4",
                 "which": None,
                 "find_available_prebuilt_tf": prebuilt_version,
@@ -115,7 +117,7 @@ class InstallerCompilerTest(unittest.TestCase):
         ):
             for version in ("2.23", "2.22"):
                 with self.subTest(error=error, version=version):
-                    helper = self.make_helper(error, version)
+                    helper = self.make_helper(error, version, tf_cflags="-std=c++17")
                     self.assertTrue(helper.can_install_prebuilt)
                     with patch.object(helper, "check_install_env"):
                         with patch.object(helper, "check_plugin", return_value=True):
@@ -123,6 +125,32 @@ class InstallerCompilerTest(unittest.TestCase):
                                 with contextlib.redirect_stdout(io.StringIO()):
                                     helper.install()
                                 copy.assert_called_once()
+
+    def test_libcpp_skips_prebuilt(self):
+        for version in ("2.23", "2.22"):
+            for error in (None, ImportError("clang++ was not found")):
+                with self.subTest(version=version, error=error):
+                    helper = self.make_helper(error, version)
+                    self.assertFalse(helper.can_install_prebuilt)
+                    self.assertFalse(helper.prebuilt_exact_ver)
+                    ok = subprocess.CompletedProcess([], 0, stdout="", stderr="")
+                    with contextlib.ExitStack() as stack:
+                        stack.enter_context(patch.object(helper, "check_install_env"))
+                        prebuilt = stack.enter_context(patch.object(helper, "install_prebuilt"))
+                        build = stack.enter_context(
+                            patch.object(helper, "build", side_effect=helper.get_compiler)
+                        )
+                        stack.enter_context(
+                            patch.object(installer.subprocess, "run", return_value=ok)
+                        )
+                        stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+                        if error is None:
+                            helper.install()
+                        else:
+                            with self.assertRaisesRegex(ImportError, "clang\\+\\+ was not found"):
+                                helper.install()
+                        build.assert_called_once()
+                        prebuilt.assert_not_called()
 
     def test_source_build_reports_environment(self):
         helper = self.make_helper(ImportError("clang++ was not found"))

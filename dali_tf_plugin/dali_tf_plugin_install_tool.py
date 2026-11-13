@@ -128,7 +128,8 @@ class InstallerHelper:
         # If set, checking for prebuilt binaries or compiler version check is disabled
         self.always_build = bool(int(os.getenv("DALI_TF_ALWAYS_BUILD", "0")))
 
-        # Can install prebuilt if both conditions apply:
+        # Can install prebuilt if the following conditions apply:
+        # - TF uses libstdc++, like the prebuilt plugins
         # - we know the compiler used to build TF
         # - we have prebuilt artifacts for that compiler version
         # - We have an exact match with the TF version major.minor or an exact match of the
@@ -136,6 +137,7 @@ class InstallerHelper:
         #   requested one.
         self.can_install_prebuilt = (
             not self.always_build
+            and not self.tf_uses_libcpp
             and bool(self.tf_compiler)
             and Version(self.tf_compiler) >= Version("5.0")
             and self.is_compatible_with_prebuilt_bin
