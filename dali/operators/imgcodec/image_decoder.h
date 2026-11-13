@@ -673,7 +673,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
         assert(st != nullptr);
         const auto &input_sample = input[i];
 
-        auto src_info = input.GetMeta(i).GetSourceInfo();
+        auto src_info = input.GetMeta(i).GetCacheKey();
         if (use_cache && cache_->IsInCache(src_info)) {
           auto cached_shape = cache_->CacheImageShape(src_info);
           auto roi = GetRoi(spec_, ws, i, cached_shape);
@@ -770,7 +770,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
       any_need_processing |= state_[orig_idx]->need_processing;
       if (use_cache && st.load_from_cache) {
         auto *data_ptr = output.raw_mutable_tensor(orig_idx);
-        auto src_info = input.GetMeta(orig_idx).GetSourceInfo();
+        auto src_info = input.GetMeta(orig_idx).GetCacheKey();
         cache_->DeferCacheLoad(src_info, static_cast<uint8_t *>(data_ptr));
       } else {
         if (!st.need_processing) {
@@ -877,7 +877,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
         auto &st = *state_[orig_idx];
         if (st.req_img_type != DALI_RGB || st.req_layout != "HWC")
           continue;
-        auto src_info = input.GetMeta(orig_idx).GetSourceInfo();
+        auto src_info = input.GetMeta(orig_idx).GetCacheKey();
         auto *out_data = output.template mutable_tensor<uint8_t>(orig_idx);
         const auto &out_shape = output.tensor_shape(orig_idx);
         cache_->CacheStore(src_info, out_data, out_shape, order.stream());

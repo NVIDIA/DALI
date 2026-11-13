@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import os
+import tempfile
+
+import numpy as np
+from PIL import Image
 from nvidia.dali.pipeline import Pipeline
 import nvidia.dali.ops as ops
 import nvidia.dali.types as types
@@ -79,6 +84,50 @@ def test_nvjpeg_cached(decoder_type):
         ref_images, _ = ref_pipe.run()
         out_images, _ = cached_pipe.run()
         compare(ref_images, out_images)
+
+
+def _make_dataset(root, color, size):
+    """Creates a one-image dataset with the same relative file name for every `root`."""
+    class_dir = os.path.join(root, "class0")
+    os.makedirs(class_dir)
+    img = np.empty((*size, 3), dtype=np.uint8)
+    img[:] = color
+    Image.fromarray(img).save(os.path.join(class_dir, "shared.png"))
+    return img
+
+
+def _cached_pipeline(root, decoder_type):
+    pipe = Pipeline(batch_size=1, num_threads=1, device_id=0, seed=seed)
+    decoders = ops.experimental.decoders if "experimental" in decoder_type else ops.decoders
+    with pipe:
+        jpegs, _ = ops.readers.File(file_root=root)()
+        images = decoders.Image(
+            device="mixed",
+            output_type=types.RGB,
+            cache_size=16,
+            cache_type="threshold",
+            cache_threshold=0,
+        )(jpegs)
+        pipe.set_outputs(images)
+    pipe.build()
+    return pipe
+
+
+@params(("legacy",), ("experimental",))
+def test_cache_is_not_shared_between_file_roots(decoder_type):
+    # Files with the same name relative to a different `file_root` are different files - the
+    # decoded image cache, which is shared between the pipelines, must not mix them up.
+    with tempfile.TemporaryDirectory() as tmp:
+        root_a = os.path.join(tmp, "a")
+        root_b = os.path.join(tmp, "b")
+        ref_a = _make_dataset(root_a, (250, 10, 10), (8, 8))
+        ref_b = _make_dataset(root_b, (10, 20, 240), (3, 5))
+        pipe_a = _cached_pipeline(root_a, decoder_type)
+        pipe_b = _cached_pipeline(root_b, decoder_type)
+        for _ in range(2):  # the second iteration is served from the cache
+            for pipe, ref in ((pipe_a, ref_a), (pipe_b, ref_b), (pipe_a, ref_a), (pipe_b, ref_b)):
+                (out,) = pipe.run()
+                assert_array_equal(out.as_cpu().at(0), ref)
 
 
 def main():

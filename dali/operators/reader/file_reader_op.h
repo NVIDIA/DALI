@@ -97,6 +97,7 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
                       sample.image.size());
         }
         file_output.SetSourceInfo(sample_idx, sample.image.GetSourceInfo());
+        file_output.SetCacheKey(sample_idx, sample.image.GetMeta().GetCacheKey());
         auto write_label = [&](int idx) {
           std::visit([&](auto label) {
             label_output.mutable_tensor<decltype(label)>(idx)[0] = label;
@@ -112,6 +113,8 @@ class FileReader : public DataReader<CPUBackend, ImageLabelWrapper, ImageLabelWr
                       file_output.shape().tensor_size(sample_idx));
           file_output.SetSourceInfo(repeated_sample_idx,
                                     file_output.GetMeta(sample_idx).GetSourceInfo());
+          file_output.SetCacheKey(repeated_sample_idx,
+                                  file_output.GetMeta(sample_idx).GetCacheKey());
           write_label(repeated_sample_idx);
         }
       }, file_output.shape().tensor_size(sample_idxs[0]));
