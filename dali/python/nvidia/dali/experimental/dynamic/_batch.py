@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 from . import _eval_mode, _stream as _stream_module
 from ._eval_context import EvalContext as _EvalContext
 from ._arithmetic import _arithm_op, transparent_arithmetic
+from ._call_site import mark_transparent
 from ._device import Device, DeviceLike
 from ._device import device as _device
 from ._tensor import Tensor, _array_from_python, _is_full_slice, _subscript_kwargs
@@ -73,6 +74,7 @@ class BatchedSlice:
     def __init__(self, batch: "Batch"):
         self._batch = batch
 
+    @mark_transparent
     def __getitem__(self, ranges: Any) -> "Batch":
         if not isinstance(ranges, tuple):
             ranges = (ranges,)
