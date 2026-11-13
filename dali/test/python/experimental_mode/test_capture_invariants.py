@@ -602,8 +602,8 @@ def test_comparison_global(images):
 
 
 @captured_test(expect_captured=False)
-def test_slice_data_dependent_bound(images):
-    height = min(shape[0] for shape in images.shape)
+def test_slice_uncapturable_bound(images):
+    height = np.asarray(images.shape)[:, 0].min()
     return images.slice[:height]
 
 
