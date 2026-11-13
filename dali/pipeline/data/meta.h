@@ -49,7 +49,9 @@ class DALIMeta {
    * The image cache is shared by every pipeline that runs on the same device, so the key must
    * identify the data source unambiguously (e.g. the full path of a file), not only its name
    * as reported to the user via the source info. If no dedicated key was set, the source info
-   * is used.
+   * is used. Operators forwarding encoded samples must preserve this key: a reader may skip
+   * loading a sample already in the cache, so falling back to a different key would leave
+   * the decoder with an empty sample on a cache miss.
    */
   inline const std::string &GetCacheKey() const {
     return cache_key_.empty() ? source_info_ : cache_key_;

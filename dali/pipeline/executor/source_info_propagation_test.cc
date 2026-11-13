@@ -42,6 +42,15 @@ void SetInputSourceInfo(Workspace &ws, int idx, const std::vector<std::string> &
     SetSourceInfo(ws.UnsafeMutableInput<GPUBackend>(idx), infos);
 }
 
+void SetInputCacheKeys(Workspace &ws, int idx, const std::vector<std::string> &keys) {
+  for (int s = 0; s < static_cast<int>(keys.size()); s++) {
+    if (ws.InputIsType<CPUBackend>(idx))
+      ws.UnsafeMutableInput<CPUBackend>(idx).SetCacheKey(s, keys[s]);
+    else
+      ws.UnsafeMutableInput<GPUBackend>(idx).SetCacheKey(s, keys[s]);
+  }
+}
+
 void SetOutputSourceInfo(Workspace &ws, int idx, const std::vector<std::string> &infos) {
   ws.WithOutput(idx, [&](auto &output) { SetSourceInfo(output, infos); });
 }
@@ -102,6 +111,55 @@ TEST(SourceInfoPropagationTest, Clear) {
   CheckOutputSourceInfo(ws, 0, { "asdf", "b.jpg" });
   ClearOutputSourceInfo(ws);
   CheckOutputSourceInfo(ws, 0, { "", "" });
+}
+
+TEST(SourceInfoPropagationTest, CacheKeys) {
+  for (auto device : {CPU, GPU}) {
+    Workspace ws;
+    BuildWorkspace(ws, {{device, 2}}, {{CPU, 2}, {GPU, 2}});
+    SetInputSourceInfo(ws, 0, {"a.jpg", "b.jpg"});
+    SetInputCacheKeys(ws, 0, {"/dataset/a.jpg", "/dataset/b.jpg"});
+    ASSERT_TRUE(PropagateSourceInfo(ws));
+    for (int o = 0; o < ws.NumOutput(); o++) {
+      CheckOutputSourceInfo(ws, o, {"a.jpg", "b.jpg"});
+      ws.WithOutput(o, [](auto &output) {
+        EXPECT_EQ(output.GetMeta(0).GetCacheKey(), "/dataset/a.jpg");
+        EXPECT_EQ(output.GetMeta(1).GetCacheKey(), "/dataset/b.jpg");
+      });
+    }
+    ClearOutputSourceInfo(ws);
+    for (int o = 0; o < ws.NumOutput(); o++) {
+      CheckOutputSourceInfo(ws, o, {"", ""});
+      ws.WithOutput(o, [](auto &output) {
+        EXPECT_TRUE(output.GetMeta(0).GetCacheKey().empty());
+        EXPECT_TRUE(output.GetMeta(1).GetCacheKey().empty());
+      });
+    }
+    // Reusing the outputs with an input that has no explicit key must use the fallback.
+    SetInputCacheKeys(ws, 0, {"", ""});
+    ASSERT_TRUE(PropagateSourceInfo(ws));
+    for (int o = 0; o < ws.NumOutput(); o++) {
+      ws.WithOutput(o, [](auto &output) {
+        EXPECT_EQ(output.GetMeta(0).GetCacheKey(), "a.jpg");
+        EXPECT_EQ(output.GetMeta(1).GetCacheKey(), "b.jpg");
+      });
+    }
+  }
+}
+
+TEST(SourceInfoPropagationTest, ConflictingCacheKeys) {
+  Workspace ws;
+  BuildWorkspace(ws, {{CPU, 2}, {GPU, 2}}, {{CPU, 2}});
+  SetInputSourceInfo(ws, 0, {"a.jpg", "b.jpg"});
+  SetInputSourceInfo(ws, 1, {"a.jpg", "b.jpg"});
+  SetInputCacheKeys(ws, 0, {"/train/a.jpg", "/train/b.jpg"});
+  SetInputCacheKeys(ws, 1, {"/train/a.jpg", "/val/b.jpg"});
+  ASSERT_FALSE(PropagateSourceInfo(ws));
+  CheckOutputSourceInfo(ws, 0, {"", ""});
+  ws.WithOutput(0, [](auto &output) {
+    EXPECT_TRUE(output.GetMeta(0).GetCacheKey().empty());
+    EXPECT_TRUE(output.GetMeta(1).GetCacheKey().empty());
+  });
 }
 
 TEST(SourceInfoPropagationTest, Simple) {

@@ -101,10 +101,14 @@ def _make_dataset(root, images):
 
 
 @pipeline_def(batch_size=1, num_threads=1, device_id=0, seed=seed)
-def _cached_pipeline(root, decoder_type, batch_permutation=None):
-    encoded, _ = fn.readers.file(file_root=root)
+def _cached_pipeline(
+    root, decoder_type, batch_permutation=None, cast_encoded=False, skip_cached_images=False
+):
+    encoded, _ = fn.readers.file(file_root=root, skip_cached_images=skip_cached_images)
     if batch_permutation is not None:
         encoded = fn.permute_batch(encoded, indices=batch_permutation)
+    if cast_encoded:
+        encoded = fn.cast(encoded, dtype=types.UINT8)
     decoder = (
         fn.experimental.decoders.image if "experimental" in decoder_type else fn.decoders.image
     )
@@ -153,6 +157,23 @@ def test_cache_key_follows_the_sample_when_batch_is_permuted(decoder_type):
                 out = out.as_cpu()
                 assert_array_equal(out.at(0), expected[0])
                 assert_array_equal(out.at(1), expected[1])
+
+
+@params(("legacy",), ("experimental",))
+def test_cache_key_survives_source_info_propagation(decoder_type):
+    # Cast preserves the bytes but relies on the executor to propagate source metadata.
+    # Warm the shared cache first so the second reader skips loading the encoded sample.
+    with tempfile.TemporaryDirectory() as tmp:
+        (ref,) = _make_dataset(tmp, {"a.png": ((250, 10, 10), (8, 8))}).values()
+        warmup = _cached_pipeline(root=tmp, decoder_type=decoder_type)
+        (out,) = warmup.run()
+        assert_array_equal(out.as_cpu().at(0), ref)
+        pipe = _cached_pipeline(
+            root=tmp, decoder_type=decoder_type, cast_encoded=True, skip_cached_images=True
+        )
+        for _ in range(2):
+            (out,) = pipe.run()
+            assert_array_equal(out.as_cpu().at(0), ref)
 
 
 def main():

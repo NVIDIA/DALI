@@ -43,8 +43,10 @@ inline bool OutputSourceInfoDefined(Workspace &ws) {
 
 template <typename Backend>
 void ClearSourceInfo(TensorList<Backend> &tl) {
-  for (int s = 0; s < tl.num_samples(); s++)
+  for (int s = 0; s < tl.num_samples(); s++) {
     tl.SetSourceInfo(s, "");
+    tl.SetCacheKey(s, "");
+  }
 }
 
 }  // namespace
@@ -65,8 +67,8 @@ bool PropagateSourceInfo(Workspace &ws) {
   if (OutputSourceInfoDefined(ws))
     return false;  // the operator defined the source info, no need to set it
 
-  SmallVector<std::function<const std::string &(int)>, 8> get_src_info;
-  get_src_info.resize(num_inputs);
+  SmallVector<std::function<const DALIMeta &(int)>, 8> get_meta;
+  get_meta.resize(num_inputs);
   int batch_size = 0;
   for (int i = 0; i < num_inputs; i++) {
     auto process_input = [&](auto &input) {
@@ -76,8 +78,8 @@ bool PropagateSourceInfo(Workspace &ws) {
       else if (input.num_samples() != batch_size)
         return false;  // mismatched input batch size - this is a special operator, bailing out
 
-      get_src_info[i] = [&input](int sample)->const std::string & {
-        return input.GetMeta(sample).GetSourceInfo();
+      get_meta[i] = [&input](int sample)->const DALIMeta & {
+        return input.GetMeta(sample);
       };
       return true;
     };
@@ -93,10 +95,20 @@ bool PropagateSourceInfo(Workspace &ws) {
 
   BatchVector<const std::string*> source_infos;
   source_infos.resize(batch_size);
+  BatchVector<const std::string*> cache_keys;
+  cache_keys.resize(batch_size);
   for (int s = 0; s < batch_size; s++) {
     const std::string *sinfo = nullptr;
+    const std::string *cache_key = nullptr;
     for (int i = 0; i < num_inputs; i++) {
-      auto &si = get_src_info[i](s);
+      const auto &meta = get_meta[i](s);
+      const auto &key = meta.GetCacheKey();
+      if (!key.empty()) {
+        if (cache_key && *cache_key != key)
+          return false;  // inconsistent cache keys - bailing out
+        cache_key = &key;
+      }
+      const auto &si = meta.GetSourceInfo();
       if (si.empty())
         continue;
       if (sinfo && *sinfo != si)
@@ -104,6 +116,7 @@ bool PropagateSourceInfo(Workspace &ws) {
       sinfo = &si;
     }
     source_infos[s] = sinfo;
+    cache_keys[s] = cache_key;
   }
 
   auto set_source_infos = [&](auto &out) {
@@ -111,6 +124,8 @@ bool PropagateSourceInfo(Workspace &ws) {
     for (int s = 0; s < batch_size; s++) {
       if (auto *si = source_infos[s])
         out.SetSourceInfo(s, *si);
+      if (auto *key = cache_keys[s])
+        out.SetCacheKey(s, *key);
     }
   };
 
