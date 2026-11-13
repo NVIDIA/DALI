@@ -46,8 +46,9 @@ void Morphology::RunImpl(Workspace &ws) {
   auto input_images = GetInputBatch(ws, 0);
   auto output_images = GetOutputBatch(ws, 0);
   cvcuda::Morphology op{};
-  op(ws.stream(), input_images, output_images, op_workspace_, morph_type_, mask, anchor, iteration_,
-     border_mode_);
+  op(ws.stream(), input_images, output_images,
+     nvcv::OptionalImageBatchVarShapeConstRef{op_workspace_}, morph_type_, mask, anchor,
+     iteration_, border_mode_);
 }
 
 DALI_SCHEMA(Morphology)
