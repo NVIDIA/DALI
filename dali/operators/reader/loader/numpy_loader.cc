@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,9 @@
 #include <dirent.h>
 #include <errno.h>
 #include <cstdlib>
+#include <limits>
 #include <memory>
+#include <stdexcept>
 #include "dali/core/common.h"
 #include "dali/operators/reader/loader/filesystem.h"
 #include "dali/operators/reader/loader/utils.h"
@@ -45,6 +47,30 @@ void NumpyHeaderCache::UpdateCache(const string &file_name, const numpy::HeaderD
     std::unique_lock<std::mutex> cache_lock(cache_mutex_);
     header_cache_[file_name] = value;
   }
+}
+
+size_t ValidateNumpyPayload(const numpy::HeaderData &header, size_t file_size,
+                            const std::string &filename) {
+  size_t payload_bytes = 0;
+  try {
+    payload_bytes = header.nbytes();
+  } catch (const std::runtime_error &e) {
+    DALI_FAIL(e.what(), ". File: ", filename);
+  }
+  // Check the signed tensor-size limit separately to report it instead of a file-bounds error.
+  auto max_payload = static_cast<size_t>(std::numeric_limits<Index>::max());
+  DALI_ENFORCE(payload_bytes <= max_payload, make_string(
+        "Numpy array payload exceeds the supported size: ", filename, "; requested ",
+        payload_bytes, " bytes, maximum ", max_payload, " bytes."));
+  DALI_ENFORCE(header.data_offset >= 0 && static_cast<uint64_t>(header.data_offset) <= file_size,
+      make_string(
+        "Numpy array data offset is outside the file: ", filename, "; offset ",
+        header.data_offset, " bytes, file size ", file_size, " bytes."));
+  auto available_bytes = file_size - header.data_offset;
+  DALI_ENFORCE(payload_bytes <= available_bytes, make_string(
+        "Numpy array payload exceeds the available file data: ", filename, "; requested ",
+        payload_bytes, " bytes, available ", available_bytes, " bytes."));
+  return payload_bytes;
 }
 
 }  // namespace detail
@@ -95,9 +121,9 @@ void NumpyLoader::ReadSample(NumpyFileWrapper& target) {
   } catch (const std::runtime_error &e) {
     DALI_FAIL(e.what(), ". File: ", filename);
   }
+  auto payload_bytes = detail::ValidateNumpyPayload(header, current_file->Size(), filename);
   current_file->SeekRead(header.data_offset);
-
-  Index nbytes = header.nbytes();
+  auto nbytes = static_cast<Index>(payload_bytes);
   target.shape = header.shape;
   target.type = header.type();
   target.meta = meta;

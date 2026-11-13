@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -54,7 +54,7 @@ struct NumpyFileWrapperGPU {
   std::unique_ptr<CUFileStream> file_stream_;
   bool read_ahead = false;
 
-  void ReadHeader(detail::NumpyHeaderCache &cache);
+  DLL_PUBLIC void ReadHeader(detail::NumpyHeaderCache &cache);
 
   void ReadRawChunk(void* buffer, size_t bytes, Index buffer_offset, Index offset);
 
