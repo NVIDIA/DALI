@@ -62,12 +62,12 @@ class InflateOpGpuLZ4Impl : public InflateOpImplBase<GPUBackend> {
     const auto &in_chunk_sizes = params_.GetInChunkSizes();
 
     size_t tempSize;
-    CUDA_CALL(nvcompBatchedLZ4DecompressGetTempSize(
+    CUDA_CALL(nvcompBatchedLZ4DecompressGetTempSizeAsync(
         total_chunks_num,
         params_.GetMaxOutChunkVol() * element_type_.size(),
         {},
         &tempSize,
-        params_.GetMaxOutVol() * element_type_.size(), stream));
+        params_.GetMaxOutVol() * element_type_.size()));
 
     // First pass: find which chunks need staging and compute the total device scratch size,
     // so that the scratchpad is backed by a single allocation.
