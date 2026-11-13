@@ -146,13 +146,18 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   int sws_colorspace = (image_type_ == DALI_RGB && src_colorspace == AVCOL_SPC_BT709)
                            ? SWS_CS_ITU709
                            : SWS_CS_DEFAULT;
+  // RGB output is conventionally full-range (0-255). YCbCr output keeps the source's range
+  // (limited/"TV" sources stay limited, full-range sources stay full), like the GPU backend,
+  // which only upsamples chroma for YCbCr (YUV_UPSAMPLE), and the legacy reader. Forcing either
+  // range here would systematically shift YCbCr values relative to both (DALI-4916).
+  bool dst_full_range = image_type_ == DALI_YCbCr ? src_full_range : true;
   if (sws_src_full_range_ != src_full_range || sws_src_colorspace_ != sws_colorspace) {
     int ret = sws_setColorspaceDetails(
       sws_ctx_.get(),
       sws_getCoefficients(sws_colorspace),
       src_full_range,
       sws_getCoefficients(SWS_CS_DEFAULT),
-      1,
+      dst_full_range,
       0,
       1 << 16,
       1 << 16);
