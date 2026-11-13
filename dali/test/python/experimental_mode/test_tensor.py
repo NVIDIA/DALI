@@ -574,8 +574,12 @@ def test_bool_lazy_result(device_type):
 )
 def test_bool_ambiguous(device_type, data):
     t = ndd.tensor(data, device=device_type)
-    with assert_raises(ValueError, glob="*truth value*ambiguous*"):
+    message = "*truth value*ambiguous*"
+    if t.size > 1:
+        message += "`all`*`any`*"
+
+    with assert_raises(ValueError, glob=message):
         bool(t)
-    with assert_raises(ValueError, glob="*truth value*ambiguous*"):
+    with assert_raises(ValueError, glob=message):
         if t:
             pass

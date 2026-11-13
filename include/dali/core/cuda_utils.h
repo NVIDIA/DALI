@@ -1,4 +1,4 @@
-// Copyright (c) 2018-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2018-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,8 +20,10 @@
 
 #include <cuda_runtime.h>  // for __host__ and __device__
 #include <malloc.h>
+#include <cstdint>
 #include <type_traits>
 #include "dali/core/host_dev.h"
+#include "dali/core/force_inline.h"
 
 namespace dali {
 
@@ -77,5 +79,19 @@ __host__ __device__ void cuda_swap(T &a, T &b) {
 }
 
 }  // namespace dali
+
+// loading
+
+#ifdef __CUDACC__
+__device__ DALI_FORCEINLINE bool __ldg(const bool *ptr) {
+  static_assert(sizeof(bool) == 1 || sizeof(bool) == 2 || sizeof(bool) == 4);
+  if constexpr (sizeof(bool) == 1)
+    return __ldg(reinterpret_cast<const uint8_t *>(ptr));
+  else if constexpr (sizeof(bool) == 2)
+    return __ldg(reinterpret_cast<const uint16_t *>(ptr));
+  else if constexpr (sizeof(bool) == 4)
+    return __ldg(reinterpret_cast<const uint32_t *>(ptr));
+}
+#endif
 
 #endif  // DALI_CORE_CUDA_UTILS_H_
