@@ -119,6 +119,14 @@ struct FrameIndex {
   }
 
   /**
+   * @brief Pts of the first frame.
+   */
+  int64_t StartPts() const {
+    assert(!index.empty());
+    return index.front().pts;
+  }
+
+  /**
    * @brief Pts one frame past the last frame, i.e. the end of the stream.
    *
    * Uses `end_pts` when it is past the last frame's pts. Otherwise it is estimated as the last
