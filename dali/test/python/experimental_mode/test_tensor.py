@@ -352,6 +352,36 @@ def test_shape_slice_multi_dim_removal():
 
 
 @eval_modes()
+def test_tensor_subscript_nested_empty():
+    data = np.arange(5, dtype=np.int32)
+    t = ndd.tensor(data)
+    for outer, inner in [
+        (slice(None, 0, 2), slice(None, None, -1)),
+        (slice(-6, None, -1), slice(1, None)),
+        (slice(-6, None, -1), slice(None, None, -2)),
+        (slice(2, 2), slice(None, None, -1)),
+        (slice(1, 4), slice(2, 2)),
+        (slice(None, None, -1), slice(3, 3)),
+        (slice(None, None, 2), slice(1, 1)),
+    ]:
+        x = t[outer][inner]
+        ref = data[outer][inner]
+        assert x.shape == ref.shape, f"{outer}, {inner}: {x.shape} != {ref.shape}"
+        assert np.array_equal(asnumpy(x), ref), f"{outer}, {inner}: {asnumpy(x)} != {ref}"
+
+    t2 = ndd.tensor(np.arange(15, dtype=np.int32).reshape(3, 5))
+    x = t2[:0:2][::-1, 1:]
+    assert x.shape == (0, 4)
+    assert asnumpy(x).shape == (0, 4)
+
+    data2 = np.arange(15, dtype=np.int32).reshape(3, 5)
+    x = t2[1:3][1:1, 2:2]
+    ref = data2[1:3][1:1, 2:2]
+    assert x.shape == ref.shape == (0, 0)
+    assert np.array_equal(asnumpy(x), ref)
+
+
+@eval_modes()
 def test_tensor_subscript():
     t = ndd.tensor([[1, 2, 3], [4, 5, 6]], dtype=ndd.int32)
     x = t[1, 1]

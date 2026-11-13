@@ -973,10 +973,15 @@ class TensorSlice:
             for d, r in enumerate(self._absolute_ranges):
                 if isinstance(r, slice):
                     if isinstance(ranges[i], slice):
-                        start = r.start + ranges[i].start * r.step
-                        stop = r.start + ranges[i].stop * r.step
-                        step = r.step * ranges[i].step
-                        abs_ranges[d] = slice(start, stop, step)
+                        if ranges[i].start == ranges[i].stop:
+                            # An empty range. Mapping it through `r` could give a negative start,
+                            # which would wrap around in `_insane_pythonic_ranges`.
+                            abs_ranges[d] = slice(0, 0, 1)
+                        else:
+                            start = r.start + ranges[i].start * r.step
+                            stop = r.start + ranges[i].stop * r.step
+                            step = r.step * ranges[i].step
+                            abs_ranges[d] = slice(start, stop, step)
                     else:
                         abs_ranges[d] = r.start + ranges[i] * r.step
                     i += 1
