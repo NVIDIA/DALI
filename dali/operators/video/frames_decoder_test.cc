@@ -2487,6 +2487,10 @@ TEST(VideoUtilsSecondsToTimestampTest, ExactIntegerTicksRoundTripAcrossCommonTim
           << "timebase=1/" << timebase.den << " ms=" << ms;
       EXPECT_EQ(SecondsToTimestamp(timebase, seconds, /*round_down=*/false), expected_ticks)
           << "timebase=1/" << timebase.den << " ms=" << ms;
+    }
+  }
+}
+
 TEST_F(FramesDecoderGpuTest, MjpegRejectsFramesOfOtherSizeThanDeclared) {
   if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
     GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
