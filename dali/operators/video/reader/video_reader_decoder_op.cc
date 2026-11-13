@@ -453,12 +453,16 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
           default:
             DALI_FAIL("Invalid file_list_format");
         }
-        if (file_list_opts_.include_end) {
-          entry.end_frame = std::min<int>(entry.end_frame, num_frames);
-        }
         LOG_LINE << "Frame range after conversion: [" << entry.start_frame << ", "
                  << entry.end_frame << "]" << std::endl;
       }
+
+      // The padding (see FramesDecoderBase::HandleBoundary) reflects and clamps within
+      // [start_frame, end_frame), so the range has to be a subset of the frames of the file.
+      // Entries like "-60 10" (a start before the first frame) or "45 60" (an end past the last
+      // one) would otherwise map the padded indices to frames outside of the range.
+      entry.start_frame = std::max<int64_t>(entry.start_frame, 0);
+      entry.end_frame = std::min<int64_t>(entry.end_frame, num_frames);
 
       if (entry.start_frame >= entry.end_frame) {
         DALI_WARN(make_string("Empty frame range [", entry.start_frame, ", ", entry.end_frame,
