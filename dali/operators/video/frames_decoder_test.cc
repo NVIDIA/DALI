@@ -232,6 +232,7 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
         << "frame " << i;
     EXPECT_EQ(actual.index[i].leading_pictures, expected.index[i].leading_pictures)
         << "frame " << i;
+    EXPECT_EQ(actual.index[i].seek_timestamp, expected.index[i].seek_timestamp) << "frame " << i;
   }
   EXPECT_EQ(indexer.NumFrames(), decoder.NumFrames());
   EXPECT_EQ(indexer.Width(), decoder.Width());
@@ -254,8 +255,8 @@ std::set<int> SeekTargets(const FrameIndex &index) {
   return targets;
 }
 
-// The timestamps of the packets where seeks to `timestamps` land, as AvSeekFrame seeks, asked to
-// a demuxer of its own
+// The timestamps (pts) of the packets where seeks to `timestamps` land, with av_seek_frame as
+// AvSeekFrame seeks, asked to a demuxer of its own
 std::vector<int64_t> SeekLandings(const std::string &path, const std::vector<int64_t> &timestamps) {
   AVUniquePtr<AVFormatContext> ctx;
   if (avformat_open_input(&ctx, path.c_str(), nullptr, nullptr) < 0) {
@@ -299,6 +300,9 @@ void CheckDecodeOrder(const FrameIndex &index, const std::string &path) {
   std::sort(decode_idx.begin(), decode_idx.end());
   for (int i = 0; i < n; i++)
     ASSERT_EQ(decode_idx[i], i) << "not a permutation of the decoding positions [0, " << n << ")";
+  int first_packet = 0;  // the frame of the packet at decoding position 0
+  while (index[first_packet].decode_idx != 0)
+    first_packet++;
   auto targets = SeekTargets(index);
   for (int i = 0; i < n; i++) {
     if (index[i].is_keyframe) {
@@ -312,18 +316,46 @@ void CheckDecodeOrder(const FrameIndex &index, const std::string &path) {
       EXPECT_EQ(index[i].seek_decode_idx, -1) << "frame " << i << " is not a seek target";
     }
   }
-  std::vector<int64_t> timestamps;
-  for (int target : targets)
-    timestamps.push_back(index[target].pts);
+  std::vector<int64_t> timestamps, expected;
+  for (int target : targets) {
+    timestamps.push_back(index.SeekTimestamp(target));
+    expected.push_back(index[target].is_keyframe ? index[target].pts : index[first_packet].pts);
+  }
   auto landings = SeekLandings(path, timestamps);
   ASSERT_EQ(landings.size(), timestamps.size());
-  for (size_t i = 0; i < landings.size(); i++)
-    EXPECT_EQ(landings[i], timestamps[i]) << path << ": a seek to " << timestamps[i];
+  for (size_t i = 0; i < landings.size(); i++) {
+    EXPECT_EQ(landings[i], expected[i]) << path << ": a seek to " << timestamps[i]
+                                        << " is to land on the packet with the pts " << expected[i];
+  }
 }
 
 std::string SintelVideoFile(int clip) {
   return make_string(testing::dali_extra_path(), "/db/video/sintel/video_files/",
                      "sintel_trailer-720p_", clip, ".mp4");
+}
+
+// An MPEG-TS copy of a clip and the MP4 clip it was copied from: the same packets (in Annex B) with
+// their timestamps moved, and the same frames
+struct MpegTsClip {
+  std::string ts, mp4;
+  bool hevc;
+  int keyframes;  // the pictures that decoding can start from
+};
+
+std::vector<MpegTsClip> MpegTsClips() {
+  auto dir = make_string(testing::dali_extra_path(), "/db/video/");
+  return {{make_string(dir, "mpegts/test_1.ts"), make_string(dir, "cfr/test_1.mp4"), false, 6},
+          {make_string(dir, "mpegts/test_2_hevc.ts"), make_string(dir, "cfr/test_2_hevc.mp4"), true,
+           2},
+          // only the first picture is an IDR picture, but the MPEG-TS demuxer also flags the
+          // I-pictures with a recovery point (open GOPs) as keyframes
+          {make_string(dir, "mpegts/open_gop_h264.ts"),
+           make_string(dir, "non_idr_keyframes/open_gop_h264.mp4"), false, 1}};
+}
+
+// cfr/test_1.mp4 copied to Matroska: H.264 with B-frames, 50 frames and 6 IDR keyframes
+std::string MatroskaClip() {
+  return make_string(testing::dali_extra_path(), "/db/video/matroska/test_1.mkv");
 }
 
 // One Sintel clip of each kind, all with B-frames: no lead-in, only the IDR hidden (a single GOP),
@@ -751,6 +783,13 @@ TEST_F(FramesDecoderGpuTest, DecodeWork) {
   paths.push_back(make_string(testing::dali_extra_path(), "/db/video/cfr/test_1.mp4"));
   if (FramesDecoderGpu::SupportsHevc())
     paths.push_back(vfr_hevc_videos_paths_[0]);
+  // MPEG-TS, whose demuxer seeks by decoding timestamp
+  for (auto &clip : MpegTsClips()) {
+    if (!clip.hevc || FramesDecoderGpu::SupportsHevc())
+      paths.push_back(clip.ts);
+  }
+  // Matroska, whose demuxer seeks by pts
+  paths.push_back(MatroskaClip());
   int across_keyframe = 0;
   for (size_t i = 0; i < paths.size(); i++) {
     auto &path = paths[i];
@@ -860,6 +899,90 @@ TEST_F(FramesDecoderGpuTest, IndexDecodeOrderLeadIn) {
     }
     EXPECT_EQ(index.DecodeIdx(21), 37);
     EXPECT_EQ(index.DecodeIdx(58), 74);
+  }
+}
+
+// MPEG-TS stores H.264 and HEVC in Annex B (NAL units after start codes, not after their length),
+// and its demuxer seeks by decoding timestamp, on any packet: the index of an MPEG-TS copy has the
+// keyframes (also where the demuxer flags other pictures as keyframes) and the decoding order of the
+// MP4 clip, and a seek to each keyframe lands on it
+TEST_F(FramesDecoderGpuTest, MpegTsIndex) {
+  for (auto &clip : MpegTsClips()) {
+    FramesIndexer ts_indexer(clip.ts), mp4_indexer(clip.mp4);
+    ASSERT_TRUE(ts_indexer.IsValid()) << clip.ts;
+    ASSERT_TRUE(mp4_indexer.IsValid()) << clip.mp4;
+    ts_indexer.BuildIndex();
+    mp4_indexer.BuildIndex();
+    auto &index = ts_indexer.GetIndex();
+    auto &expected = mp4_indexer.GetIndex();
+    ASSERT_EQ(index.size(), expected.size()) << clip.ts;
+    int keyframes = 0;
+    for (size_t i = 0; i < index.size(); i++) {
+      EXPECT_EQ(index[i].is_keyframe, expected[i].is_keyframe) << clip.ts << ": frame " << i;
+      EXPECT_EQ(index[i].last_keyframe_id, expected[i].last_keyframe_id)
+          << clip.ts << ": frame " << i;
+      EXPECT_EQ(index[i].decode_idx, expected[i].decode_idx) << clip.ts << ": frame " << i;
+      keyframes += index[i].is_keyframe;
+    }
+    EXPECT_EQ(keyframes, clip.keyframes) << clip.ts;
+    CheckDecodeOrder(index, clip.ts);
+  }
+}
+
+// A capture can start in the middle of a GOP. This MPEG-TS copy of cfr/test_1.mp4 starts at its
+// packet 8, which is shown after the next one (frame 0), two packets before the first keyframe. A
+// seek to frame 0, which is not a keyframe, is to land on the first packet: it takes the lowest
+// decoding timestamp of the stream, not the one of frame 0. Only the index is checked: the pictures
+// before the first keyframe refer to pictures that are not in the file.
+TEST_F(FramesDecoderGpuTest, MpegTsIndexFromTheMiddleOfAGop) {
+  auto path = make_string(testing::dali_extra_path(), "/db/video/mpegts/test_1_mid_gop.ts");
+  FramesIndexer indexer(path);
+  ASSERT_TRUE(indexer.IsValid()) << path;
+  indexer.BuildIndex();
+  auto &index = indexer.GetIndex();
+  ASSERT_EQ(index.size(), 42u) << path;
+  EXPECT_FALSE(index[0].is_keyframe);
+  EXPECT_EQ(index[0].decode_idx, 1);
+  EXPECT_EQ(index[1].decode_idx, 0);
+  EXPECT_TRUE(index[2].is_keyframe);
+  EXPECT_EQ(index.SeekDecodeIdx(0), 0);
+  CheckDecodeOrder(index, path);
+}
+
+// The Matroska demuxer seeks to the keyframes by pts: a seek to a keyframe takes its pts and lands
+// on it
+TEST_F(FramesDecoderGpuTest, MatroskaIndex) {
+  auto path = MatroskaClip();
+  FramesIndexer indexer(path);
+  ASSERT_TRUE(indexer.IsValid()) << path;
+  indexer.BuildIndex();
+  auto &index = indexer.GetIndex();
+  int n = static_cast<int>(index.size());
+  ASSERT_EQ(n, 50) << path;
+  int keyframes = 0, reordered = 0;
+  for (int i = 0; i < n; i++) {
+    reordered += index[i].decode_idx != i;
+    if (index[i].is_keyframe) {
+      keyframes++;
+      EXPECT_EQ(index.SeekTimestamp(i), index[i].pts) << path << ": frame " << i;
+    }
+  }
+  EXPECT_EQ(keyframes, 6) << path;
+  EXPECT_GT(reordered, 0) << path << ": the decoding order is the display order";
+  CheckDecodeOrder(index, path);
+}
+
+// Matroska has no AVFMT_SEEK_TO_PTS flag, and stores no dts. libavformat can derive one for a
+// stream with B-frames (for H.264 once it has probed the stream, for MPEG-4 Part 2 with its
+// parser): below the pts of each keyframe, so that a seek to it lands on the keyframe before. The
+// decoder does not probe a Matroska file and DALI's FFmpeg has no MPEG-4 Part 2 parser, so no clip
+// shows the difference: the rule is checked here.
+TEST(FramesDecoderSeekTest, SeeksByPts) {
+  for (auto [name, by_pts] : std::vector<std::pair<const char *, bool>>{
+           {"mov", true}, {"matroska", true}, {"webm", true}, {"mpegts", false}, {"avi", false}}) {
+    const AVInputFormat *format = av_find_input_format(name);
+    ASSERT_NE(format, nullptr) << name;
+    EXPECT_EQ(detail::SeeksByPts(*format), by_pts) << name;
   }
 }
 
@@ -989,6 +1112,22 @@ TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevc) {
   FramesDecoderGpu decoder(cfr_hevc_videos_paths_[0]);
   decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[0]);
+}
+
+// Seeks in MPEG-TS (see MpegTsIndex), checked against the frames of the clips
+TEST_F(FramesDecoderGpuTest, ConstantFrameRateMpegTs) {
+  FramesDecoderGpu decoder(MpegTsClips()[0].ts);
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[0]);
+}
+
+TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevcMpegTs) {
+  if (!FramesDecoderGpu::SupportsHevc()) {
+    GTEST_SKIP();
+  }
+  FramesDecoderGpu decoder(MpegTsClips()[1].ts);
+  decoder.BuildIndex();
+  RunTest(decoder, cfr_videos_[1]);
 }
 
 // After a seek to an HEVC CRA picture, the parser drops the CRA's leading pictures, which reference
@@ -1389,6 +1528,185 @@ TEST_F(FramesDecoderGpuTest, RawH265) {
   auto memory_video = MemoryVideo(cfr_raw_h264_videos_paths_[0]);
   FramesDecoderGpu decoder(memory_video.data(), memory_video.size());
   RunTest(decoder, cfr_videos_[0], false, 1.5);
+}
+
+
+namespace {
+
+// A NAL unit of `size` bytes that starts with `header` (the rest is filler), after its length
+void AppendLengthPrefixedNal(std::vector<uint8_t> &buf, int length_size,
+                             const std::vector<uint8_t> &header, uint32_t size) {
+  for (int i = length_size - 1; i >= 0; i--)
+    buf.push_back(static_cast<uint8_t>(size >> (8 * i)));
+  for (uint32_t i = 0; i < size; i++)
+    buf.push_back(i < header.size() ? header[i] : 0xAB);
+}
+
+// A NAL unit of `size` bytes that starts with `header` (the rest is filler), after a start code
+void AppendAnnexBNal(std::vector<uint8_t> &buf, const std::vector<uint8_t> &header,
+                     uint32_t size) {
+  buf.insert(buf.end(), {0, 0, 0, 1});
+  for (uint32_t i = 0; i < size; i++)
+    buf.push_back(i < header.size() ? header[i] : 0xAB);
+}
+
+const std::vector<uint8_t> kAvcC = {0x01, 0x64, 0x00, 0x20, 0xff, 0xe1, 0x00, 0x19,
+                                    0x67, 0x64, 0x00, 0x20, 0xac, 0xd9, 0x40, 0x50};
+const std::vector<uint8_t> kAnnexBExtradata = {0x00, 0x00, 0x01, 0x67, 0x64, 0x00, 0x20, 0xac,
+                                               0xd9, 0x40, 0x50, 0x05, 0xbb, 0x01, 0x10, 0x00};
+const std::vector<uint8_t> kHvcC = {0x01, 0x01, 0x60, 0x00, 0x00, 0x00, 0x90, 0x00,
+                                    0x00, 0x00, 0x00, 0x00, 0x5d, 0xf0, 0x00, 0xfc,
+                                    0xfd, 0xf8, 0xf8, 0x00, 0x00, 0x0f, 0x04, 0x20};
+
+// The NAL length size for the extradata, of which only the first `size` bytes are given (all if < 0)
+int LengthSize(AVCodecID codec, const std::vector<uint8_t> &extradata, int size = -1) {
+  AVCodecParameters par = {};
+  par.codec_id = codec;
+  // FFmpeg's field is not const, but the extradata is only read
+  par.extradata = extradata.empty() ? nullptr : const_cast<uint8_t *>(extradata.data());
+  par.extradata_size = size < 0 ? static_cast<int>(extradata.size()) : size;
+  return detail::NalLengthSize(par);
+}
+
+// The type of the keyframe NAL unit in the first `size` bytes of a packet, or -1 if there is none
+int KeyframeNalType(AVCodecID codec, const std::vector<uint8_t> &data, size_t size,
+                    int length_size) {
+  AVPacket packet = {};
+  packet.data = const_cast<uint8_t *>(data.data());  // only read
+  packet.size = static_cast<int>(size);
+  int type = -1;
+  return detail::HasKeyframeNal(packet, codec, length_size, &type) ? type : -1;
+}
+
+}  // namespace
+
+TEST(NalFramingTest, LengthSizeFromExtradata) {
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAvcC), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, kHvcC), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAnnexBExtradata), 0);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, {}), 0) << "no extradata: start codes";
+
+  // Annex B extradata starts with a 3 or 4 byte start code, in HEVC too
+  std::vector<uint8_t> hevc_annex_b(32, 0xAB);
+  hevc_annex_b[0] = hevc_annex_b[1] = hevc_annex_b[2] = 0;
+  hevc_annex_b[3] = 1;
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hevc_annex_b), 0);
+  hevc_annex_b[2] = 1;
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hevc_annex_b), 0);
+
+  auto avcc_2 = kAvcC;
+  avcc_2[4] = 0xfd;  // lengthSizeMinusOne = 1
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, avcc_2), 2);
+  auto hvcc_1 = kHvcC;
+  hvcc_1[21] = 0x0c;  // lengthSizeMinusOne = 0
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc_1), 1);
+
+  // hvcC is told from Annex B by its start code, not by configurationVersion
+  for (int version : {0, 2, 0xff}) {
+    auto hvcc = kHvcC;
+    hvcc[0] = static_cast<uint8_t>(version);
+    EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc), 4) << "configurationVersion " << version;
+  }
+
+  // shorter than an avcC/hvcC header, and no start code: malformed, the usual 4-byte lengths
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAvcC, 6), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAvcC, 1), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc_1, 22), 4);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hvcc_1, 2), 4);
+  // ...but a start code, however short the extradata, is Annex B
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_H264, kAnnexBExtradata, 3), 0);
+  EXPECT_EQ(LengthSize(AV_CODEC_ID_HEVC, hevc_annex_b, 4), 0);
+}
+
+TEST(NalFramingTest, LengthPrefixes) {
+  for (int length_size : {1, 2, 4}) {
+    std::vector<uint8_t> idr;  // SEI, then an IDR picture
+    AppendLengthPrefixedNal(idr, length_size, {0x06, 0x05}, 20);
+    AppendLengthPrefixedNal(idr, length_size, {0x65}, 200);
+    EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, idr.size(), length_size), 5)
+        << "length of " << length_size << " bytes";
+
+    std::vector<uint8_t> p_slice;
+    AppendLengthPrefixedNal(p_slice, length_size, {0x41}, 200);
+    EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, p_slice, p_slice.size(), length_size), -1)
+        << "length of " << length_size << " bytes";
+  }
+
+  // a NAL unit of 1 byte (an access unit delimiter) before the IDR picture
+  std::vector<uint8_t> multi;
+  AppendLengthPrefixedNal(multi, 4, {0x09}, 1);
+  AppendLengthPrefixedNal(multi, 4, {0x06, 0x05}, 300);
+  AppendLengthPrefixedNal(multi, 4, {0x65}, 1000);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, multi, multi.size(), 4), 5);
+}
+
+TEST(NalFramingTest, StartCodes) {
+  std::vector<uint8_t> idr;
+  AppendAnnexBNal(idr, {0x67, 0x64}, 20);  // SPS
+  AppendAnnexBNal(idr, {0x68}, 5);         // PPS
+  AppendAnnexBNal(idr, {0x65}, 300);       // IDR picture
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, idr.size(), 0), 5);
+
+  std::vector<uint8_t> p_slice;
+  AppendAnnexBNal(p_slice, {0x41}, 300);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, p_slice, p_slice.size(), 0), -1);
+
+  // a 3 byte start code
+  std::vector<uint8_t> short_start_code = {0, 0, 1, 0x65, 0xAB, 0xAB};
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, short_start_code, short_start_code.size(), 0), 5);
+
+  std::vector<uint8_t> hevc;
+  AppendAnnexBNal(hevc, {0x40, 0x01}, 20);   // VPS
+  AppendAnnexBNal(hevc, {0x2a, 0x01}, 300);  // CRA picture
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_HEVC, hevc, hevc.size(), 0), 21);
+}
+
+TEST(NalFramingTest, TruncatedPacket) {
+  std::vector<uint8_t> idr;
+  AppendLengthPrefixedNal(idr, 4, {0x65}, 300);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, idr.size(), 4), 5);
+  // the NAL unit is cut short, and so is its length
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, idr.size() - 1, 4), -1);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_H264, idr, 3, 4), -1);
+}
+
+// The type is what BuildIndex takes the leading pictures of a keyframe from: none after an H.264
+// IDR picture or an HEVC IDR_N_LP picture
+TEST(NalFramingTest, ReportsTheTypeOfTheKeyframeNal) {
+  struct Case {
+    AVCodecID codec;
+    std::vector<uint8_t> header;
+    int type;
+  };
+  std::vector<Case> cases = {
+      {AV_CODEC_ID_H264, {0x65}, 5},        // IDR
+      {AV_CODEC_ID_H264, {0x25}, 5},        // IDR, with another nal_ref_idc
+      {AV_CODEC_ID_HEVC, {0x26, 0x01}, 19},  // IDR_W_RADL
+      {AV_CODEC_ID_HEVC, {0x28, 0x01}, 20},  // IDR_N_LP
+      {AV_CODEC_ID_HEVC, {0x2a, 0x01}, 21},  // CRA
+      {AV_CODEC_ID_HEVC, {0x20, 0x01}, 16},  // BLA_W_LP
+  };
+  for (auto &c : cases) {
+    for (int length_size : {0, 4}) {
+      std::vector<uint8_t> packet;
+      if (length_size == 0)
+        AppendAnnexBNal(packet, c.header, 50);
+      else
+        AppendLengthPrefixedNal(packet, length_size, c.header, 50);
+      EXPECT_EQ(KeyframeNalType(c.codec, packet, packet.size(), length_size), c.type)
+          << "header " << static_cast<int>(c.header[0]) << ", length size " << length_size;
+    }
+  }
+  // not keyframes: a P slice, and an HEVC TRAIL_R
+  std::vector<uint8_t> trail;
+  AppendLengthPrefixedNal(trail, 4, {0x02, 0x01}, 50);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_HEVC, trail, trail.size(), 4), -1);
+
+  // the first keyframe NAL unit of the packet gives the type
+  std::vector<uint8_t> two;
+  AppendLengthPrefixedNal(two, 4, {0x28, 0x01}, 50);
+  AppendLengthPrefixedNal(two, 4, {0x2a, 0x01}, 50);
+  EXPECT_EQ(KeyframeNalType(AV_CODEC_ID_HEVC, two, two.size(), 4), 20);
 }
 
 }  // namespace dali
