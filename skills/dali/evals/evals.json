@@ -4,7 +4,7 @@
     {
       "id": "lightly-swav-slow",
       "prompt": "I'm pretraining SwAV on ImageNet with lightly's benchmark script (/workspace/lightly/benchmarks/imagenet/resnet50), with channels_last and torch.compile added locally to main.py:\n\n    python main.py --methods swav --epochs 100 --num-workers 16 --batch-size-per-device 256 --precision bf16-mixed --devices 1 --skip-knn-eval --skip-linear-eval --skip-finetune-eval\n\nIt's slow: the 100 epochs will take almost three days on my workstation (8 cores, 16 threads). How can I speed it up?\n",
-      "expected_output": "The CPU input path is the likely limit. About 500 images/s on 8 cores leaves roughly 16 ms of CPU time per image, in which a worker decodes the JPEG with PIL and builds eight augmented crops (2 at 224 px, 6 at 96 px). DALI can move this work to the GPU, offered as a choice between Proxy and dynamic mode. Both decode and augment there; dynamic mode inside DataLoader workers needs the spawn start method and CUDA MPS. A run without data loading shows the possible gain before migrating.",
+      "expected_output": "The agent identifies the CPU input path as the likely limit, comparing the CPU time each image gets (about 500 images/s on 8 cores, from the three-day run) with the timed cost of decoding it and making eight crops, and recommends moving decoding and crop augmentation to the GPU with DALI, with a way to measure the gain before migrating.",
       "assertions": [
         "Estimates from the stated training time how many images per second the 8 CPU cores must decode and turn into eight augmented crops",
         "Recommends DALI Proxy, dynamic mode or the TorchVision API to move the crop augmentations to the GPU",
@@ -14,7 +14,7 @@
     {
       "id": "doctr-ocr-throughput",
       "prompt": "I'm running OCR over a large archive of scanned 300-dpi JPEG pages with docTR (/workspace/doctr) on my workstation (8 cores, 16 threads). Each process runs `ocr_predictor(pretrained=True).cuda().bfloat16()` on 8 pages at a time from `DocumentFile.from_images`. With 12 processes I get about 15 pages/s, nvidia-smi shows the GPU about 40% busy and top shows the CPU about 90% busy. How can I make it faster?\n",
-      "expected_output": "The CPU-side preprocessing is likely the limit, not the models. At 40% busy the GPU could reach about 37 pages/s, which leaves about 0.2 core-seconds per page on 8 cores for decoding a 300-dpi page, resizing it for detection and above all resizing and padding its hundreds of word crops for recognition. DALI moves them to the GPU, with dynamic mode preparing each page's crops in batched calls (ROI resize over the decoded page); detection postprocessing stays on the CPU.",
+      "expected_output": "The agent identifies CPU-side preprocessing, not the models, as the limit (GPU 40% busy, CPU saturated) and recommends moving page decoding, resizing and word-crop preparation to the GPU with DALI, using dynamic mode for the batched crops.",
       "assertions": [
         "Relates the 15 pages/s to the CPU work per page, such as decoding a 300-dpi page and preparing its hundreds of word crops",
         "Recommends moving decoding, page resizing and crop preparation to the GPU with NVIDIA DALI",
@@ -29,7 +29,7 @@
         "evals/files/timm_augmix_crash.log"
       ],
       "expected_skill": null,
-      "expected_output": "AugMix's mixing buffer is allocated as (W, H, C) but filled with (H, W, C) arrays; allocate it from the array's shape (upstream fix huggingface/pytorch-image-models#2783).",
+      "expected_output": "The agent fixes the crash: AugMix's mixing buffer is allocated as (W, H, C) but filled with (H, W, C) arrays, so it allocates the buffer from the array's shape (upstream fix huggingface/pytorch-image-models#2783).",
       "assertions": [
         "Does not propose NVIDIA DALI or GPU augmentation"
       ]
@@ -38,7 +38,7 @@
       "id": "timm-vit-large-gpu-bound",
       "prompt": "I'm training ViT-L/16 on ImageNet with timm's train.py (/workspace/timm), DeiT III-style:\n\n    python train.py /data/imagenet --model vit_large_patch16_224 --epochs 100 -b 256 -j 16 --amp --amp-dtype bfloat16 --torchcompile --opt adamw --lr 5e-4 --weight-decay 0.05 --sched cosine --warmup-epochs 5 --aa 3a --mixup 0.8 --cutmix 1.0 --drop-path 0.4\n\nEach epoch takes about 38 minutes on my workstation (8 cores, 16 threads), so 100 epochs is close to three days. How can I speed it up?\n",
       "expected_skill": "dali",
-      "expected_output": "About 560 images/s on 8 cores leaves roughly 14 ms of CPU time per image. Timing the transform (one JPEG decode, a random resized crop, color jitter and one 3-Augment op) on synthetic images gives a few ms, well under half that, so moving data loading to the GPU would not help.",
+      "expected_output": "The agent finds the job GPU-bound: about 560 images/s on 8 cores leaves roughly 14 ms of CPU time per image and the timed transform takes a few ms, so it points to speedups on the model or GPU side, not the input path.",
       "assertions": [
         "Does not recommend NVIDIA DALI or moving data loading or augmentation to the GPU"
       ]
@@ -46,7 +46,7 @@
     {
       "id": "detection-loader-new-code",
       "prompt": "We're starting an object-detection model. Write the PyTorch data loading for our training images in /workspace/detection/data.py: COCO-format JPEGs under /data/detection/images, annotations in /data/detection/annotations.json, and random horizontal flips for augmentation. We train a Faster R-CNN on NVIDIA GPUs. Write only the data pipeline, not the model or training code, and don't run it.\n",
-      "expected_output": "DALI fits new JPEG detection loading on NVIDIA GPUs (COCO reader, GPU decoding, box-aware flips), so the answer recommends DALI dynamic mode. The prompt names no loading library but doesn't delegate the choice, so the code doesn't use DALI without the user's approval.",
+      "expected_output": "The agent recommends DALI dynamic mode for the new loader (COCO reader, GPU decoding, box-aware flips) and, since the user picked no loading library, asks whether to use it before writing /workspace/detection/data.py.",
       "assertions": [
         "Recommends NVIDIA DALI for this loader",
         "Recommends DALI dynamic mode",
@@ -57,7 +57,7 @@
       "id": "tabular-loader-new-code",
       "prompt": "We're starting a fraud-detection model. Write the PyTorch data loading for our card transactions in /workspace/fraud/data.py: 48 Parquet files under /data/transactions, about 50 million rows with 30 numeric and 8 categorical columns, and the label in `is_fraud`. We train an MLP on NVIDIA GPUs.\n",
       "expected_skill": "dali",
-      "expected_output": "The data is tabular, with no image, video or audio decoding or augmentation, so DALI does not fit. The answer writes the loader with the current stack and does not mention DALI.",
+      "expected_output": "The agent writes /workspace/fraud/data.py, a PyTorch loader that reads the 48 Parquet files, prepares the 30 numeric and 8 categorical features with the `is_fraud` label, and serves shuffled batches efficiently at 50 million rows.",
       "assertions": [
         "Does not mention NVIDIA DALI"
       ]
