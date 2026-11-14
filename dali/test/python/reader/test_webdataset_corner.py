@@ -375,29 +375,105 @@ def test_invalid_mapping(use_mmap):
             run_component_range_reader(archive, index, use_mmap)
 
 
-def write_invalid_tar(archive, size):
+def write_tar_size_field(archive, field, payload=b""):
+    assert len(field) == 12
+    assert len(payload) <= 1024
     header = bytearray(tarfile.TarInfo("sample.bin").tobuf())
-    field = b"-4" if size == -4 else oct(size)[2:].encode()
-    header[124:136] = field.rjust(11, b" ") + b"\0"
+    header[124:136] = field
     header[148:156] = b" " * 8
     header[148:156] = f"{sum(header):06o}\0 ".encode()
     with open(archive, "wb") as f:
-        f.write(header + bytes(1024))
+        f.write(header + payload + bytes(1024 - len(payload)))
 
 
-@params(*[(use_mmap, size) for use_mmap in (False, True) for size in (-4, 8**11 - 1, 2048)])
+def write_invalid_tar(archive, size):
+    field = oct(size)[2:].encode().rjust(11, b" ") + b"\0"
+    write_tar_size_field(archive, field)
+
+
+@params(
+    *[
+        (use_mmap, size)
+        for use_mmap in (False, True)
+        for size in (2**32, 2**32 + 4, 8**11 - 1, 2048)
+    ]
+)
 def test_invalid_tar_entry_size(use_mmap, size):
     with tempfile.TemporaryDirectory() as tmp:
         archive = os.path.join(tmp, "data.tar")
         write_invalid_tar(archive, size)
-        declared_size = size % (1 << 64)
         message = (
-            f"*{archive}: entry sample.bin declares {declared_size} bytes, "
+            f"*{archive}: entry sample.bin declares {size} bytes, "
             "but only 1024 bytes are available at offset 512; "
             "the entry extends beyond the archive.*"
         )
         with assert_raises(RuntimeError, glob=message):
             run_tar_size_reader(archive, use_mmap, dali.types.FLOAT)
+
+
+@params(
+    *[
+        (use_mmap, field)
+        for use_mmap in (False, True)
+        for field in (
+            b"         -4\0",  # Negative octal.
+            b"00000000008\0",  # Invalid octal digit.
+            b"0000000004x\0",  # Trailing garbage after valid digits.
+            b"0004" + b"\0" + b"0000000",  # Digits after a terminator.
+            b" " * 12,  # Missing digits.
+            b"\xff" * 12,  # Negative GNU base-256.
+            b"\x80" + (2**64).to_bytes(11, "big"),  # Base-256 overflow.
+        )
+    ]
+)
+def test_malformed_tar_entry_size(use_mmap, field):
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = os.path.join(tmp, "data.tar")
+        write_tar_size_field(archive, field)
+        message = (
+            f"*entry sample.bin: invalid tar entry size (hex: {field.hex()}); "
+            "expected a nonnegative octal or GNU base-256 value fitting in uint64_t.*"
+        )
+        with assert_raises(RuntimeError, glob=message):
+            run_tar_size_reader(archive, use_mmap)
+
+
+@params(*[(use_mmap, size) for use_mmap in (False, True) for size in (2**32 + 4, 2**64 - 1)])
+def test_oversized_base256_tar_entry(use_mmap, size):
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = os.path.join(tmp, "data.tar")
+        write_tar_size_field(archive, b"\x80" + size.to_bytes(11, "big"))
+        with assert_raises(
+            RuntimeError, glob=f"*declares {size} bytes*extends beyond the archive.*"
+        ):
+            run_tar_size_reader(archive, use_mmap)
+
+
+@params(
+    *[
+        (use_mmap, field)
+        for use_mmap in (False, True)
+        for field in (
+            b"000000000004",  # Full-width octal without a terminator.
+            b" 000000004 \0",  # Leading and trailing padding.
+            b"\x80" + (4).to_bytes(11, "big"),
+        )
+    ]
+)
+def test_valid_tar_size_encoding(use_mmap, field):
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = os.path.join(tmp, "data.tar")
+        payload = bytes([17, 49, 92, 201])
+        write_tar_size_field(archive, field, payload)
+        assert run_tar_size_reader(archive, use_mmap).tolist() == [list(payload)]
+
+
+@params(False, True)
+def test_empty_base256_tar_entry(use_mmap):
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = os.path.join(tmp, "data.tar")
+        write_tar_size_field(archive, b"\x80" + bytes(11))
+        assert run_tar_size_reader(archive, use_mmap).tolist() == [[]]
 
 
 @params(False, True)
