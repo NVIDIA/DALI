@@ -294,8 +294,17 @@ inline void TarArchive::ParseHeader() {
     } else {
       uint64_t declared_size;
       if (!ParseTarSizeField(ToTarHandle(handle_)->th_buf.size, declared_size)) {
-        throw std::runtime_error(make_string("Corrupted tar file ", stream_->path(), ": entry ",
-                                            filename_, ": invalid tar entry size."));
+        const auto &field = ToTarHandle(handle_)->th_buf.size;
+        constexpr char kHexDigits[] = "0123456789abcdef";
+        std::string hex_field;
+        for (unsigned char byte : field) {
+          hex_field += kHexDigits[byte >> 4];
+          hex_field += kHexDigits[byte & 0xf];
+        }
+        throw std::runtime_error(make_string(
+            "Corrupted tar file ", stream_->path(), ": entry ", filename_,
+            ": invalid tar entry size (hex: ", hex_field,
+            "); expected a nonnegative octal or GNU base-256 value fitting in uint64_t."));
       }
       const auto data_offset = stream_->TellRead();
       const auto archive_size = stream_->Size();
