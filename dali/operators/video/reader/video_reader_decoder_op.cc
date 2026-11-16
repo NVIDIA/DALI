@@ -925,8 +925,6 @@ class VideoReaderDecoder
     std::unique_ptr<FramesDecoderImpl> decoder;  // after `stream`: destroyed (and synced) first
     Tensor<Backend> constant_frame;
     std::vector<int> frame_idxs;  // scratch
-    // Diagnostics: the pictures the lane decodes in the current batch
-    int64_t decoded_pictures = 0;
     // Errors of the current batch: (position in the batch, exception)
     std::vector<std::pair<int, std::exception_ptr>> errors;
   };
@@ -1111,7 +1109,6 @@ class VideoReaderDecoder
     const auto &plan = plans_[l];
     auto &errors = lane.errors;
     errors.clear();
-    lane.decoded_pictures = 0;
     for (int r : plan.runs) {
       for (int t : runs_[r].tasks) {
         auto &task = tasks_[t];
@@ -1136,9 +1133,8 @@ class VideoReaderDecoder
         (void)cudaGetLastError();  // already failing: report the sample's error
       }
     }
-    // Planned with the files' indices, the two match (on the GPU, within a picture or two)
-    LOG_LINE << "Lane " << l << " decoded " << lane.decoded_pictures << " pictures, planned "
-             << plan.pictures << " (load " << plan.load << ")" << std::endl;
+    LOG_LINE << "Lane " << l << " planned " << plan.pictures << " pictures (load " << plan.load
+             << ")" << std::endl;
   }
 
   /**
@@ -1171,7 +1167,6 @@ class VideoReaderDecoder
     }
     auto &decoder = *lane.decoder;
     DALI_ENFORCE(decoder.IsValid(), make_string("Invalid decoder for filename ", filename));
-    int64_t decoded_pictures = decoder.ParsedPictures();
 
     int64_t num_frames = sample.frame_idxs_.empty()
         ? (static_cast<int64_t>(sample.end_) - sample.start_ + sample.stride_ - 1) /
@@ -1250,7 +1245,6 @@ class VideoReaderDecoder
                            sample.end_, sample.stride_, boundary_type_, constant_frame,
                            make_span(sample.timestamps_));
     }
-    lane.decoded_pictures += decoder.ParsedPictures() - decoded_pictures;
     LOG_LINE << "Decoding frames done" << std::endl;
   }
 

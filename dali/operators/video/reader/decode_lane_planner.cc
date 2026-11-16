@@ -26,8 +26,9 @@ bool CanReachWithoutSeek(const FrameIndex *index, int next, int frame) {
     return false;
   if (frame - next <= FramesDecoderBase::kMinimumSeekLeap)
     return true;
-  return index && frame < static_cast<int>(index->size()) &&
-         (*index)[frame].last_keyframe_id == (*index)[next].last_keyframe_id;
+  // the decision of SeekFrame and AddDecodeWork
+  int size = index ? static_cast<int>(index->size()) : 0;
+  return next < size && frame < size && FramesDecoderBase::SeekTarget(*index, next, frame) < 0;
 }
 
 void SampleFrames(span<const int> frame_idxs, int start, int end, int stride,
