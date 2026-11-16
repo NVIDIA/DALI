@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import os
+import numpy as np
 from nvidia.dali import pipeline_def
 from nvidia.dali.types import DALIImageType
 import nvidia.dali.fn as fn
@@ -35,21 +36,36 @@ test_file_list = [
 ]
 
 
+N_BINS = 24
+
+
 # DALI pipeline definition
 @pipeline_def
 def naive_hist_pipe():
-    img, _ = fn.readers.file(files=test_file_list)
+    jpegs, _ = fn.readers.file(files=test_file_list)
     # The naive_histogram accepts single-channels image, thus we convert the image to Grayscale.
-    img = fn.decoders.image(img, device="mixed", output_type=DALIImageType.GRAY)
-    img = img.gpu()
-    img = fn.naive_histogram(img, n_bins=24)
-    return img
+    img = fn.decoders.image(
+        jpegs, device="mixed", output_type=DALIImageType.GRAY
+    )
+    hist = fn.naive_histogram(img, n_bins=N_BINS)
+    return img, hist
 
 
 def test_naive_histogram():
-    pipe = naive_hist_pipe(batch_size=2, num_threads=1, device_id=0)
-    out = pipe.run()
-    print(out[0].as_cpu().as_array())
+    batch_size = 2
+    pipe = naive_hist_pipe(batch_size=batch_size, num_threads=1, device_id=0)
+    # Run several iterations, so that the output memory gets reused.
+    for _ in range(len(test_file_list) // batch_size):
+        imgs, hists = pipe.run()
+        imgs, hists = imgs.as_cpu(), hists.as_cpu()
+        for i in range(batch_size):
+            img, hist = imgs.at(i), hists.at(i)
+            # The kernel puts a pixel of value `v` into the bin `v % n_bins`.
+            ref = np.bincount(img.ravel() % N_BINS, minlength=N_BINS)
+            assert np.array_equal(
+                hist, ref
+            ), f"Got histogram {hist}, expected {ref}."
+    print(hists.as_array())
 
 
 if __name__ == "__main__":

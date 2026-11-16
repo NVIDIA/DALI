@@ -45,7 +45,8 @@ This produces `build/libnaivehistogram.so`, which can be loaded with
 `nvidia.dali.plugin_manager.load_library`.
 
 By default, the CUDA code is compiled for the `80;90` architectures. To target a different GPU, pass
-`-DCMAKE_CUDA_ARCHITECTURES=<arch>` to `cmake`.
+`-DCMAKE_CUDA_ARCHITECTURES=<arch>` to `cmake` (for example, `native` targets the GPUs of the build
+machine), or set the `CUDAARCHS` environment variable.
 
 ## Running the example
 
@@ -79,14 +80,20 @@ was built against. Instead, the plugin can be distributed as a Python source dis
 compiled at installation time against the DALI version installed in the target environment.
 This is the same approach that DALI uses for its TensorFlow and video plugins.
 
+Unlike the DALI TensorFlow plugin, the example does not list DALI in its dependencies: the name of
+the DALI distribution depends on its flavor (for example `nvidia-dali-cuda120` or
+`nvidia-dali-nightly-cuda130`), and DALI built from source has none. Instead, the package checks the
+exact DALI version and flavor when it is imported.
+
 The packaging consists of:
 
 * [`pyproject.toml`](pyproject.toml) - the package metadata. The package is built with
   [scikit-build-core](https://scikit-build-core.readthedocs.io), which runs CMake.
 * The `install` rules at the end of [`CMakeLists.txt`](CMakeLists.txt), which put the plugin library
-  and a `_build_info.py` file, recording the DALI version used for the build, into the package.
+  and a `_build_info.py` file, recording the DALI version and CUDA version (flavor) used for the
+  build, into the package.
 * [`dali_naive_histogram/__init__.py`](dali_naive_histogram/__init__.py) - importing the package
-  checks that the installed DALI version matches the one that the plugin was built against
+  checks that the installed DALI version and flavor match the ones that the plugin was built against
   and loads the plugin.
 
 To create the source distribution:
@@ -106,6 +113,13 @@ pip install --no-build-isolation dist/dali_naive_histogram-0.1.0.tar.gz
 
 The `--no-build-isolation` flag is necessary: without it, pip builds the package in an isolated
 environment that does not contain the DALI installation the plugin has to be built against.
+
+To compile the CUDA code for different GPU architectures, pass the CMake option through pip, or set
+the `CUDAARCHS` environment variable:
+
+```bash
+pip install --no-build-isolation -C cmake.define.CMAKE_CUDA_ARCHITECTURES=native dist/dali_naive_histogram-0.1.0.tar.gz
+```
 
 After the installation, importing the package registers the operator. Run Python from outside of
 the `naive_histogram` directory: otherwise, Python imports the `dali_naive_histogram` sources

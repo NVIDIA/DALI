@@ -57,6 +57,8 @@ void NaiveHistogram<GPUBackend>::RunImpl(Workspace &ws) {
             n_histogram_bins_,
             output[sample_idx].mutable_data<int32_t>()
     );
+    // Kernel launches don't return an error code - check for launch errors explicitly.
+    CUDA_CALL(cudaGetLastError());
   }
 }
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25.2)
-if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND NOT DEFINED ENV{CUDAARCHS})
   set(CMAKE_CUDA_ARCHITECTURES "80;90")
 endif()
 
@@ -17,6 +17,16 @@ include_directories(SYSTEM "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
 
 # Use the Python interpreter that has DALI installed - the plugin is built against that DALI.
 find_package(Python REQUIRED COMPONENTS Interpreter)
+
+execute_process(
+        COMMAND ${Python_EXECUTABLE} -c "import nvidia.dali"
+        RESULT_VARIABLE DALI_IMPORT_RESULT)
+if(NOT DALI_IMPORT_RESULT EQUAL 0)
+  message(FATAL_ERROR
+          "Could not import nvidia.dali with ${Python_EXECUTABLE}. The plugin is built against the "
+          "installed DALI, so DALI must be importable during the build. When installing the plugin "
+          "with pip, pass --no-build-isolation.")
+endif()
 
 execute_process(
         COMMAND ${Python_EXECUTABLE} -c "import nvidia.dali as dali; print(dali.__version__)"

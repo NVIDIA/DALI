@@ -16,8 +16,19 @@ test_body() {
 
     # Package the plugin as a source distribution and install it, as described in the README
     python -m build --sdist --no-isolation
-    pip install --no-build-isolation dist/dali_naive_histogram-*.tar.gz
+    pip install --no-build-isolation --no-cache-dir dist/dali_naive_histogram-*.tar.gz
     (cd /tmp && python -c "import dali_naive_histogram; from nvidia.dali import fn; fn.naive_histogram")
+    # The package refuses to load the plugin with a DALI version other than the one it was built with
+    (cd /tmp && python -c "
+import nvidia.dali as dali
+dali.__version__ = 'mismatched'
+try:
+    import dali_naive_histogram
+except RuntimeError as e:
+    assert 'was built against DALI' in str(e), e
+else:
+    raise AssertionError('DALI version mismatch was not detected')
+")
     pip uninstall -y dali-naive-histogram
     rm -rf build dist
     popd
