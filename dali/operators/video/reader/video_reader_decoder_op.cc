@@ -43,7 +43,6 @@
 #include "dali/operators/video/reader/frame_index_cache.h"
 #include "dali/operators/video/video_utils.h"
 #include "dali/pipeline/util/new_thread_pool.h"
-#include "dali/pipeline/util/thread_pool.h"
 #if NVML_ENABLED
 #include "dali/util/nvml.h"
 #endif
@@ -858,7 +857,7 @@ class VideoReaderDecoder
         lane.stream = CUDAStreamPool::instance().Get(device_id);
     }
     if (lanes_.size() > 1)
-      thread_pool_ = std::make_unique<OldThreadPool>(lanes_.size(), device_id, false,
+      thread_pool_ = std::make_unique<NewThreadPool>(lanes_.size(), device_id, false,
                                                      "VideoReaderDecoder");
   }
 
@@ -982,9 +981,11 @@ class VideoReaderDecoder
       for (int l : active)
         DecodeLanePart(l);
     } else {
+      // DecodeLanePart reports the errors of its samples in the lane, it does not throw
+      Job job;
       for (int l : active)
-        thread_pool_->AddWork([this, l](int) { DecodeLanePart(l); }, plans_[l].load);
-      thread_pool_->RunAll();
+        job.AddTask([this, l]() { DecodeLanePart(l); }, plans_[l].load);
+      job.Run(*thread_pool_, true);
     }
     const std::pair<int, std::exception_ptr> *first_error = nullptr;
     for (int l : active) {
@@ -1162,7 +1163,7 @@ class VideoReaderDecoder
   std::vector<DecodeRun> runs_;  // of the current batch
   std::vector<DecodeLane> lanes_;
   std::vector<LanePlan> plans_;  // the runs of each lane in the current batch, in decoding order
-  std::unique_ptr<OldThreadPool> thread_pool_;  // with more than one lane; destroyed first
+  std::unique_ptr<NewThreadPool> thread_pool_;  // with more than one lane; destroyed first
 };
 
 DALI_SCHEMA(experimental__readers__Video)
