@@ -30,8 +30,8 @@ if (dali.__version__, dali.__cuda_version__) != (
     raise RuntimeError(
         f"dali_naive_histogram was built against DALI {DALI_VERSION} (CUDA {DALI_CUDA_VERSION}), "
         f"but DALI {dali.__version__} (CUDA {dali.__cuda_version__}) is installed. Rebuild the "
-        "plugin for the installed DALI: "
-        "pip install --no-build-isolation --no-cache-dir --force-reinstall <path to the sdist>"
+        "plugin for the installed DALI by reinstalling it with "
+        "`pip install --no-build-isolation --no-cache-dir --force-reinstall <path to the sdist>`."
     )
 
 plugin_manager.load_library(
