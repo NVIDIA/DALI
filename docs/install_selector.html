@@ -48,7 +48,13 @@
   }
 </style>
 
-<div id="dali-install">
+<noscript>
+  <p>To install DALI with pip for CUDA 13 (use <code>nvidia-dali-cuda120</code> for CUDA 12):</p>
+  <div class="highlight-bash notranslate"><div class="highlight"><pre>pip install nvidia-dali-cuda130</pre></div></div>
+</noscript>
+
+<div id="dali-install" hidden>
+  <p>Select your configuration to get the install command.</p>
   <div class="dali-install-row">
     <span class="dali-install-label">Method</span>
     <div class="dali-install-options" data-key="method">
@@ -228,5 +234,6 @@
   }
 
   render();
+  root.hidden = false;
 })();
 </script>

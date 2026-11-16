@@ -1,8 +1,6 @@
 Installation
 ============
 
-Select your configuration to get the install command. The sections below explain each option.
-
 .. raw:: html
    :file: install_selector.html
 
