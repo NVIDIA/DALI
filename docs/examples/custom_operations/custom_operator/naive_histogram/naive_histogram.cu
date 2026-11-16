@@ -1,4 +1,4 @@
-// Copyright (c) 2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2023-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -48,6 +48,9 @@ void NaiveHistogram<GPUBackend>::RunImpl(Workspace &ws) {
     dim3 block_size(32);
     auto input_size = volume(input.tensor_shape(sample_idx));
     dim3 grid_size((input_size + block_size.x - 1) / block_size.x);
+    // The output memory is not initialized, so the histogram must be zeroed before counting.
+    CUDA_CALL(cudaMemsetAsync(output[sample_idx].mutable_data<int32_t>(), 0,
+                              n_histogram_bins_ * sizeof(int32_t), ws.stream()));
     naive_histogram_kernel<<<grid_size, block_size, 0, ws.stream()>>>(
             input[sample_idx].data<uint8_t>(),
             input_size,

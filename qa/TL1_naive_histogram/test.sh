@@ -1,6 +1,6 @@
 #!/bin/bash -e
 
-pip_packages='${python_test_runner_package} numpy'
+pip_packages='${python_test_runner_package} numpy build scikit-build-core'
 
 do_once() {
   apt-get update && apt-get -y install wget
@@ -13,6 +13,13 @@ test_body() {
     pushd $(pwd)/docs/examples/custom_operations/custom_operator/naive_histogram
     (mkdir build && cd build && cmake .. && make -j"$(grep ^processor /proc/cpuinfo | wc -l)")
     ${python_new_invoke_test} test_naive_histogram
+
+    # Package the plugin as a source distribution and install it, as described in the README
+    python -m build --sdist --no-isolation
+    pip install --no-build-isolation dist/dali_naive_histogram-*.tar.gz
+    (cd /tmp && python -c "import dali_naive_histogram; from nvidia.dali import fn; fn.naive_histogram")
+    pip uninstall -y dali-naive-histogram
+    rm -rf build dist
     popd
 }
 
