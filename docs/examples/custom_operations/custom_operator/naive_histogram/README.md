@@ -107,7 +107,9 @@ pip install --no-build-isolation dist/dali_naive_histogram-0.1.0.tar.gz
 The `--no-build-isolation` flag is necessary: without it, pip builds the package in an isolated
 environment that does not contain the DALI installation the plugin has to be built against.
 
-After the installation, importing the package registers the operator:
+After the installation, importing the package registers the operator. Run Python from outside of
+the `naive_histogram` directory: otherwise, Python imports the `dali_naive_histogram` sources
+from the current directory, which do not contain the built plugin, instead of the installed package.
 
 ```python
 import dali_naive_histogram  # noqa: F401

@@ -24,6 +24,13 @@ execute_process(
         COMMAND_ERROR_IS_FATAL ANY)
 string(STRIP ${DALI_VERSION} DALI_VERSION)
 
+# The CUDA version distinguishes DALI flavors (e.g. CUDA 12 and CUDA 13 builds) of the same release.
+execute_process(
+        COMMAND ${Python_EXECUTABLE} -c "import nvidia.dali as dali; print(dali.__cuda_version__)"
+        OUTPUT_VARIABLE DALI_CUDA_VERSION
+        COMMAND_ERROR_IS_FATAL ANY)
+string(STRIP ${DALI_CUDA_VERSION} DALI_CUDA_VERSION)
+
 execute_process(
         COMMAND ${Python_EXECUTABLE} -c "import nvidia.dali as dali; print(dali.sysconfig.get_lib_dir())"
         OUTPUT_VARIABLE DALI_LIB_DIR
@@ -36,7 +43,7 @@ execute_process(
         COMMAND_ERROR_IS_FATAL ANY)
 string(STRIP ${DALI_COMPILE_FLAGS} DALI_COMPILE_FLAGS)
 
-message(STATUS "Building against DALI ${DALI_VERSION} from ${DALI_LIB_DIR}")
+message(STATUS "Building against DALI ${DALI_VERSION} (CUDA ${DALI_CUDA_VERSION}) from ${DALI_LIB_DIR}")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${DALI_COMPILE_FLAGS} ")
 set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} ${DALI_COMPILE_FLAGS} ")
@@ -51,7 +58,8 @@ add_library(naivehistogram SHARED ${PLUGIN_SOURCES})
 target_link_libraries(naivehistogram dali)
 
 # Used when the plugin is packaged as a Python package (see pyproject.toml): the library and
-# the DALI version it was built against are installed next to the Python sources.
-file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/_build_info.py" "DALI_VERSION = \"${DALI_VERSION}\"\n")
+# the DALI version and flavor it was built against are installed next to the Python sources.
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/_build_info.py"
+     "DALI_VERSION = \"${DALI_VERSION}\"\nDALI_CUDA_VERSION = ${DALI_CUDA_VERSION}\n")
 install(TARGETS naivehistogram LIBRARY DESTINATION dali_naive_histogram)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/_build_info.py" DESTINATION dali_naive_histogram)

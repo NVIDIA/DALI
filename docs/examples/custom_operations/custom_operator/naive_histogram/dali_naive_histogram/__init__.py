@@ -19,13 +19,18 @@ import os
 import nvidia.dali as dali
 import nvidia.dali.plugin_manager as plugin_manager
 
-from ._build_info import DALI_VERSION as _BUILT_WITH_DALI_VERSION
+from ._build_info import DALI_CUDA_VERSION, DALI_VERSION
 
-# A plugin can only be loaded by the exact DALI version it was built against.
-if dali.__version__ != _BUILT_WITH_DALI_VERSION:
+# A plugin can only be loaded by the exact DALI version and flavor it was built against.
+# `__version__` does not include the CUDA version, so it is compared separately.
+if (dali.__version__, dali.__cuda_version__) != (
+    DALI_VERSION,
+    DALI_CUDA_VERSION,
+):
     raise RuntimeError(
-        f"dali_naive_histogram was built against DALI {_BUILT_WITH_DALI_VERSION}, but DALI "
-        f"{dali.__version__} is installed. Rebuild the plugin for the installed DALI version: "
+        f"dali_naive_histogram was built against DALI {DALI_VERSION} (CUDA {DALI_CUDA_VERSION}), "
+        f"but DALI {dali.__version__} (CUDA {dali.__cuda_version__}) is installed. Rebuild the "
+        "plugin for the installed DALI: "
         "pip install --no-build-isolation --no-cache-dir --force-reinstall <path to the sdist>"
     )
 
