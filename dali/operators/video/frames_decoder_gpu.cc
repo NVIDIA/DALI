@@ -148,6 +148,21 @@ class NVDECCache {
       DALI_FAIL("Cannot return decoder that is not from the cache");
     }
 
+    void DiscardDecoder(DecInstance *decoder) {
+      std::unique_lock lock(access_lock);
+      auto range = dec_cache.equal_range(decoder->codec_type);
+      for (auto it = range.first; it != range.second; ++it) {
+        if (&it->second == decoder) {
+          auto handle = it->second.decoder;
+          dec_cache.erase(it);
+          lock.unlock();
+          cuvidDestroyDecoder(handle);
+          return;
+        }
+      }
+      DALI_FAIL("Cannot discard decoder that is not from the cache");
+    }
+
     size_t NumCreated() {
       std::lock_guard lock(access_lock);
       return num_created;
@@ -433,6 +448,14 @@ class NVDECCache {
 void NVDECLease::Return() {
   if (decoder) {
     owner->ReturnDecoder(decoder);
+    owner = nullptr;
+    decoder = nullptr;
+  }
+}
+
+void NVDECLease::Discard() {
+  if (decoder) {
+    owner->DiscardDecoder(decoder);
     owner = nullptr;
     decoder = nullptr;
   }
@@ -1457,8 +1480,17 @@ NvDecodeState::~NvDecodeState() {
     unsigned int pitch = 0;
     CUVIDPROCPARAMS params = {};
     params.progressive_frame = 1;
-    if (cuvidMapVideoFrame(decoder, last_decoded, &frame, &pitch, &params) == CUDA_SUCCESS)
+    CUresult res = cuvidMapVideoFrame(decoder, last_decoded, &frame, &pitch, &params);
+    if (res == CUDA_SUCCESS) {
       CUDA_DTOR_CALL(cuvidUnmapVideoFrame(decoder, frame));
+    } else {
+      // Without the map, the pictures sent to the decoder may still be in progress, so it must not
+      // go back to the cache, where it could be reconfigured for another stream right away.
+      if (res != CUDA_ERROR_DEINITIALIZED)
+        DALI_WARN(make_string("Could not wait for the last picture of an NVDEC decoder ",
+                              "(error code ", static_cast<int>(res), "); destroying it."));
+      decoder.Discard();
+    }
   }
 }
 

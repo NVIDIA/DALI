@@ -93,6 +93,14 @@ class NVDECLease {
 
     void Return();
 
+    /**
+     * @brief Destroys the decoder and removes it from the cache, instead of returning it there.
+     *
+     * For a decoder whose state is not known, e.g. when it is not known whether the pictures that
+     * were sent to it are done: it must not be given to another stream.
+     */
+    void Discard();
+
     NVDECLease(NVDECLease &&other) {
       *this = std::move(other);
     }
@@ -398,6 +406,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   bool ShouldDecodePicture(int64_t pts) const;
 
  private:
+  friend class FramesDecoderGpuTest;
+
   /**
    * @brief Sends a packet to the NVDEC parser. Exceptions thrown by the parser callbacks are
    *        rethrown here, once the parser has returned.

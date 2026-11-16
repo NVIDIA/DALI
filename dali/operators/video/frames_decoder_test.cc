@@ -220,6 +220,16 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
     return frame_cpu_buffer_.data();
   }
 
+  /**
+   * @brief Makes the decoder look as if the given picture was sent to NVDEC and not mapped, so that
+   *        its destructor maps that picture before the NVDEC decoder goes back to the cache.
+   */
+  static void SetUnmappedLastPicture(FramesDecoderGpu &decoder, int picture_index) {
+    ASSERT_NE(decoder.nvdecode_state_, nullptr);
+    decoder.nvdecode_state_->last_decoded = picture_index;
+    decoder.nvdecode_state_->last_mapped = false;
+  }
+
  private:
   std::vector<uint8_t> frame_cpu_buffer_;
   DeviceBuffer<uint8_t> frame_gpu_buffer_;
@@ -1674,6 +1684,43 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheDoesNotReconfigureSmallerDecoder) {
   small->ReadNextFrame(FrameData());
   EXPECT_EQ(NVDECDecodersCreated(), num_created);
   EXPECT_EQ(NVDECDecodersReconfigured(), num_reconfigured);
+}
+
+// The destructor of a decoder maps the last picture that it sent to NVDEC, which waits for the
+// pictures still in progress. When that map fails, they may still be in progress: the NVDEC decoder
+// is destroyed instead of going back to the cache, where another stream could take it right away.
+// The map is made to fail here with a picture index that the NVDEC decoder does not have.
+TEST_F(FramesDecoderGpuTest, DecoderDiscardedWhenLastPictureMapFails) {
+  using frame_dec_gpu_impl::NVDECDecodersCreated;
+  using frame_dec_gpu_impl::NVDECDecodersReconfigured;
+  using frame_dec_gpu_impl::NVDECDestroyUnusedDecoders;
+  std::string path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
+  auto open_and_read = [&]() {
+    auto decoder = std::make_unique<FramesDecoderGpu>(path);
+    decoder->BuildIndex();
+    decoder->ReadNextFrame(FrameData());
+    return decoder;
+  };
+  auto num_set_up = [] { return NVDECDecodersCreated() + NVDECDecodersReconfigured(); };
+
+  // Only the NVDEC decoder of this test is cached
+  NVDECDestroyUnusedDecoders();
+  open_and_read().reset();
+
+  // It is reused while it goes back to the cache normally
+  size_t num = num_set_up();
+  {
+    auto decoder = open_and_read();
+    ASSERT_TRUE(decoder->IsValid());
+    EXPECT_EQ(num_set_up(), num);
+    SetUnmappedLastPicture(*decoder, 1000);  // more than the decode surfaces of any decoder
+  }
+
+  // It was destroyed: a new one is created
+  num = NVDECDecodersCreated();
+  auto decoder = open_and_read();
+  ASSERT_TRUE(decoder->IsValid());
+  EXPECT_EQ(NVDECDecodersCreated(), num + 1);
 }
 
 TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
