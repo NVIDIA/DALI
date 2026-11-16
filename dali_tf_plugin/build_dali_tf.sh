@@ -31,6 +31,9 @@ from dali_tf_plugin_utils import get_cpp_compiler
 
 tf_cflags = tf.sysconfig.get_compile_flags()
 tf_lflags = tf.sysconfig.get_link_flags()
+# Keep libc++ support here for planned libc++ prebuilts. The installer currently
+# skips prebuilts for libc++ TensorFlow; selecting artifacts by standard-library
+# ABI will be enabled in a follow-up.
 compiler = get_cpp_compiler(" ".join(tf_cflags))
 cpp_ver = "--std=c++14" if Version(tf.__version__) < Version("2.10") else "--std=c++17"
 major, minor, patch = tf.__version__.split(".")[:3]
