@@ -461,18 +461,6 @@ void NVDECLease::Discard() {
   }
 }
 
-size_t NVDECDecodersCreated(int device_id) {
-  return NVDECCache::GetCache(device_id).NumCreated();
-}
-
-size_t NVDECDecodersReconfigured(int device_id) {
-  return NVDECCache::GetCache(device_id).NumReconfigured();
-}
-
-void NVDECDestroyUnusedDecoders(int device_id) {
-  NVDECCache::GetCache(device_id).DestroyUnused();
-}
-
 int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
   // The callbacks are called by the NVDEC parser from within cuvidParseVideoData. An exception must
@@ -512,6 +500,18 @@ int handle_picture_display(void *user_data, CUVIDPARSERDISPINFO *picture_display
 }
 
 }  // namespace frame_dec_gpu_impl
+
+size_t FramesDecoderGpu::NVDECDecodersCreated(int device_id) {
+  return frame_dec_gpu_impl::NVDECCache::GetCache(device_id).NumCreated();
+}
+
+size_t FramesDecoderGpu::NVDECDecodersReconfigured(int device_id) {
+  return frame_dec_gpu_impl::NVDECCache::GetCache(device_id).NumReconfigured();
+}
+
+void FramesDecoderGpu::NVDECDestroyUnusedDecoders(int device_id) {
+  frame_dec_gpu_impl::NVDECCache::GetCache(device_id).DestroyUnused();
+}
 
 void FramesDecoderGpu::InitBitStreamFilter() {
   const AVBitStreamFilter *bsf = nullptr;

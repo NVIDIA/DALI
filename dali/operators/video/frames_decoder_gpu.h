@@ -127,35 +127,6 @@ class NVDECLease {
     DecInstance *decoder = nullptr;
 };
 
-// The three functions below are for tests: the counters show which path the decoder cache took,
-// and NVDECDestroyUnusedDecoders lets a test start from an empty cache. They are exported because
-// the tests are built into a separate binary that links the operators library.
-
-/**
- * @brief Returns how many NVDEC decoders were created (cuvidCreateDecoder) so far for a device.
- *
- * The count includes decoders that were evicted from the cache since. A cached decoder that was
- * reconfigured for a stream instead is not counted here, but by NVDECDecodersReconfigured().
- *
- * @param device_id CUDA device ordinal or -1 for the current device.
- */
-DLL_PUBLIC size_t NVDECDecodersCreated(int device_id = -1);
-
-/**
- * @brief Returns how many times a cached NVDEC decoder was reconfigured for a stream of another
- *        format (size, number of decode surfaces) so far for a device, instead of creating one.
- *
- * @param device_id CUDA device ordinal or -1 for the current device.
- */
-DLL_PUBLIC size_t NVDECDecodersReconfigured(int device_id = -1);
-
-/**
- * @brief Destroys the cached NVDEC decoders that are not in use, e.g. to start from an empty cache.
- *
- * @param device_id CUDA device ordinal or -1 for the current device.
- */
-DLL_PUBLIC void NVDECDestroyUnusedDecoders(int device_id = -1);
-
 }  // namespace frame_dec_gpu_impl
 
 struct NvDecodeState {
@@ -407,6 +378,35 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
  private:
   friend class FramesDecoderGpuTest;
+
+  // For the tests (FramesDecoderGpuTest): the counters show which path the NVDEC decoder cache
+  // took, and NVDECDestroyUnusedDecoders lets a test start from an empty cache.
+
+  /**
+   * @brief Returns how many NVDEC decoders were created (cuvidCreateDecoder) so far for a device.
+   *
+   * The count includes decoders that were evicted from the cache since. A cached decoder that was
+   * reconfigured for a stream instead is not counted here, but by NVDECDecodersReconfigured().
+   *
+   * @param device_id CUDA device ordinal or -1 for the current device.
+   */
+  static size_t NVDECDecodersCreated(int device_id = -1);
+
+  /**
+   * @brief Returns how many times a cached NVDEC decoder was reconfigured for a stream of another
+   *        format (size, number of decode surfaces) so far for a device, instead of creating one.
+   *
+   * @param device_id CUDA device ordinal or -1 for the current device.
+   */
+  static size_t NVDECDecodersReconfigured(int device_id = -1);
+
+  /**
+   * @brief Destroys the cached NVDEC decoders that are not in use, e.g. to start from an empty
+   *        cache.
+   *
+   * @param device_id CUDA device ordinal or -1 for the current device.
+   */
+  static void NVDECDestroyUnusedDecoders(int device_id = -1);
 
   /**
    * @brief Sends a packet to the NVDEC parser. Exceptions thrown by the parser callbacks are

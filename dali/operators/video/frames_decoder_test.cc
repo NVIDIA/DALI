@@ -230,6 +230,19 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
     decoder.nvdecode_state_->last_mapped = false;
   }
 
+  // The NVDEC decoder cache of the current device, for the tests of the path that it takes
+  static size_t NVDECDecodersCreated() {
+    return FramesDecoderGpu::NVDECDecodersCreated();
+  }
+
+  static size_t NVDECDecodersReconfigured() {
+    return FramesDecoderGpu::NVDECDecodersReconfigured();
+  }
+
+  static void NVDECDestroyUnusedDecoders() {
+    FramesDecoderGpu::NVDECDestroyUnusedDecoders();
+  }
+
  private:
   std::vector<uint8_t> frame_cpu_buffer_;
   DeviceBuffer<uint8_t> frame_gpu_buffer_;
@@ -1490,10 +1503,10 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheReusedForCroppedVideo) {
 
   // The first decoder may or may not be created, depending on what ran before.
   decode_first_frame();
-  size_t num_created = frame_dec_gpu_impl::NVDECDecodersCreated();
+  size_t num_created = NVDECDecodersCreated();
   // The decoder returned to the cache by the first one has to be reused.
   decode_first_frame();
-  EXPECT_EQ(frame_dec_gpu_impl::NVDECDecodersCreated(), num_created);
+  EXPECT_EQ(NVDECDecodersCreated(), num_created);
 }
 
 // A conversion that fails once the output surface is mapped (here: for an output type that it does
@@ -1513,20 +1526,18 @@ TEST_F(FramesDecoderGpuTest, SurfaceUnmappedAfterFailedConversion) {
       EXPECT_NE(std::string(e.what()).find("Unsupported type:"), std::string::npos) << e.what();
     }
   }
-  size_t num_created = frame_dec_gpu_impl::NVDECDecodersCreated();
+  size_t num_created = NVDECDecodersCreated();
   FramesDecoderGpu decoder(cfr_videos_paths_[0]);
   decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[0]);
   // the decoder was taken from the cache, where the failed conversions left it
-  EXPECT_EQ(frame_dec_gpu_impl::NVDECDecodersCreated(), num_created);
+  EXPECT_EQ(NVDECDecodersCreated(), num_created);
 }
 
 // When none of the cached decoders that were set up for the format of a stream is free, a larger
 // free one is reconfigured for it, instead of creating a decoder, which takes much longer (and
 // destroying one, when the cache is full). It has to decode the stream as a new decoder would.
 TEST_F(FramesDecoderGpuTest, DecoderCacheReconfiguresLargerDecoder) {
-  using frame_dec_gpu_impl::NVDECDecodersCreated;
-  using frame_dec_gpu_impl::NVDECDecodersReconfigured;
   // 800x600, coded as 800x608: the reconfigured decoder has to crop it
   std::string small_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
   // 1280x720
@@ -1571,9 +1582,6 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheReconfiguresLargerDecoder) {
 // read without output or a seek leaves behind. Reconfiguring it for another stream has to give the
 // same frames as a new decoder does, whatever was left behind.
 TEST_F(FramesDecoderGpuTest, DecoderCacheReconfigureAfterPartialReads) {
-  using frame_dec_gpu_impl::NVDECDecodersCreated;
-  using frame_dec_gpu_impl::NVDECDecodersReconfigured;
-  using frame_dec_gpu_impl::NVDECDestroyUnusedDecoders;
   // 800x600
   std::string small_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
   // 1280x720, with B-frames
@@ -1627,9 +1635,6 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheReconfigureAfterPartialReads) {
 // created instead and the small one stays in the cache. A failed reconfiguration would also end
 // with a created decoder, but it would drop the small one, so the cache is checked as well.
 TEST_F(FramesDecoderGpuTest, DecoderCacheDoesNotReconfigureSmallerDecoder) {
-  using frame_dec_gpu_impl::NVDECDecodersCreated;
-  using frame_dec_gpu_impl::NVDECDecodersReconfigured;
-  using frame_dec_gpu_impl::NVDECDestroyUnusedDecoders;
   // 800x600
   std::string small_path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
   // 1280x720
@@ -1691,9 +1696,6 @@ TEST_F(FramesDecoderGpuTest, DecoderCacheDoesNotReconfigureSmallerDecoder) {
 // is destroyed instead of going back to the cache, where another stream could take it right away.
 // The map is made to fail here with a picture index that the NVDEC decoder does not have.
 TEST_F(FramesDecoderGpuTest, DecoderDiscardedWhenLastPictureMapFails) {
-  using frame_dec_gpu_impl::NVDECDecodersCreated;
-  using frame_dec_gpu_impl::NVDECDecodersReconfigured;
-  using frame_dec_gpu_impl::NVDECDestroyUnusedDecoders;
   std::string path = make_string(testing::dali_extra_path(), "/db/video/cfr/test_2.mp4");
   auto open_and_read = [&]() {
     auto decoder = std::make_unique<FramesDecoderGpu>(path);
