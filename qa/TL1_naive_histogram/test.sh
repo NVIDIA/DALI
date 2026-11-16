@@ -10,6 +10,8 @@ do_once() {
 }
 
 test_body() {
+    # Build for the GPU the test runs on - the default architectures don't cover all GPUs
+    export CUDAARCHS=native
     pushd $(pwd)/docs/examples/custom_operations/custom_operator/naive_histogram
     (mkdir build && cd build && cmake .. && make -j"$(grep ^processor /proc/cpuinfo | wc -l)")
     ${python_new_invoke_test} test_naive_histogram

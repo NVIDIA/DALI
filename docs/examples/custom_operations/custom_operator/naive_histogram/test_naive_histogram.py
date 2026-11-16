@@ -62,9 +62,7 @@ def test_naive_histogram():
             img, hist = imgs.at(i), hists.at(i)
             # The kernel puts a pixel of value `v` into the bin `v % n_bins`.
             ref = np.bincount(img.ravel() % N_BINS, minlength=N_BINS)
-            assert np.array_equal(
-                hist, ref
-            ), f"Got histogram {hist}, expected {ref}."
+            np.testing.assert_array_equal(hist, ref)
     print(hists.as_array())
 
 
