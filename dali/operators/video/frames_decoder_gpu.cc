@@ -160,7 +160,7 @@ class NVDECCache {
           return;
         }
       }
-      DALI_FAIL("Cannot discard decoder that is not from the cache");
+      assert(!"Cannot discard decoder that is not from the cache");
     }
 
     size_t NumCreated() {
