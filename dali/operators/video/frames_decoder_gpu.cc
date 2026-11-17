@@ -1456,8 +1456,9 @@ bool FramesDecoderGpu::SupportsHevc() {
 
 bool FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec codec_type,
                                       cudaVideoChromaFormat chroma_format, int bit_depth) {
-  // cuvidGetDecoderCaps needs a current context: make sure the current device's primary context
-  // is current. DeviceGuard restores only the device (not the CUcontext) on exit.
+  // cuvidGetDecoderCaps needs a current context: cudaFree(nullptr) makes the primary context of the
+  // current device current if the thread has none. DeviceGuard restores the thread's previous
+  // CUcontext (none included) on exit.
   DeviceGuard dg;
   CUDA_CALL(cudaFree(nullptr));
   return frame_dec_gpu_impl::GetDecoderCaps(codec_type, chroma_format, bit_depth - 8).bIsSupported;
