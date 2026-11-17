@@ -1,16 +1,16 @@
-Object API
-==========
+Object API reference
+====================
 
 .. warning::
    The DALI TorchVision API is an experimental feature and is subject to change.
 
 This page documents the operator classes currently implemented in the DALI TorchVision API. They are
 drop-in replacements for their counterparts in :mod:`torchvision.transforms.v2`.
-For a general introduction, see :doc:`overview`. To add an operator that is not listed here,
-see :doc:`custom_operators`. For the functional counterparts, see :doc:`functional_api`.
+For a general introduction, see :doc:`../overview`. To add an operator that is not listed here,
+see :doc:`../custom_operators`. For the functional counterparts, see :doc:`../functional_api/index`.
 
 Every operator accepts the additional ``device`` argument (``"cpu"`` or ``"gpu"``).
-:class:`nvidia.dali.experimental.torchvision.Compose` additionally accepts ``batch_size`` and ``layout``, see :doc:`overview`.
+:class:`nvidia.dali.experimental.torchvision.Compose` additionally accepts ``batch_size`` and ``layout``, see :doc:`../dali_extensions`.
 
 
 .. currentmodule:: nvidia.dali.experimental.torchvision
