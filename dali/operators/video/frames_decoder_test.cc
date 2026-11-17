@@ -2944,6 +2944,23 @@ TEST_F(FramesDecoderGpuTest, MjpegRejectsFramesOfOtherSizeThanDeclared) {
   EXPECT_THROW(gpu_decoder.ReadNextFrame(frame_device.data()), std::runtime_error);
 }
 
+// NVDEC outputs a JPEG as YCbCr, so the JPEGs coded as RGB or with 4 components (CMYK, YCCK,
+// alpha) can't be decoded correctly on the GPU, whatever the GPU: they are rejected. 8-bit 4:2:0
+// is supported wherever MJPEG is.
+TEST_F(FramesDecoderGpuTest, MjpegOnlyYCbCrAndGrayscaleAreSupported) {
+  if (!FramesDecoderGpu::IsCodecSupported(AV_CODEC_ID_MJPEG, false))
+    GTEST_SKIP() << "NVDEC does not support JPEG on this GPU";
+  for (auto pix_fmt : {AV_PIX_FMT_GBRP, AV_PIX_FMT_GBRAP, AV_PIX_FMT_RGB24, AV_PIX_FMT_BGR24,
+                       AV_PIX_FMT_ABGR, AV_PIX_FMT_YUVA444P, AV_PIX_FMT_YUVA420P, AV_PIX_FMT_YA8,
+                       AV_PIX_FMT_PAL8}) {
+    EXPECT_FALSE(FramesDecoderGpu::IsStreamSupported(AV_CODEC_ID_MJPEG, pix_fmt))
+        << av_get_pix_fmt_name(pix_fmt);
+  }
+  EXPECT_TRUE(FramesDecoderGpu::IsStreamSupported(AV_CODEC_ID_MJPEG, AV_PIX_FMT_YUVJ420P));
+  EXPECT_EQ(FramesDecoderGpu::IsStreamSupported(AV_CODEC_ID_MJPEG, AV_PIX_FMT_GRAY8),
+            FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_Monochrome));
+}
+
 TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
   // DALI-4918: decodes every frame of an MJPEG file, and compares it against the CPU backend.
   // The GPU work of a JPEG decode is ordered with the legacy default stream, which the color
