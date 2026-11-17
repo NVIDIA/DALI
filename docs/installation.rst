@@ -68,7 +68,9 @@ Nightly and Weekly Builds
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Nightly builds are available for CUDA 12 and CUDA 13. There is also a weekly release channel with
-more thorough testing, available only for CUDA 13.
+more thorough testing, available only for CUDA 13. Both are hosted on
+``https://developer.download.nvidia.com/compute/redist/<channel>`` as ``nvidia-dali-<channel>-cudaXXX``,
+where ``<channel>`` is ``nightly`` or ``weekly``.
 
 .. note::
 
@@ -119,8 +121,9 @@ To build DALI yourself, follow :doc:`compilation`. This is the only way to get D
 Older Versions
 --------------
 
-Each DALI release is built separately for each supported CUDA version. To install a specific version, pick the package for
-your CUDA version from the tables below and pin the version, for example:
+Each DALI release is built separately for each supported CUDA version and published on
+``https://developer.download.nvidia.com/compute/redist``. To install a specific version, pick the package
+for your CUDA version from the table below and pin the version, for example:
 
 .. code-block:: bash
 
@@ -129,8 +132,6 @@ your CUDA version from the tables below and pin the version, for example:
        nvidia-dali-cuda110==1.50.0
 
 A CUDA version written as ``13.x`` means the package runs on any CUDA 13 minor version.
-
-Packages on PyPI:
 
 .. list-table::
    :header-rows: 1
@@ -144,17 +145,8 @@ Packages on PyPI:
    * - 12.x
      - 1.22.0 and later
      - ``nvidia-dali-cuda120``
-
-Packages on ``https://developer.download.nvidia.com/compute/redist``:
-
-.. list-table::
-   :header-rows: 1
-
-   * - CUDA
-     - DALI versions
-     - Package
    * - 11.x
-     - 0.23.0 to 1.50.0 (1.16.0 and later also on PyPI)
+     - 0.23.0 to 1.50.0
      - ``nvidia-dali-cuda110``
    * - 10.2
      - 1.4.0 to 1.21.0
@@ -182,4 +174,4 @@ For DALI 0.22.0 and earlier, the package is ``nvidia-dali``, with one index per 
      - ``https://developer.download.nvidia.com/compute/redist/cuda/9.0``
 
 The TensorFlow plugin follows the same pattern (``nvidia-dali-tf-plugin-cudaXXX``, or
-``nvidia-dali-tf-plugin`` for DALI 0.22.0 and earlier), in the same version as DALI.
+``nvidia-dali-tf-plugin`` for DALI 0.22.0 and earlier). Pin it to the same version as DALI.

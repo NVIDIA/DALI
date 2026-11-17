@@ -50,7 +50,7 @@
 
 <noscript>
   <p>To install DALI with pip for CUDA 13 (use <code>nvidia-dali-cuda120</code> for CUDA 12):</p>
-  <div class="highlight-bash notranslate"><div class="highlight"><pre>pip install nvidia-dali-cuda130</pre></div></div>
+  <div class="highlight-bash notranslate"><div class="highlight"><pre>pip install --upgrade nvidia-dali-cuda130</pre></div></div>
 </noscript>
 
 <div id="dali-install" hidden>
@@ -149,7 +149,11 @@
       const final = finalContainers[s.framework];
       const tag = final ? final.tag : latestTags[s.framework];
       return {
-        command: formatCommand("docker run --gpus all -it --rm", `nvcr.io/nvidia/${s.framework}:${tag}`),
+        command: formatCommand(
+          "docker run --gpus all -it --rm",
+          "--ipc=host --ulimit memlock=-1 --ulimit stack=67108864",
+          `nvcr.io/nvidia/${s.framework}:${tag}`,
+        ),
         note: final ? `Final release of this container. It ships DALI ${final.dali}. ${about.docker}`
                     : `DALI is preinstalled. ${about.docker}`,
       };
@@ -161,7 +165,7 @@
     const pkg = `nvidia-dali${plugin}${channel}-${cuda}`;
     const parts = prerelease
       ? ["pip install", `--extra-index-url https://developer.download.nvidia.com/compute/redist/${s.release}`, `--upgrade ${pkg}`]
-      : ["pip install", pkg];
+      : ["pip install", `--upgrade ${pkg}`];
     const notes = [];
     if (prerelease) notes.push("Uninstall stable DALI first.");
     if (s.tf === "yes") {
@@ -224,7 +228,8 @@
     fetch(`/deeplearning/frameworks/${framework}-release-notes/index.html`)
       .then((response) => response.text())
       .then((html) => {
-        const releases = [...html.matchAll(/rel-(\d\d)-(\d\d)\.html/g)].map((m) => `${m[1]}.${m[2]}`);
+        const pattern = new RegExp(`${framework}-release-notes/rel-(\\d\\d)-(\\d\\d)\\.html`, "g");
+        const releases = [...html.matchAll(pattern)].map((m) => `${m[1]}.${m[2]}`);
         if (releases.length) {
           latestTags[framework] = releases.sort().pop() + "-py3";
           render();
