@@ -104,7 +104,7 @@ TEST(TarSizeParsing, FullFieldWithoutTerminatorIsBounded) {
   struct {
     char size[12];
     char mtime[12];
-  } fields;
+  } fields = {};
   std::memset(fields.size, '7', sizeof(fields.size));
   std::memset(fields.mtime, '7', sizeof(fields.mtime));
   EXPECT_EQ(ParseTarSize(fields.size), (uint64_t(1) << 36) - 1);
