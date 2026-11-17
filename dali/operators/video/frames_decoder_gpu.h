@@ -447,11 +447,20 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   cudaStream_t stream_ = 0;
 
-  // JPEG only: NVDEC decodes JPEG pictures in stream order with the legacy default stream, and
-  // cuvidMapVideoFrame doesn't order output_stream after that. Before mapping a picture,
-  // stream_ waits for this event, recorded on the legacy default stream (see
-  // HandlePictureDisplay).
-  CUDAEvent legacy_stream_event_;
+  // JPEG only, one per decode surface (CUVIDPICPARAMS::CurrPicIdx). The GPU work of a JPEG decode
+  // is ordered with the legacy default stream, and neither cuvidMapVideoFrame nor
+  // cuvidGetDecodeStatus waits for it (as observed; the API doesn't say). stream_ is non-blocking,
+  // so without a wait the color conversion can read a surface before it is written, and return a
+  // blank frame, e.g. when other work keeps the legacy default stream busy. Each event is recorded
+  // on the legacy default stream right after its picture is submitted for decoding, and stream_
+  // waits for it before the picture is mapped. Recorded then, and not when the picture is mapped,
+  // stream_ doesn't also wait for the work queued on the legacy default stream in between.
+  std::vector<CUDAEvent> jpeg_decoded_events_;
+
+  /// Records the event of the surface whose JPEG picture was just submitted for decoding
+  void RecordJpegDecoded(int surface_idx);
+  /// Makes stream_ wait for the decoding of the JPEG picture of the surface, before it is mapped
+  void WaitForJpegDecoded(int surface_idx);
 
   VideoColorSpaceConversionType conversion_type_ = VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB;
 
