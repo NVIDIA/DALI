@@ -42,4 +42,28 @@ DALI_SCHEMA(sub__sub__DeprecationWarningOp)
     .NumOutput(1)
     .Deprecate("1.0", "sub__sub__DeprecationWarningOp");
 
+// Dynamic mode hides operators deprecated in 2.0 or earlier, so the ones above never reach it.
+DALI_REGISTER_OPERATOR(DynDeprecationWarningOp, DeprecationWarningOp, CPU);
+
+DALI_SCHEMA(DynDeprecationWarningOp)
+    .DocStr("Operator for deprecation warnings.")
+    .NumInput(0)
+    .NumOutput(1)
+    .Deprecate("2.1", "", "Additional message");
+
+DALI_REGISTER_OPERATOR(sub__DynDeprecationWarningOp, DeprecationWarningOp, CPU);
+
+DALI_SCHEMA(sub__DynDeprecationWarningOp)
+    .DocStr("Operator for deprecation warnings.")
+    .NumInput(0)
+    .NumOutput(1)
+    .Deprecate("2.1", "sub__DynDeprecationReplacementOp", "Another message");
+
+DALI_REGISTER_OPERATOR(sub__DynDeprecationReplacementOp, DeprecationWarningOp, CPU);
+
+DALI_SCHEMA(sub__DynDeprecationReplacementOp)
+    .DocStr("Replacement for a deprecated test operator.")
+    .NumInput(0)
+    .NumOutput(1);
+
 }  // namespace dali

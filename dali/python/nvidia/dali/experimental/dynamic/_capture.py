@@ -668,13 +668,8 @@ class CaptureContext:
     ) -> CaptureNode | None:
         """Find a captured node matching this call."""
         node = self._call_trie.lookup(frame, op_class)
-        if node is None:
+        if node is None or device != node.device:
             return None
-        if device != node.device:
-            raise RuntimeError(
-                f"Captured operator was traced with device={node.device} but called with "
-                f"device={device}. Cannot change device in capture mode."
-            )
         if len(inputs) != len(node.inputs):
             return None
         if not all(self._matches(a, e) for a, e in zip(inputs, node.inputs)):
@@ -949,7 +944,8 @@ def _wire_capture_graph(
         if node.random_state_ref is not None:
             kw_nodes["_random_state"] = datanode_map[node.random_state_ref].cpu()
 
-        op = node.op_class._legacy_op(device=node.backend, **kw_scalars)
+        legacy_kwargs = {**node.op_class._legacy_op_kwargs(), **kw_scalars}
+        op = node.op_class._legacy_op(device=node.backend, **legacy_kwargs)
         out = op(*positional, **kw_nodes)
 
         if node.num_outputs == 1:
@@ -1036,14 +1032,11 @@ def _capture_intercept(
             _caller_frame=frame,
             **raw_kwargs,
         )
-        if not is_random:
-            can_capture = not op_class._is_stateful
-        else:
-            outputs = result if isinstance(result, tuple) else (result,)
-            can_capture = all(
-                isinstance(output, Batch) and output.batch_size == capture_ctx.batch_size
-                for output in outputs
-            )
+        outputs = result if isinstance(result, tuple) else (result,)
+        can_capture = (is_random or not op_class._is_stateful) and all(
+            isinstance(output, Batch) and output.batch_size == capture_ctx.batch_size
+            for output in outputs
+        )
         node = (
             capture_ctx.record(
                 frame, op_class, inputs, graph_kwargs, result, backend=backend, device=device

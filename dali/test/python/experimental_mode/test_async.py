@@ -16,7 +16,7 @@ import threading
 
 import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
-from ndd_utils import cuda_launch_host_func
+from ndd_utils import cuda_launch_host_func, gc_disabled
 from nose2.tools import params
 
 
@@ -82,18 +82,20 @@ def test_eager_parallelism():
 
     start_event = threading.Event()
     cuda_stream = ndd.stream()
-    cuda_launch_host_func(cuda_stream, wait_event)
+    with gc_disabled(cuda_stream):
+        cuda_launch_host_func(cuda_stream, wait_event)
 
-    started = False
-    with ndd.EvalMode.eager, ndd.EvalContext(cuda_stream=cuda_stream):
-        a = ndd.tensor([1, 2, 3], device="gpu")
-        b = ndd.tensor([4, 5, 6], device="gpu")
-        # if the execution was not parallel, this would need to wait for the callback to be called
-        # TODO(rtabet): find a way to reliably distinguish from lazy execution
-        c = a + b
-        start_event.set()
+        started = False
+        with ndd.EvalMode.eager, ndd.EvalContext(cuda_stream=cuda_stream):
+            a = ndd.tensor([1, 2, 3], device="gpu")
+            b = ndd.tensor([4, 5, 6], device="gpu")
+            # if the execution was not parallel, this would need to wait for the callback
+            # to be called
+            # TODO(rtabet): find a way to reliably distinguish from lazy execution
+            c = a + b
+            start_event.set()
 
-        c.evaluate()
+            c.evaluate()
 
-        np.testing.assert_array_equal(c.cpu(), [5, 7, 9])
-        assert started
+            np.testing.assert_array_equal(c.cpu(), [5, 7, 9])
+            assert started

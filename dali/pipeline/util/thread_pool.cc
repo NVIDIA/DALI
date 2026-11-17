@@ -15,6 +15,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <limits>
+#include <typeinfo>
 #include <utility>
 #include "dali/pipeline/util/thread_pool.h"
 #if NVML_ENABLED
@@ -153,8 +154,12 @@ void OldThreadPool::ThreadMain(int thread_id, int device_id, bool set_affinity,
       nvml::SetCPUAffinity(core);
     }
 #endif
+  } catch (const std::exception &e) {
+    DALI_WARN("Couldn't set thread affinity in thread ", thread_id, " of thread pool \"",
+              name, "\". Exception ", typeid(e).name(), ": ", e.what());
   } catch (...) {
-    tl_errors_[thread_id].push(std::current_exception());
+    DALI_WARN("Couldn't set thread affinity in thread ", thread_id, " of thread pool \"",
+              name, "\". Unknown error.");
   }
 
   while (running_) {

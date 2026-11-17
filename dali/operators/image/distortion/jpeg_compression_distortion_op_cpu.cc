@@ -425,12 +425,12 @@ void JpegCompressionDistortionCPU::DecodePass(size_t n_frames) {
   dec_out_img_handles_.resize(n_frames);
 
   for (size_t i = 0; i < n_frames; i++) {
-    dec_code_streams_[i] = imgcodec::NvImageCodecCodeStream::FromHostMem(
+    dec_code_streams_[i].ResetFromHostMem(
         instance_, encoded_buffers_[i].data(), encoded_buffers_[i].size());
     dec_code_stream_handles_[i] = dec_code_streams_[i];
 
     auto out_info = MakeRgbU8ImageInfo(frames_[i].out_ptr, frames_[i].width, frames_[i].height);
-    dec_out_imgs_[i] = imgcodec::NvImageCodecImage::Create(instance_, &out_info);
+    dec_out_imgs_[i].Reset(instance_, &out_info);
     dec_out_img_handles_[i] = dec_out_imgs_[i];
   }
 

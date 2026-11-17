@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 #include "dali/test/dali_test.h"
 #include "dali/test/dali_test_config.h"
 #include "dali/operators/imgcodec/decoder_test_helper.h"
+#include "dali/operators/imgcodec/util/convert_utils.h"
 
 namespace dali {
 namespace imgcodec {
@@ -359,6 +360,93 @@ TEST_F(ConvertOrientationTest, FlipY) {
   });
 }
 
+// Regression test for ConvertCPU with a signed source: the color-conversion coefficients/biases
+// are calibrated for a non-negative channel, so negative inputs must be clamped to 0
+// (clamp_color_input in color_space_conversion_impl.h) instead of running the color math
+// directly on the raw signed value - giving the same results as ConvertGPU, which normalizes to
+// Out first.
+class ConvertSignedSourceTest : public ::testing::Test {
+ protected:
+  Tensor<CPUBackend> Convert(const std::vector<int8_t> &rgb, DALIImageType out_format,
+                              int out_channels) {
+    TensorShape<> in_shape{1, 1, 3};
+    ConstSampleView<CPUBackend> in_view(rgb.data(), in_shape, DALI_INT8);
+    Tensor<CPUBackend> out;
+    out.Resize(TensorShape<>{1, 1, out_channels}, DALI_UINT8);
+    SampleView<CPUBackend> out_view(out.raw_mutable_data(), out.shape(), out.type());
+    ConvertCPU(out_view, "HWC", out_format, in_view, "HWC", DALI_RGB, {});
+    return out;
+  }
+};
+
+TEST_F(ConvertSignedSourceTest, AchromaticRgbToGrayMatchesNormalizedInput) {
+  // For an achromatic pixel (R == G == B), the gray formula's coefficients sum to exactly 1.0,
+  // so the correctly-converted gray value must equal the plain range-normalized input, regardless
+  // of the color-conversion math. Before the fix, ConvertCPU ran that math on the raw *signed*
+  // int8 value instead of first normalizing it to the output's [0, 255] range, so a negative
+  // sample produced wildly wrong, unclamped output instead of this simple identity.
+  for (int8_t v : {int8_t{-128}, int8_t{-1}, int8_t{0}, int8_t{1}, int8_t{127}}) {
+    auto out = Convert({v, v, v}, DALI_GRAY, 1);
+    uint8_t expected = ConvertSatNorm<uint8_t>(v);
+    EXPECT_EQ(*out.data<uint8_t>(), expected) << "v=" << static_cast<int>(v);
+  }
+}
+
+TEST_F(ConvertSignedSourceTest, RgbToGrayMatchesJpegFormulaOnNormalizedInput) {
+  // Non-achromatic case: the expected value is computed independently from the normalized
+  // (ConvertSatNorm) RGB values using the standard JPEG luma weights, rather than re-using the
+  // color conversion code.
+  std::vector<int8_t> rgb = {int8_t{-128}, int8_t{0}, int8_t{127}};
+  auto out = Convert(rgb, DALI_GRAY, 1);
+  float r = ConvertSatNorm<uint8_t>(rgb[0]);
+  float g = ConvertSatNorm<uint8_t>(rgb[1]);
+  float b = ConvertSatNorm<uint8_t>(rgb[2]);
+  uint8_t expected = ConvertSat<uint8_t>(0.299f * r + 0.587f * g + 0.114f * b);
+  EXPECT_EQ(*out.data<uint8_t>(), expected);
+}
+
+// The precision reported by a codec (e.g. TIFF BitsPerSample) includes the sign bit for signed
+// types, which PositiveBitsFromPrecision accounts for.
+TEST(DynamicRangeScaling, FullWidthSignedSourceIsNotScaled) {
+  for (auto dtype : {DALI_INT8, DALI_INT16, DALI_INT32, DALI_INT64}) {
+    int bits = 8 * TypeTable::GetTypeInfo(dtype).size();
+    int precision = PositiveBitsFromPrecision(bits, dtype);
+    EXPECT_EQ(precision, bits - 1) << dtype;
+    EXPECT_FALSE(NeedDynamicRangeScaling(precision, dtype)) << dtype;
+  }
+}
+
+TEST(DynamicRangeScaling, FullWidthUnsignedSourceIsNotScaled) {
+  for (auto dtype : {DALI_UINT8, DALI_UINT16, DALI_UINT32, DALI_UINT64}) {
+    int bits = 8 * TypeTable::GetTypeInfo(dtype).size();
+    int precision = PositiveBitsFromPrecision(bits, dtype);
+    EXPECT_EQ(precision, bits) << dtype;
+    EXPECT_FALSE(NeedDynamicRangeScaling(precision, dtype)) << dtype;
+  }
+}
+
+TEST(DynamicRangeScaling, ReducedPrecisionSignedSourceIsScaled) {
+  // 12 bits in an int16 container: 11 magnitude bits scaled to 15
+  int precision = PositiveBitsFromPrecision(12, DALI_INT16);
+  EXPECT_EQ(precision, 11);
+  ASSERT_TRUE(NeedDynamicRangeScaling(precision, DALI_INT16));
+  EXPECT_DOUBLE_EQ(DynamicRangeMultiplier(precision, DALI_INT16), 32767.0 / 2047.0);
+  // 4 bits in an int8 container
+  precision = PositiveBitsFromPrecision(4, DALI_INT8);
+  EXPECT_EQ(precision, 3);
+  ASSERT_TRUE(NeedDynamicRangeScaling(precision, DALI_INT8));
+  EXPECT_DOUBLE_EQ(DynamicRangeMultiplier(precision, DALI_INT8), 127.0 / 7.0);
+}
+
+TEST(DynamicRangeScaling, UnknownOrSingleBitPrecisionIsUnchanged) {
+  EXPECT_EQ(PositiveBitsFromPrecision(0, DALI_INT16), 0);
+  EXPECT_EQ(PositiveBitsFromPrecision(1, DALI_INT16), 1);
+}
+
+TEST(DynamicRangeScaling, FloatingPointPrecisionIsUnchanged) {
+  // floating point types are "signed" too, but have no sign bit to account for
+  EXPECT_EQ(PositiveBitsFromPrecision(32, DALI_FLOAT), 32);
+}
 
 }  // namespace test
 }  // namespace imgcodec

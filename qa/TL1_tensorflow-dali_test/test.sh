@@ -5,6 +5,7 @@ do_once() {
     if [ $($topdir/qa/setup_packages.py -n -u tensorflow-gpu --cuda ${CUDA_VERSION}) = -1 ]; then
         exit 0
     fi
+    check_required_paths ${IMAGENET_DIR}/train-val-tfrecord-small
     mkdir -p idx-files/
 
     # Use path returned by pip show pip and append nvidia/cusolver/lib/ to it
@@ -79,9 +80,9 @@ do_once() {
     perl -0777 -i -pe 's{namespace stream_executor\s*\{\s*namespace gpu\s*\{\s*GpuStreamHandle AsGpuStreamValue\(Stream\*\s*stream\);\s*\}[^\n]*\n\s*\}[^\n]*\n}{}g' horovod/tensorflow/mpi_ops.cc && \
     pip install --no-build-isolation . && cd .. && rm -rf horovod*
 
-    for file in $(ls /data/imagenet/train-val-tfrecord-small);
+    for file in $(ls ${IMAGENET_DIR}/train-val-tfrecord-small);
     do
-        python ../../../../../tools/tfrecord2idx /data/imagenet/train-val-tfrecord-small/${file} \
+        python ../../../../../tools/tfrecord2idx ${IMAGENET_DIR}/train-val-tfrecord-small/${file} \
             idx-files/${file}.idx &
     done
     wait
@@ -97,7 +98,7 @@ test_body() {
     # test code
     mpiexec --allow-run-as-root --bind-to none -np ${NUM_GPUS} \
         python -u resnet.py \
-        --data_dir=/data/imagenet/train-val-tfrecord-small --data_idx_dir=idx-files/ \
+        --data_dir=${IMAGENET_DIR}/train-val-tfrecord-small --data_idx_dir=idx-files/ \
         --precision=fp16 --num_iter=100  --iter_unit=batch --display_every=50 \
         --batch=64 --use_xla --dali_mode="GPU" --log_dir=./
 }

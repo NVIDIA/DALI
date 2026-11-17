@@ -52,7 +52,7 @@ bool AllOutputsGPU(const OpSpec &spec) {
 
 // TODO(michalz): Remove this part to pipeline.cc.
 void CheckOpConstraints(const OpSpec &spec) {
-  const OpSchema &schema = SchemaRegistry::GetSchema(spec.SchemaName());
+  const OpSchema &schema = spec.GetSchema();
 
   const int additional_outputs = schema.CalculateAdditionalOutputs(spec);
 

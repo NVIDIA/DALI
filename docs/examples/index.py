@@ -17,6 +17,7 @@ from doc_index import doc, doc_entry, op_reference
 doc(
     title="Examples and Tutorials",
     entries=[
+        "running_examples.rst",
         doc_entry(
             "general/data_loading/index.py",
             [

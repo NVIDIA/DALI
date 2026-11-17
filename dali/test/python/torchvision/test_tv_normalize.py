@@ -23,7 +23,15 @@ from PIL import Image
 import torch
 import torchvision.transforms.v2 as transforms
 
-from nvidia.dali.experimental.torchvision import Normalize, Compose
+from nvidia.dali.experimental.torchvision import (
+    Normalize,
+    Compose,
+    PILToTensor,
+    RandomApply,
+    RandomHorizontalFlip,
+    RandomVerticalFlip,
+    ToPureTensor,
+)
 from nvidia.dali.experimental.torchvision.v2.functional import normalize
 
 
@@ -132,19 +140,96 @@ def test_mean_std_sequence_lengths_match_channels(mean, std):
 )
 def test_mismatched_mean_or_std_length_raises(mean, std):
     x = make_sample_tensor()
+    tv_message = "*The size of tensor a*must match the size of tensor b*"
     norm = transforms.Normalize(mean=mean, std=std)
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob=tv_message):
         _ = norm(x)
 
     dnorm = Compose([Normalize(mean=mean, std=std)])
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="*Can't broadcast shapes*"):
         _ = dnorm(x)
 
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob="*Can't broadcast shapes*"):
         _ = normalize(x, mean, std)
 
-    with assert_raises(RuntimeError):
+    with assert_raises(RuntimeError, glob=tv_message):
         _ = transforms.functional.normalize(x, mean, std)
+
+
+def _test_std_can_expand_single_channel_input(device, mean, std):
+    # Torchvision divides in place, so std cannot expand (1, H, W) into (3, H, W) there.
+    # DALI does not divide in place, so std expands the channels just like mean does.
+    torch.manual_seed(1234)
+    x = torch.rand(1, 8, 8)
+    with assert_raises(RuntimeError, glob="*doesn't match the broadcast shape*"):
+        _ = transforms.Normalize(mean=mean, std=std)(x)
+    with assert_raises(RuntimeError, glob="*doesn't match the broadcast shape*"):
+        _ = transforms.functional.normalize(x, mean, std)
+    expected = (x - torch.tensor(mean)[:, None, None]) / torch.tensor(std)[:, None, None]
+    dout = Compose([Normalize(mean=mean, std=std, device=device)])(x)
+    fdout = normalize(x, mean, std, device=device)
+    assert dout.shape == fdout.shape == expected.shape == (3, 8, 8)
+    assert torch.allclose(dout.cpu(), expected, atol=1e-5)
+    assert torch.allclose(fdout.cpu(), expected, atol=1e-5)
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
+@params(
+    ([0.0], [1.0, 2.0, 3.0]),
+)
+def test_std_can_expand_single_channel_input_gpu(mean, std):
+    _test_std_can_expand_single_channel_input("gpu", mean, std)
+
+
+@params(
+    ([0.0], [1.0, 2.0, 3.0]),
+)
+def test_std_can_expand_single_channel_input_cpu(mean, std):
+    _test_std_can_expand_single_channel_input("cpu", mean, std)
+
+
+def _test_mean_can_expand_single_channel_input(device):
+    # Torchvision subtracts the mean out of place, so it can expand (1, H, W) into (3, H, W)
+    torch.manual_seed(1234)
+    x = torch.rand(1, 8, 8)
+    mean, std = [0.0, 0.5, 1.0], [2.0]
+    out = transforms.Normalize(mean=mean, std=std)(x)
+    fout = transforms.functional.normalize(x, mean, std)
+    dout = Compose([Normalize(mean=mean, std=std, device=device)])(x)
+    fdout = normalize(x, mean, std, device=device)
+    assert out.shape == fout.shape == dout.shape == fdout.shape == (3, 8, 8)
+    assert torch.allclose(dout.cpu(), out, atol=1e-5)
+    assert torch.allclose(fdout.cpu(), fout, atol=1e-5)
+
+
+def test_mean_can_expand_single_channel_input_cpu():
+    _test_mean_can_expand_single_channel_input("cpu")
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
+def test_mean_can_expand_single_channel_input_gpu():
+    _test_mean_can_expand_single_channel_input("gpu")
+
+
+def _test_single_value_mean_std_broadcast_over_channels(device):
+    x = make_sample_tensor()
+    mean, std = [0.5], [2.0]
+    out = transforms.Normalize(mean=mean, std=std)(x)
+    fout = transforms.functional.normalize(x, mean, std)
+    dout = Compose([Normalize(mean=mean, std=std, device=device)])(x)
+    fdout = normalize(x, mean, std, device=device)
+    assert out.shape == fout.shape == dout.shape == fdout.shape == x.shape
+    assert torch.allclose(dout.cpu(), out, atol=1e-5)
+    assert torch.allclose(fdout.cpu(), fout, atol=1e-5)
+
+
+@unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
+def test_single_value_mean_std_broadcast_over_channels_gpu():
+    _test_single_value_mean_std_broadcast_over_channels("gpu")
+
+
+def test_single_value_mean_std_broadcast_over_channels_cpu():
+    _test_single_value_mean_std_broadcast_over_channels("cpu")
 
 
 @params(
@@ -153,17 +238,18 @@ def test_mismatched_mean_or_std_length_raises(mean, std):
 )
 def test_std_must_be_non_zero(mean, std):
     x = make_sample_tensor()
+    tv_message = "*std evaluated to zero*"
     norm = transforms.Normalize(mean=mean, std=std)
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob=tv_message):
         _ = norm(x)
 
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob="*Std must not be 0*"):
         _ = Compose([Normalize(mean=mean, std=std)])
 
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob="*Std must not be 0*"):
         _ = normalize(x, mean, std)
 
-    with assert_raises(ValueError):
+    with assert_raises(ValueError, glob=tv_message):
         _ = transforms.functional.normalize(x, mean, std)
 
 
@@ -193,17 +279,14 @@ def test_non_tensor_input_not_supported():
     # not a valid tensor but it works in torchvision
     # with assert_raises(TypeError):
     #    _ = norm([[1.0, 2.0], [3.0, 4.0]])
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*Normalize() does not support PIL images*"):
         _ = norm(im)
-    """
-    Because of how it is implemented the Normalize allows PIL Image input
     dnorm = Compose([Normalize(mean=[0.5], std=[0.5])])
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*Normalize does not support PIL images*"):
         _ = dnorm(im)
-    """
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*supports inputs of type*but got*PIL.Image.Image*"):
         _ = transforms.functional.normalize(im, [0.5], [0.5])
-    with assert_raises(TypeError):
+    with assert_raises(TypeError, glob="*Data should be Tensor*"):
         _ = normalize(im, [0.5], [0.5])
 
 
@@ -320,3 +403,54 @@ def test_different_std_per_channel_cpu():
 @unittest.skipUnless(torch.cuda.is_available(), "CUDA is not available")
 def test_different_std_per_channel_gpu():
     _test_different_std_per_channel("gpu")
+
+
+def test_pil_input_rejected_only_by_operators_without_pil_support():
+    img = Image.fromarray(np.zeros((6, 6, 3), dtype=np.uint8))
+    assert isinstance(Compose([RandomHorizontalFlip(p=1.0)])(img), Image.Image)
+    # the check happens before the pipeline is built, on every Compose instance
+    with assert_raises(TypeError, glob="*Normalize does not support PIL images*"):
+        Compose([RandomHorizontalFlip(p=1.0), Normalize([0.5] * 3, [0.2] * 3)])(img)
+
+
+def test_pil_input_rejected_inside_random_apply():
+    img = Image.fromarray(np.zeros((6, 6, 3), dtype=np.uint8))
+    normalize_op = Normalize([0.5] * 3, [0.2] * 3)
+    for ops in (
+        [RandomApply([normalize_op], p=1.0)],
+        [RandomApply([RandomApply([normalize_op], p=1.0)], p=1.0)],
+    ):
+        with assert_raises(TypeError, glob="*Normalize does not support PIL images*"):
+            Compose(ops)(img)
+    # wrapped operators that support PIL images pass the check
+    out = Compose([RandomApply([RandomHorizontalFlip(p=1.0)], p=1.0)])(img)
+    assert isinstance(out, Image.Image)
+
+
+@params(
+    (PILToTensor, False),
+    (PILToTensor, True),
+    (ToPureTensor, False),
+    (ToPureTensor, True),
+)
+def test_normalize_after_pil_to_tensor(to_tensor, wrap_flips_in_random_apply):
+    """Transformations on a PIL image, a conversion to a tensor and then Normalize, which does not
+    support PIL images: the conversion makes the pipeline valid."""
+    rng = np.random.default_rng(1234)
+    img = Image.fromarray(rng.integers(0, 256, (6, 8, 3), dtype=np.uint8))
+    mean, std = [0.5, 0.4, 0.3], [0.2, 0.3, 0.4]
+
+    flips = [RandomHorizontalFlip(p=1.0), RandomVerticalFlip(p=1.0)]
+    if wrap_flips_in_random_apply:
+        flips = [RandomApply(flips, p=1.0)]
+    out = Compose([*flips, to_tensor(), Normalize(mean=mean, std=std)])(img)
+
+    # torchvision's Normalize accepts only floating point tensors, while this one also takes the
+    # uint8 tensor of the conversion and normalizes its values (in [0, 255]) as they are
+    flipped = transforms.functional.vflip(transforms.functional.hflip(img))
+    expected = transforms.functional.normalize(
+        transforms.functional.pil_to_tensor(flipped).float(), mean, std
+    )
+    assert isinstance(out, torch.Tensor)
+    assert out.dtype == torch.float32 and out.shape == expected.shape == (3, 6, 8)
+    assert torch.allclose(out, expected, atol=1e-3), f"Diff: {(out - expected).abs().max()}"

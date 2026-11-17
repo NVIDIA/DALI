@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import copy
+from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any, SupportsInt, Union
 
 import numpy as np
@@ -23,7 +24,7 @@ import nvidia.dali.types
 from nvidia.dali._typing import TensorLike
 
 from . import _call_site, _eval_mode, _invocation, _stream
-from ._arithmetic import _arithm_op
+from ._arithmetic import _arithm_op, transparent_arithmetic
 from ._device import Device, DeviceLike
 from ._device import device as _device
 from ._eval_context import EvalContext as _EvalContext
@@ -124,6 +125,7 @@ def _array_from_python(data, dtype=None):
     return arr, converted_dtype_id
 
 
+@transparent_arithmetic
 class Tensor:
     """A Tensor object.
 
@@ -549,6 +551,19 @@ class Tensor:
         with _EvalContext.current():
             return np.array(self.cpu().evaluate()._storage).item()
 
+    def __bool__(self) -> bool:
+        """
+        Returns the truth value of the only element in the tensor.
+
+        Only tensors with exactly one element (regardless of shape) can be converted to ``bool``.
+        """
+        if self.size != 1:
+            raise ValueError(
+                f"The truth value of a tensor with {self.size} elements is ambiguous. "
+                "Only tensors with exactly one element can be converted to `bool`."
+            )
+        return bool(self.item())
+
     def __array__(self, dtype: Any | None = None, copy: bool | None = None):
         b = self.evaluate()._storage
         if isinstance(b, _backend.TensorCPU):
@@ -783,6 +798,30 @@ def _is_index(r: Any) -> bool:
     return not isinstance(r, slice) and r is not Ellipsis
 
 
+def _subscript_kwargs(ranges: Sequence[Any], data: "Tensor | Batch") -> dict[str, Any]:
+    """
+    Map subscript ranges to the arguments of ``_tensor_subscript``.
+    Range components are forwarded as-is, so source analysis can pass CST nodes.
+    """
+    args = {}
+    d = 0
+    for i, r in enumerate(ranges):
+        if r is Ellipsis:
+            d = data.ndim - len(ranges) + i + 1
+        elif isinstance(r, slice):
+            if r.start is not None:
+                args[f"lo_{d}"] = r.start
+            if r.stop is not None:
+                args[f"hi_{d}"] = r.stop
+            if r.step is not None:
+                args[f"step_{d}"] = r.step
+            d += 1
+        else:
+            args[f"at_{d}"] = r
+            d += 1
+    return args
+
+
 def _clamp(value: int, lo: int, hi: int) -> int:
     return max(lo, min(value, hi))
 
@@ -872,6 +911,7 @@ class TensorSlice:
                 j += skip
             else:
                 j += 1  # skip this dimension
+        layout += input_layout[j:]  # dimensions not covered by the ranges are kept
         self._layout = layout
         return self._layout
 
@@ -977,26 +1017,9 @@ class TensorSlice:
             if all(_is_full_slice(r) for r in self._ranges):
                 return self._tensor
 
-            args = {}
-            d = 0
-            for i, r in enumerate(self._ranges):
-                if r is Ellipsis:
-                    d = self._tensor.ndim - len(self._ranges) + i + 1
-                elif isinstance(r, slice):
-                    if r.start is not None:
-                        args[f"lo_{d}"] = r.start
-                    if r.stop is not None:
-                        args[f"hi_{d}"] = r.stop
-                    if r.step is not None:
-                        args[f"step_{d}"] = r.step
-                    d += 1
-                else:
-                    args[f"at_{d}"] = r
-                    d += 1
-
             from . import _tensor_subscript
 
-            return _tensor_subscript(self._tensor, **args)
+            return _tensor_subscript(self._tensor, **_subscript_kwargs(self._ranges, self._tensor))
 
     def evaluate(self):
         return self._run().evaluate()

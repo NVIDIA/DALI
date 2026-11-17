@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,13 +23,16 @@ extern "C" {
 #include <libavcodec/bsf.h>
 }
 
+#include <algorithm>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
 #include "dali/core/boundary.h"
 #include "dali/core/common.h"
 #include "dali/core/span.h"
+#include "dali/core/stream.h"
 #include "dali/core/tensor_shape.h"
 #include "dali/core/unique_handle.h"
 #include "dali/pipeline/data/types.h"
@@ -42,12 +45,30 @@ struct IndexEntry {
   int last_keyframe_id;
   bool is_keyframe;
   bool is_flush_frame;
+  // Position of the frame's packet in decoding order, counting all the packets of the stream,
+  // also those decoded but not shown (e.g. hidden by an edit list); -1 if unknown
+  int decode_idx = -1;
+  // For a frame that SeekFrame seeks to (the last keyframe of some frame): the decoding position
+  // of the packet where a seek to its timestamp lands (see AvSeekFrame); -1 otherwise or if unknown
+  int seek_decode_idx = -1;
+  // For a keyframe: how many leading pictures it has (shown before it, decoded after it), which
+  // with FrameIndex::decode_order_timestamps are the frames right after it; -1 if unknown
+  int leading_pictures = -1;
 };
 
 struct FrameIndex {
   std::string filename;
   std::vector<IndexEntry> index;
   AVRational timebase;
+  /**
+   * @brief The timestamps of the stream follow the order of its packets, not the order in which
+   * its pictures are shown (see FramesDecoderBase::HasDecodeOrderTimestamps).
+   *
+   * Frame i is then the picture shown i-th, which the decoder finds by the parser's display order,
+   * and the frames that a keyframe's leading pictures (shown before it, decoded after it) take are
+   * not known (see FramesDecoderBase::SeekTarget).
+   */
+  bool decode_order_timestamps = false;
 
   size_t size() const {
     return index.size();
@@ -64,7 +85,27 @@ struct FrameIndex {
   }
 
   /**
+   * @brief Position of frame i's packet in decoding order.
+   *
+   * Without decoding order (e.g. a hand-built index), the frames are assumed in decoding order.
+   */
+  int DecodeIdx(int i) const {
+    return index[i].decode_idx >= 0 ? index[i].decode_idx : i;
+  }
+
+  /**
+   * @brief Decoding position where a seek to frame i starts, for a frame that SeekFrame seeks to.
+   *
+   * If unknown, the seek is assumed to start at the frame itself.
+   */
+  int SeekDecodeIdx(int i) const {
+    return index[i].seek_decode_idx >= 0 ? index[i].seek_decode_idx : DecodeIdx(i);
+  }
+
+  /**
    * @brief Returns the index of the frame that has the given timestamp
+   *
+   * The entries must be sorted by pts, which BuildIndex guarantees.
    *
    * @param timestamp Timestamp of the frame to seek to
    * @param rounddown If true, the seek will be to a frame that has this timestamp or a previous one
@@ -72,26 +113,29 @@ struct FrameIndex {
   int GetFrameIdxByTimestamp(int64_t timestamp, bool rounddown = false) const {
     LOG_LINE << "GetFrameIdxByTimestamp: timestamp=" << timestamp << ", rounddown=" << rounddown
              << ", index_size=" << index.size() << std::endl;
-    int frame_idx = 0;
-    for (size_t i = 0; i < index.size(); i++) {
-      if (index[i].pts == timestamp) {
-        LOG_LINE << "Exact match found at index " << i << std::endl;
-        frame_idx = i;
-        break;
-      } else if (index[i].pts > timestamp) {
-        LOG_LINE << "Frame " << i << " with pts=" << index[i].pts << " is the first frame past the timestamp" << std::endl;
-        if (rounddown && i > 0) {
-          LOG_LINE << "Round down mode: previous frame " << i - 1 << " with pts=" << index[i - 1].pts << " is the last frame before the timestamp" << std::endl;
-          frame_idx = i - 1;
-        } else {
-          LOG_LINE << "Round up mode: frame " << i << " with pts=" << index[i].pts << " is the first frame past the timestamp" << std::endl;
-          frame_idx = i;
-        }
-        break;
-      }
+    // The first frame with pts >= timestamp
+    auto it = std::lower_bound(index.begin(), index.end(), timestamp,
+                               [](const IndexEntry &e, int64_t ts) { return e.pts < ts; });
+    int frame_idx = 0;  // returned when the timestamp is past the last frame
+  #if LOGS_ENABLED
+    std::optional<int64_t> pts_found = {};
+  #endif
+    if (it != index.end()) {
+      frame_idx = it - index.begin();
+      if (it->pts > timestamp && rounddown && frame_idx > 0)
+        frame_idx--;
+    #if LOGS_ENABLED
+      pts_found = index[frame_idx].pts;
+    #endif
     }
     assert(frame_idx >= 0 && frame_idx < static_cast<int>(index.size()));
-    LOG_LINE << "Returning frame_idx=" << frame_idx << std::endl;
+  #if LOGS_ENABLED
+    if (pts_found) {
+      LOG_LINE << "Returning frame_idx=" << frame_idx << " with pts=" << *pts_found << std::endl;
+    } else {
+      LOG_LINE << "Returning frame_idx=" << frame_idx << " (frame not found)" << std::endl;
+    }
+  #endif
     return frame_idx;
   }
 };
@@ -177,7 +221,11 @@ class DLL_PUBLIC FramesDecoderBase {
   /**
    * @brief Initialize the decoder from a file.
    *
-   * @param filename Path to a video file.
+   * Local paths (with no scheme or with the ``file://`` scheme) are opened directly by
+   * libavformat. URLs with any other scheme (e.g. ``s3://``, ``gs://``) are opened with
+   * FileStream::Open and read through the InputStream interface.
+   *
+   * @param filename Path or URL of a video file.
    * @param image_type Image type of the video.
    */
   explicit FramesDecoderBase(const std::string &filename, DALIImageType image_type = DALI_RGB);
@@ -191,6 +239,17 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   explicit FramesDecoderBase(const char *memory_file, size_t memory_file_size,
                              std::string_view source_info = {}, DALIImageType image_type = DALI_RGB);
+
+  /**
+   * @brief Initialize the decoder from an input stream.
+   *
+   * @param stream Stream with video file data; the decoder takes ownership of it.
+   *               The stream must cover the entire video file, including the header.
+   * @param source_info Source information for the video file.
+   */
+  explicit FramesDecoderBase(std::unique_ptr<InputStream> stream,
+                             std::string_view source_info = {},
+                             DALIImageType image_type = DALI_RGB);
 
   /**
    * @brief Number of frames in the video. It returns 0, if this information is unavailable.
@@ -263,6 +322,97 @@ class DLL_PUBLIC FramesDecoderBase {
   virtual void SeekFrame(int frame_id);
 
   /**
+   * @brief Seeking forward by at most this many frames decodes through them instead of seeking.
+   *
+   * With an index, a decoder also decodes through to any later frame that has the same last
+   * keyframe as its next frame (see SeekFrame).
+   */
+  static constexpr int kMinimumSeekLeap = 10;
+
+  /**
+   * @brief The most frames that the leading pictures of a keyframe can take, in an index with
+   *        FrameIndex::decode_order_timestamps that does not know them (see
+   *        IndexEntry::leading_pictures).
+   *
+   * Leading pictures are decoded after the keyframe but shown before it, so they wait for it in
+   * the decoded picture buffer, which holds at most 16 pictures in H.264 and HEVC.
+   */
+  static constexpr int kMaxLeadingPictures = 16;
+
+  /**
+   * @brief The keyframe that SeekFrame seeks to, to return `frame` from a decoder (with an index)
+   * whose next frame is `next_frame`, or -1 if it decodes through to it.
+   *
+   * It decodes through when `frame` is ahead of `next_frame`, by at most kMinimumSeekLeap or with
+   * a last keyframe not before the seek target. Otherwise, also for any `frame` before
+   * `next_frame`, it seeks to the last keyframe of `frame`. SeekFrame and
+   * AddDecodeWork both take this decision from here, so the estimate cannot drift from it.
+   *
+   * With FrameIndex::decode_order_timestamps, the frames right after a keyframe may be the
+   * pictures that lead it: shown before it, but decoded after it from pictures before it (as many
+   * as IndexEntry::leading_pictures, or fewer than kMaxLeadingPictures if unknown). A decoder that
+   * starts at the keyframe does not decode those, so it seeks to the keyframe before.
+   *
+   * @param next_frame The decoder's next frame, in range: past the end, SeekFrame resets first.
+   */
+  static int SeekTarget(const FrameIndex &index, int next_frame, int frame);
+
+  /**
+   * @brief Where a decoder is, for estimating its work: the frame it returns next (as
+   * NextFrameIdx, -1 after the last one) and the decoding position of the last picture it
+   * decoded (-1: none).
+   */
+  struct DecodePosition {
+    int next_frame = 0;
+    int decoded = -1;
+  };
+
+  /**
+   * @brief Estimated work of a decoder: the pictures it goes through (those it
+   * decodes and those it leaves out) and the times it reopens the file.
+   *
+   * A picture is a packet of the stream (see IndexEntry::decode_idx). The GPU decoder goes through
+   * more than one picture for a packet that holds several, e.g. a VP9 superframe with a hidden
+   * frame, or the two fields of an interlaced frame (see DecodedPictures).
+   */
+  struct DecodeWork {
+    int64_t pictures = 0;
+    int64_t reopens = 0;
+  };
+
+  /**
+   * @brief The position of a decoder that read the frames up to `next_frame - 1` in a row.
+   *
+   * It has decoded the pictures of the frames read, and nothing after them. `next_frame` out of
+   * range is the position after the last frame.
+   *
+   * For a decoder that seeked to reach `next_frame - 1`, this is an approximation: it also counts
+   * the leading pictures of an open GOP before the seek target (at most those of one GOP), which
+   * such a decoder may not have decoded.
+   */
+  static DecodePosition PositionAt(const FrameIndex &index, int next_frame);
+
+  /**
+   * @brief Adds the work of returning `frame` from `pos` and advances `pos`.
+   *
+   * Follows SeekFrame (through SeekTarget) and ReadNextFrame, counting the pictures gone through
+   * (decoded_pictures_ + not_decoded_pictures_), also the hidden ones (see IndexEntry::decode_idx),
+   * and a Reset as a reopening. A `frame` out of range (e.g. -1, a constant frame from HandleBoundary) is not
+   * decoded: it adds nothing and leaves `pos` as it is. Not modelled: a failed av_seek_frame
+   * (after which every seek resets the decoder), and the RASL pictures of an HEVC CRA, which are
+   * counted after a seek to it although a decoder skips them there (they reference pictures
+   * before the seek).
+   *
+   * The CPU decoder accepts only codecs without frame reordering (VP8, VP9, MJPEG, see
+   * FramesDecoderCpu::SelectVideoStream), where the estimate is exact. If it ever accepted a
+   * codec with reordering (e.g. H.264), libavcodec could need packets beyond a frame's own
+   * position before it returns the frame (its decoder delay), and the CPU would decode more than
+   * estimated.
+   */
+  static void AddDecodeWork(const FrameIndex &index, DecodePosition &pos, int frame,
+                            DecodeWork &work);
+
+  /**
    * @brief Handles boundary conditions for a given frame index.
    *
    * @param boundary_type The boundary type to apply.
@@ -270,8 +420,8 @@ class DLL_PUBLIC FramesDecoderBase {
    * @param roi_start The start of the region of interest.
    * @param roi_end The end of the region of interest.
    */
-  int HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
-                     int roi_start, int roi_end);
+  static int HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
+                            int roi_start, int roi_end);
 
   /**
    * @brief Decodes a collection of frames, not necessarily in ascending order, applying a boundary type
@@ -378,6 +528,12 @@ class DLL_PUBLIC FramesDecoderBase {
   }
 
   void SetIndex(const FrameIndex& index) {
+    // sorted by timestamp, as BuildIndex makes it (the GPU decoder searches it). Checked in release
+    // builds too: an unsorted index makes the decoder drop frames it should read.
+    if (!std::is_sorted(index.index.begin(), index.index.end(),
+                        [](const IndexEntry &a, const IndexEntry &b) { return a.pts < b.pts; })) {
+      throw std::invalid_argument("The frame index must be sorted by timestamp.");
+    }
     index_ = index;
     num_frames_ = index.size();
   }
@@ -387,7 +543,7 @@ class DLL_PUBLIC FramesDecoderBase {
   FramesDecoderBase& operator=(FramesDecoderBase&&) = default;
 
   std::string Filename() {
-    return filename_.size() ? filename_ : "memory file";
+    return filename_.size() ? filename_ : input_stream_ ? "input stream" : "memory file";
   }
 
   bool IsValid() {
@@ -396,6 +552,27 @@ class DLL_PUBLIC FramesDecoderBase {
 
   void SetOutputType(DALIDataType dtype) {
     dtype_ = dtype;
+  }
+
+  /**
+   * @brief Number of pictures decoded so far (for tests and diagnostics).
+   *
+   * The CPU decoder counts the packets it sends to FFmpeg, the GPU decoder the pictures that
+   * NVDEC decodes: more than the packets when a packet holds several pictures (see DecodeWork).
+   * The pictures that the GPU decoder does not decode at all are not counted (see
+   * not_decoded_pictures_); DecodeWork estimates both.
+   */
+  int64_t DecodedPictures() const {
+    return decoded_pictures_;
+  }
+
+  /**
+   * @brief Number of times the file was opened again by Reset (for tests and diagnostics).
+   *
+   * Includes the resets done after counting frames or building the index.
+   */
+  int64_t Reopens() const {
+    return reopens_;
   }
 
  protected:
@@ -409,6 +586,18 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   virtual bool SelectVideoStream(int stream_id = -1);
 
+  /**
+   * @brief Whether the timestamps of the selected stream follow the order of its packets, which is
+   *        not the order in which its pictures are shown.
+   *
+   * AVI stores no presentation timestamps: the demuxer stamps each packet with its position in the
+   * stream (as pts and dts for MPEG-4 Part 2, as dts only for H.264 and HEVC). With a codec that
+   * reorders pictures, that is the decoding order: also for DivX packed B-frames, once the decoder
+   * unpacks them (mpeg4_unpack_bframes moves each B-frame to the next packet, which keeps its
+   * timestamp).
+   */
+  bool HasDecodeOrderTimestamps() const;
+
   AVUniquePtr<AVFormatContext> ctx_;
   AVUniquePtr<AVCodecContext> codec_ctx_;
   AVUniquePtr<AVFrame> frame_;
@@ -419,6 +608,7 @@ class DLL_PUBLIC FramesDecoderBase {
 
   int OpenFile(const std::string& filename);
   int OpenMemoryFile(MemoryVideoFile& memory_video_file);
+  int OpenInputStream(InputStream& stream);
 
   FrameIndex index_;
 
@@ -430,25 +620,119 @@ class DLL_PUBLIC FramesDecoderBase {
   // False when the file doesn't have any correct content or doesn't have a valid video stream
   bool is_valid_ = false;
 
+  int64_t decoded_pictures_ = 0;  // see DecodedPictures
+  int64_t reopens_ = 0;  // see Reopens
+  // The pictures that the GPU decoder goes through without decoding: H.264 non-reference pictures
+  // that are never read with their pixels (see FramesDecoderGpu::ShouldDecodePicture). The CPU
+  // decoder decodes every picture: 0. Together with decoded_pictures_, the pictures that DecodeWork
+  // estimates. Read by tests through FramesDecoderTestAccess.
+  int64_t not_decoded_pictures_ = 0;
+
+  /**
+   * @brief The frames read with their data next, in order, when known: DecodeFrames sets those it
+   * has yet to read and SeekFrame the one it seeks to. Empty: any frame may be read.
+   *
+   * A frame decoded on the way to them that is not one of them is only skipped.
+   */
+  span<const int> frames_to_read_;
+
+  /**
+   * @brief Declares the frames read with their data next (frames_to_read_) for the lifetime of the
+   *        object, and clears the declaration when the outermost scope ends.
+   *
+   * A scope created while another one is alive (SeekFrame called by DecodeFrames) leaves the
+   * declaration of the outer one alone. The frames passed to Declare must outlive the scope.
+   */
+  class FramesToReadScope {
+   public:
+    explicit FramesToReadScope(FramesDecoderBase &decoder)
+    : decoder_(decoder), outermost_(decoder.frames_to_read_.empty()) {}
+
+    ~FramesToReadScope() {
+      if (outermost_)
+        decoder_.frames_to_read_ = {};
+    }
+
+    FramesToReadScope(const FramesToReadScope &) = delete;
+    FramesToReadScope &operator=(const FramesToReadScope &) = delete;
+
+    void Declare(span<const int> frames) {
+      if (outermost_)
+        decoder_.frames_to_read_ = frames;
+    }
+
+   private:
+    FramesDecoderBase &decoder_;
+    bool outermost_;
+  };
+
  private:
+  friend struct FramesDecoderTestAccess;  // reads the counters of the pictures (in tests)
+
   void DetectVariableFrameRate();
 
   bool CheckDimensions();
 
   void ParseNumFrames();
 
+  /**
+   * @brief Returns the error that made av_read_frame return `ret`, or 0 at the end of the file.
+   */
+  int ReadFrameError(int ret) const;
+
   bool IsFormatSeekable();
 
   std::string GetAllStreamInfo() const;
+
+  /**
+   * @brief Opens the format context with custom I/O, reading through the provided callbacks.
+   */
+  int OpenCustomIO(void *opaque,
+                   int (*read_packet)(void *opaque, uint8_t *buf, int buf_size),
+                   int64_t (*seek)(void *opaque, int64_t offset, int whence),
+                   int buffer_size);
 
   int channels_ = 3;
   bool is_vfr_ = false;
 
   std::string filename_ = {};
   std::unique_ptr<MemoryVideoFile> memory_video_file_;
+  std::unique_ptr<InputStream> input_stream_;
 
   int num_frames_ = -1;
   bool can_seek_ = true;  // at first, we assume that the video is seekable
+};
+
+/**
+ * @brief Reads the frame index of a video file, without decoding it.
+ *
+ * It only demuxes the file: it has no codec context, parser or frame buffers, so it is much
+ * cheaper to create than a decoder. It is valid for the files whose container has a video stream.
+ * Whether a backend can decode the codec of that stream is up to the caller to check, for example
+ * with `Decoder::IsCodecSupported(indexer.CodecId())`.
+ */
+class DLL_PUBLIC FramesIndexer : public FramesDecoderBase {
+ public:
+  explicit FramesIndexer(const std::string &filename, DALIImageType image_type = DALI_RGB);
+
+  /**
+   * @brief Codec of the selected video stream. Only valid when IsValid().
+   */
+  AVCodecID CodecId() const {
+    return codec_params_->codec_id;
+  }
+
+  bool ReadNextFrame(uint8_t *data) override;
+
+  void CopyFrame(uint8_t *dst, const uint8_t *src) override;
+
+  void Flush() override {}
+
+  /**
+   * @brief Does nothing: the file is not read after it is indexed, so it is not reopened, as
+   *        FramesDecoderBase::BuildIndex does at its end.
+   */
+  void Reset() override {}
 };
 
 }  // namespace dali

@@ -93,11 +93,17 @@ class DLL_PUBLIC VideoDecoderBase : public Operator<Backend> {
   std::unique_ptr<FramesDecoderImpl> CreateDecoder(const char *data, size_t size, bool build_index,
                                                    std::string_view source_info,
                                                    cudaStream_t stream = 0) {
+    std::unique_ptr<FramesDecoderImpl> decoder;
     if constexpr (std::is_same_v<Backend, CPUBackend>) {
-      return std::make_unique<FramesDecoderImpl>(data, size, source_info);
+      decoder = std::make_unique<FramesDecoderImpl>(data, size, source_info);
     } else {
-      return std::make_unique<FramesDecoderImpl>(data, size, source_info, stream);
+      decoder = std::make_unique<FramesDecoderImpl>(data, size, source_info, stream);
     }
+    // The index is what hides the frames that an MP4 edit list excludes and what allows seeking
+    // to the keyframe before the requested frame. An invalid decoder is reported by the caller.
+    if (build_index && decoder->IsValid())
+      decoder->BuildIndex();
+    return decoder;
   }
 
   void AcquireArguments(const Workspace &ws, int batch_size) {

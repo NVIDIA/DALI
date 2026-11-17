@@ -3,6 +3,8 @@
 # enable compat for CUDA 13 if the test image doesn't support it yet
 source <(echo "set -x"; cat ../setup_test_common.sh; echo "set +x")
 
+check_required_paths ${IMAGENET_DIR}/train-val-tfrecord
+
 install_cuda_compat
 
 cd /opt/dali/docs/examples/use_cases/tensorflow/resnet-n
@@ -11,7 +13,7 @@ mkdir -p idx-files/
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
-DATA_SET_DIR=/data/imagenet/train-val-tfrecord
+DATA_SET_DIR=${IMAGENET_DIR}/train-val-tfrecord
 for file in $(ls $DATA_SET_DIR/*-of-*);
 do
     file=$(basename ${file})

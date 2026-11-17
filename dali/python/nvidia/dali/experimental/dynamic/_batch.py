@@ -25,10 +25,11 @@ if TYPE_CHECKING:
     from . import _invocation
 from . import _eval_mode, _stream as _stream_module
 from ._eval_context import EvalContext as _EvalContext
-from ._arithmetic import _arithm_op
+from ._arithmetic import _arithm_op, transparent_arithmetic
+from ._call_site import mark_transparent
 from ._device import Device, DeviceLike
 from ._device import device as _device
-from ._tensor import Tensor, _array_from_python, _is_full_slice
+from ._tensor import Tensor, _array_from_python, _is_full_slice, _subscript_kwargs
 from ._tensor import as_tensor as _as_tensor
 from ._tensor import tensor as _tensor
 from ._type import DType, DTypeLike
@@ -73,6 +74,7 @@ class BatchedSlice:
     def __init__(self, batch: "Batch"):
         self._batch = batch
 
+    @mark_transparent
     def __getitem__(self, ranges: Any) -> "Batch":
         if not isinstance(ranges, tuple):
             ranges = (ranges,)
@@ -82,26 +84,9 @@ class BatchedSlice:
         if all(_is_full_slice(r) for r in ranges):
             return self._batch
 
-        args = {}
-        d = 0
-        for i, r in enumerate(ranges):
-            if r is Ellipsis:
-                d = self._batch.ndim - len(ranges) + i + 1
-            elif isinstance(r, slice):
-                if r.start is not None:
-                    args[f"lo_{d}"] = r.start
-                if r.stop is not None:
-                    args[f"hi_{d}"] = r.stop
-                if r.step is not None:
-                    args[f"step_{d}"] = r.step
-                d += 1
-            else:
-                args[f"at_{d}"] = r
-                d += 1
-
         from . import _tensor_subscript
 
-        return _tensor_subscript(self._batch, **args)
+        return _tensor_subscript(self._batch, **_subscript_kwargs(ranges, self._batch))
 
 
 class _TensorList:
@@ -119,7 +104,7 @@ class _TensorList:
 
     def __init__(self, batch: "Batch", indices: list[int] | range | None = None):
         self._batch = batch
-        self._indices = indices or range(batch.batch_size)
+        self._indices = range(batch.batch_size) if indices is None else indices
 
     def __getitem__(self, selection: int | slice | list[int]):
         return self.select(selection)
@@ -141,7 +126,7 @@ class _TensorList:
         elif isinstance(selection, list):
             return _TensorList(self._batch, [self._indices[i] for i in selection])
         else:
-            return self._batch.select(selection)
+            return self._batch.select(self._indices[selection])
 
     def tolist(self):
         return [self._batch._get_tensor(i) for i in self._indices]
@@ -150,9 +135,13 @@ class _TensorList:
         """
         Converts the list of tensors to a :class:`Batch` object.
         """
+        if len(self._indices) == 0:
+            # an empty list carries no element type, take it from the source batch
+            return Batch([], dtype=self._batch.dtype, device=self._batch.device)
         return batch(self) if copy else as_batch(self)  # type: ignore
 
 
+@transparent_arithmetic
 class Batch:
     """A Batch object.
 
@@ -629,6 +618,12 @@ class Batch:
         """
         return iter(self.tensors)
 
+    def __bool__(self):
+        raise TypeError(
+            "A Batch cannot be converted to `bool`. "
+            "Use `batch_size` to check whether the batch is empty."
+        )
+
     def select(self, sample_range) -> "Batch | Tensor":
         """
         Selects a range of samples.
@@ -639,10 +634,11 @@ class Batch:
         r = sample_range
         if r is ...:
             return self
-        if isinstance(r, slice):
-            return Batch(self.tensors[r])
-        elif isinstance(r, list):
-            return Batch(self.tensors[r])
+        if isinstance(r, (slice, list)):
+            tensors = self.tensors[r]
+            if len(tensors) == 0:
+                return Batch([], dtype=self.dtype, device=self.device)
+            return Batch(tensors)
         else:
             return self._get_tensor(r)
 

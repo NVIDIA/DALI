@@ -329,6 +329,20 @@ def test_shape_slice_dim_removal():
 
 
 @eval_modes()
+def test_shape_slice_dim_removal_trailing_dims():
+    t = ndd.tensor(np.zeros((5, 6, 7), dtype=np.int32), layout="HWC")
+    s = t[0]
+    assert s.shape == (6, 7)
+    assert s.layout == "WC"
+    s = t[:, 0]
+    assert s.shape == (5, 7)
+    assert s.layout == "HC"
+    s = t[1:3, 0]
+    assert s.shape == (2, 7)
+    assert s.layout == "HC"
+
+
+@eval_modes()
 def test_shape_slice_multi_dim_removal():
     t = ndd.tensor(np.zeros((5, 6, 7, 10), dtype=np.int32))
     s = t[:-1, 0, -2:, 0]
@@ -523,3 +537,45 @@ def test_from_readonly_numpy_scalar():
     data.flags.writeable = False
     t = ndd.as_tensor(data).evaluate()
     assert int(np.array(t._storage)) == 42
+
+
+@eval_modes()
+@cartesian_params(
+    ("cpu", "gpu"),
+    (
+        (5, True),
+        (0, False),
+        ([-1], True),
+        ([[0.0]], False),
+        ([[[0.5]]], True),
+        (np.array(True), True),
+        (np.array([[False]]), False),
+    ),
+)
+def test_bool_single_element(device_type, data_and_expected):
+    data, expected = data_and_expected
+    t = ndd.tensor(data, device=device_type)
+    assert bool(t) is expected
+    assert (not t) is not expected
+
+
+@eval_modes()
+@params(("cpu",), ("gpu",))
+def test_bool_lazy_result(device_type):
+    t = ndd.tensor([[3]], device=device_type)
+    assert not (t - 3)
+    assert t + 1
+
+
+@eval_modes()
+@cartesian_params(
+    ("cpu", "gpu"),
+    (np.zeros((0,)), np.zeros((0, 1)), [1, 2], [[0], [0]], np.ones((2, 3))),
+)
+def test_bool_ambiguous(device_type, data):
+    t = ndd.tensor(data, device=device_type)
+    with assert_raises(ValueError, glob="*truth value*ambiguous*"):
+        bool(t)
+    with assert_raises(ValueError, glob="*truth value*ambiguous*"):
+        if t:
+            pass

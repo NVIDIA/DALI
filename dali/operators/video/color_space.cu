@@ -1,4 +1,4 @@
-// Copyright (c) 2022, 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022, 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,7 @@
 
 #include <cuda_runtime.h>
 #include "dali/core/static_switch.h"
+#include "dali/core/util.h"
 #include "dali/core/cuda_error.h"
 #include "dali/kernels/imgproc/sampler.h"
 #include "dali/kernels/imgproc/color_manipulation/color_space_conversion_impl.h"
@@ -23,7 +24,7 @@
 namespace dali {
 
 template <typename Out, VideoColorSpaceConversionType conversion_type, bool normalized_range = false>
-__global__ static void VideoColorSpaceConversionKernel(
+__global__ static void ConvertVideoColorSpaceKernel(
     Out *out, int out_pitch, const uint8_t *yuv, int yuv_pitch, int height, int width) {
     int halfx = (threadIdx.x + blockIdx.x * blockDim.x);
     int halfy = (threadIdx.y + blockIdx.y * blockDim.y);
@@ -45,6 +46,19 @@ __global__ static void VideoColorSpaceConversionKernel(
     auto Y = kernels::make_sampler<DALI_INTERP_NN>(Y_surf);
     auto UV = kernels::make_sampler<DALI_INTERP_LINEAR>(UV_surf);
 
+    // The conversions of floating point YCbCr subtract 1/16 from Y (limited range) and 1/2 from
+    // the chroma, that is 16/256 and 128/256. The 8-bit samples are therefore normalized by 256 and
+    // not 255, so that the offsets are 16 and 128, which is how ITU-R BT.601, BT.709 and H.273
+    // quantize YCbCr (both conversions use the BT.601 matrix). The RGB values are then in units of
+    // 1/256 too (the white of the stream is 255/256): they are scaled by 256 to 8-bit levels, or
+    // by 256/255 to [0, 1], where white is 1.0. The gains of the conversions are ratios, so they
+    // don't depend on the scale. The upsampled YCbCr is not converted: it is passed through as is,
+    // or normalized by 255.
+    constexpr bool to_rgb = conversion_type != VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE;
+    constexpr float in_scale = to_rgb ? 1.0f / 256 : 1.0f;
+    constexpr float out_scale = normalized_range ? (to_rgb ? 256.0f / 255 : 1.0f / 255)
+                                                 : (to_rgb ? 256.0f : 1.0f);
+
     #pragma unroll
     for (int i = 0; i < 2; i++) {
         float cy = halfy + i * 0.5f + 0.25f;
@@ -56,7 +70,7 @@ __global__ static void VideoColorSpaceConversionKernel(
 
             UV(&yuv_val[1], vec2(cx, cy), kernels::BorderClamp());
 
-            yuv_val *= 1.0f / 255.0f;
+            yuv_val *= in_scale;
 
             vec3 out_val;
             switch (conversion_type) {
@@ -66,18 +80,25 @@ __global__ static void VideoColorSpaceConversionKernel(
               case VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB:
                 out_val = dali::kernels::color::itu_r_bt_601::ycbcr_to_rgb<float>(yuv_val);
                 break;
+              case VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709_FULL_RANGE:
+                out_val = dali::kernels::color::itu_r_bt_709_full_range::ycbcr_to_rgb<float>(
+                    yuv_val);
+                break;
+              case VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709:
+                out_val = dali::kernels::color::itu_r_bt_709::ycbcr_to_rgb<float>(yuv_val);
+                break;
               case VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE:
                 out_val = yuv_val;
                 break;
               default:
                 assert(false);
             }
+            out_val *= out_scale;
             if (normalized_range) {
               output({x + j, y + i, 0}) = ConvertSatNorm<Out>(out_val.x);
               output({x + j, y + i, 1}) = ConvertSatNorm<Out>(out_val.y);
               output({x + j, y + i, 2}) = ConvertSatNorm<Out>(out_val.z);
             } else {
-              out_val *= 255.0f;
               output({x + j, y + i, 0}) = ConvertSat<Out>(out_val.x);
               output({x + j, y + i, 1}) = ConvertSat<Out>(out_val.y);
               output({x + j, y + i, 2}) = ConvertSat<Out>(out_val.z);
@@ -88,10 +109,12 @@ __global__ static void VideoColorSpaceConversionKernel(
 }
 
 template <typename Out>
-void VideoColorSpaceConversionImpl(Out *out, int out_pitch, const uint8_t *yuv, int yuv_pitch,
-                                   int height, int width, VideoColorSpaceConversionType conversion_type,
-                                   bool normalized_range, cudaStream_t stream) {
-    auto grid_layout = dim3((width + 63) / 32 / 2, (height + 3));
+void ConvertVideoColorSpaceImpl(Out *out, int out_pitch, const uint8_t *yuv, int yuv_pitch,
+                                int height, int width,
+                                VideoColorSpaceConversionType conversion_type,
+                                bool normalized_range, cudaStream_t stream) {
+    // A thread converts a 2x2 quad, so a block of 32x2 threads covers 64x4 pixels
+    auto grid_layout = dim3(div_ceil(width, 64), div_ceil(height, 4));
     auto block_layout = dim3(32, 2);
 
     BOOL_SWITCH(
@@ -99,25 +122,27 @@ void VideoColorSpaceConversionImpl(Out *out, int out_pitch, const uint8_t *yuv, 
         (VALUE_SWITCH(static_cast<int>(conversion_type), static_conversion_type, (
       VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB,
       VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_FULL_RANGE,
-      VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE), (
-        VideoColorSpaceConversionKernel<Out, static_conversion_type, static_normalized_range>
+      VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE,
+      VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709,
+      VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709_FULL_RANGE), (
+        ConvertVideoColorSpaceKernel<Out, static_conversion_type, static_normalized_range>
         <<<grid_layout, block_layout, 0, stream>>>(out, out_pitch, yuv, yuv_pitch, height, width);
         ), (DALI_FAIL("wrong value")));));
     CUDA_CALL(cudaGetLastError());
 }
 
-void VideoColorSpaceConversion(uint8_t *out, int out_pitch, const uint8_t *yuv, int yuv_pitch,
-                               int height, int width, VideoColorSpaceConversionType conversion_type,
-                               bool normalized_range, cudaStream_t stream) {
-  VideoColorSpaceConversionImpl(out, out_pitch, yuv, yuv_pitch, height, width, conversion_type,
-                                normalized_range, stream);
+void ConvertVideoColorSpace(uint8_t *out, int out_pitch, const uint8_t *yuv, int yuv_pitch,
+                            int height, int width, VideoColorSpaceConversionType conversion_type,
+                            bool normalized_range, cudaStream_t stream) {
+  ConvertVideoColorSpaceImpl(out, out_pitch, yuv, yuv_pitch, height, width, conversion_type,
+                             normalized_range, stream);
 }
 
-void VideoColorSpaceConversion(float *out, int out_pitch, const uint8_t *yuv, int yuv_pitch,
-                               int height, int width, VideoColorSpaceConversionType conversion_type,
-                               bool normalized_range, cudaStream_t stream) {
-  VideoColorSpaceConversionImpl(out, out_pitch, yuv, yuv_pitch, height, width, conversion_type,
-                                normalized_range, stream);
+void ConvertVideoColorSpace(float *out, int out_pitch, const uint8_t *yuv, int yuv_pitch,
+                            int height, int width, VideoColorSpaceConversionType conversion_type,
+                            bool normalized_range, cudaStream_t stream) {
+  ConvertVideoColorSpaceImpl(out, out_pitch, yuv, yuv_pitch, height, width, conversion_type,
+                             normalized_range, stream);
 }
 
 }  // namespace dali

@@ -471,8 +471,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
   }
 
   void ParseSample(ParsedSample &parsed_sample, span<const uint8_t> encoded) {
-    parsed_sample.encoded_stream =
-        NvImageCodecCodeStream::FromHostMem(instance_, encoded.data(), encoded.size());
+    // Reuse the code stream from the previous iteration instead of destroying and recreating it.
+    parsed_sample.encoded_stream.ResetFromHostMem(instance_, encoded.data(), encoded.size());
     parsed_sample.nvimgcodec_jpeg_info = nvimgcodecJpegImageInfo_t{
         NVIMGCODEC_STRUCTURE_TYPE_JPEG_IMAGE_INFO, sizeof(nvimgcodecJpegImageInfo_t), nullptr};
     parsed_sample.nvimgcodec_img_info =
@@ -496,6 +496,10 @@ class ImageDecoder : public StatelessOperator<Backend> {
     parsed_sample.orig_dtype = to_dali_dtype(sample_type);
     if (parsed_sample.orig_dtype == DALI_NO_TYPE)
       throw std::runtime_error(make_string("Invalid sample_type: ", sample_type));
+    if (!IsIntegral(parsed_sample.orig_dtype))
+      throw std::runtime_error(make_string(
+          "Decoding images with a floating point sample type (", parsed_sample.orig_dtype,
+          ") is not supported."));
   }
 
   ThreadPool *GetThreadPool(const Workspace &ws) {
@@ -512,8 +516,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
   bool version_at_least(int req_major, int req_minor, int req_patch) {
     int major = -1, minor = -1, patch = -1;
     get_nvimgcodec_version(&major, &minor, &patch);
-    return MAKE_SEMANTIC_VERSION(major, minor, patch) >=
-           MAKE_SEMANTIC_VERSION(req_major, req_minor, req_patch);
+    return NVIMGCODEC_MAKE_SEMANTIC_VERSION(major, minor, patch) >=
+           NVIMGCODEC_MAKE_SEMANTIC_VERSION(req_major, req_minor, req_patch);
   }
 
   /**
@@ -556,14 +560,25 @@ class ImageDecoder : public StatelessOperator<Backend> {
 
     st.image_info.cuda_stream = std::is_same<MixedBackend, Backend>::value ? ws.stream() : nullptr;
 
-    // At the moment we are not dealing with floating point outputs in nvimagecodec
+    // Floating point sources are rejected when the sample is parsed
     assert(IsIntegral(st.parsed_sample.orig_dtype));
 
     int precision = st.image_info.plane_info[0].precision;
-    if (precision == 0)
+    if (precision == 0) {
       precision = PositiveBits(st.parsed_sample.orig_dtype);
-    if (precision == 1 && st.parsed_sample.orig_dtype == DALI_UINT8)
+    } else if (precision == 1 && st.parsed_sample.orig_dtype == DALI_UINT8) {
       precision = 8;  // nvimgcodec produces at minimum uint8 dynamic range (0..255)
+    } else {
+      // `precision` reported by the source (e.g. TIFF BitsPerSample) is the raw bit width of the
+      // stored sample, which for a signed sample format already includes the sign bit, while
+      // PositiveBits() counts only the magnitude bits. Convert it to the same basis, otherwise
+      // a full-width signed source (the common case) is treated as if it used one bit less than
+      // its actual dynamic range and gets scaled down incorrectly. This assumes that a codec
+      // producing a signed type reports the precision including the sign bit.
+      // Note that the CPU backend does not apply `dyn_range_multiplier` yet (see the TODO in
+      // the conversion step below), so a reduced-precision source is decoded unscaled there.
+      precision = PositiveBitsFromPrecision(precision, st.parsed_sample.orig_dtype);
+    }
     bool need_dynamic_range_scaling =
         NeedDynamicRangeScaling(precision, st.parsed_sample.orig_dtype);
     st.dyn_range_multiplier = need_dynamic_range_scaling ?
@@ -706,14 +721,8 @@ class ImageDecoder : public StatelessOperator<Backend> {
           cs_view.region.start[1] = roi.begin[1];
           cs_view.region.end[0] = roi.end[0];
           cs_view.region.end[1] = roi.end[1];
-          nvimgcodecCodeStream_t sub_encoded_stream = st->sub_encoded_stream.get();
-          if (sub_encoded_stream) {  // reuses the code stream object
-            CHECK_NVIMGCODEC(nvimgcodecCodeStreamGetSubCodeStream(
-                st->parsed_sample.encoded_stream.get(), &sub_encoded_stream, &cs_view));
-          } else {
-            st->sub_encoded_stream = NvImageCodecCodeStream::FromSubCodeStream(
-                st->parsed_sample.encoded_stream.get(), &cs_view);
-          }
+          st->sub_encoded_stream.ResetFromSubCodeStream(
+              st->parsed_sample.encoded_stream.get(), &cs_view);
         }
         out_shape.set_tensor_shape(i, st->out_shape);
         PrepareOutput(*state_[i], rois_[i], ws);
@@ -767,12 +776,7 @@ class ImageDecoder : public StatelessOperator<Backend> {
         if (!st.need_processing) {
           st.image_info.buffer = output.raw_mutable_tensor(orig_idx);
         }
-        nvimgcodecImage_t image = st.image.get();
-        if (image) {  // reuses the image object
-          CHECK_NVIMGCODEC(nvimgcodecImageCreate(instance_, &image, &st.image_info));
-        } else {
-          st.image = NvImageCodecImage::Create(instance_, &st.image_info);
-        }
+        st.image.Reset(instance_, &st.image_info);
         if (has_roi) {
           batch_encoded_streams_.push_back(st.sub_encoded_stream);
         } else {

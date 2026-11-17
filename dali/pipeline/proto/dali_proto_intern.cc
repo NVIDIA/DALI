@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,24 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <stdexcept>
+
 #include "dali/core/common.h"
+#include "dali/core/format.h"
 #include "dali/pipeline/dali.pb.h"
 #include "dali/pipeline/proto/dali_proto_intern.h"
 
 namespace dali {
+namespace {
+void CheckIndex(const char *what, int index, int size, const string &arg_name) {
+  if (index < 0 || index >= size) {
+    throw std::out_of_range(make_string(
+        "Invalid ", what, " index ", index, " in argument \"", arg_name,
+        "\"; expected 0 <= index < ", size, "."));
+  }
+}
+}  // namespace
+
 
   DaliProtoPriv::DaliProtoPriv(dali_proto::Argument *const intern)
       : intern_(intern) {
@@ -81,6 +94,7 @@ namespace dali {
   }
 
   int64_t DaliProtoPriv::ints(int index) const {
+    CheckIndex("int value", index, intern_->ints_size(), name());
     return intern_->ints(index);
   }
 
@@ -90,6 +104,7 @@ namespace dali {
   }
 
   float DaliProtoPriv::floats(int index) const {
+    CheckIndex("float value", index, intern_->floats_size(), name());
     return intern_->floats(index);
   }
 
@@ -99,6 +114,7 @@ namespace dali {
   }
 
   bool DaliProtoPriv::bools(int index) const {
+    CheckIndex("bool value", index, intern_->bools_size(), name());
     return intern_->bools(index);
   }
 
@@ -108,6 +124,7 @@ namespace dali {
   }
 
   string DaliProtoPriv::strings(int index) const {
+    CheckIndex("string value", index, intern_->strings_size(), name());
     return intern_->strings(index);
   }
 
@@ -120,6 +137,7 @@ namespace dali {
   }
 
   DaliProtoPriv DaliProtoPriv::extra_args(int index) const {
+    CheckIndex("extra argument", index, intern_->extra_args_size(), name());
     DaliProtoPriv tmp(&(intern_->extra_args(index)));
     return tmp;
   }

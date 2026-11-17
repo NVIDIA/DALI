@@ -22,6 +22,8 @@ test_body() {
         "general/data_loading/numpy_reader/dynamic_mode.ipynb"
     )
 
+    check_required_paths /scratch
+
     # GDS can't read data from the Docker filesystem.
     # Here we are copying the relevant part of DALI_extra that we need to run the notebook
     # to a "real" filesystem. "/scratch" is assumed to be a mounted directory from the "real"

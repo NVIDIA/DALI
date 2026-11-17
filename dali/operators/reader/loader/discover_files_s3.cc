@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -49,19 +49,44 @@ std::vector<FileLabelEntry> s3_discover_files(const std::string &file_root,
   s3_filesystem::list_objects_f(
       S3ClientManager::Instance().client(), s3_object_location,
       [&](const std::string &object_key, size_t object_size) {
-        auto p = std::filesystem::relative(object_key, parent_object_key);
+        // lexically_relative(), not relative(): relative() is specified in terms of
+        // weakly_canonical(), which resolves against the real filesystem and the process
+        // CWD. These are S3 object keys, not local paths, so that both costs a batch of
+        // syscalls per object and can silently reject every key.
+        auto p = std::filesystem::path(object_key).lexically_relative(parent_object_key);
         auto path_elems = count_elems(p);
-        assert(path_elems >= 2);
-        if (path_elems > 2)
-          return;  // we only look at one subdir level
-        const auto& subdir = p.begin()->native();
-        const auto& fname = (++p.begin())->native();
-        bool subdir_ok = opts.dir_filters.empty();
+        // One subdir level at most. With label_from_subdir the label is the subdirectory, so only
+        // objects exactly one level below the prefix are samples. Without it there is no label to
+        // infer and objects directly under the prefix count too - which is what the local backend
+        // does by visiting "." as well as the subdirectories (see discover_files.cc). Readers
+        // built on FileLoader - numpy and fits among them - come through here with the flag off.
+        if (path_elems != 2 && !(path_elems == 1 && !opts.label_from_subdir))
+          return;
+        std::string subdir, fname;
+        if (path_elems == 2) {
+          subdir = p.begin()->native();
+          fname = (++p.begin())->native();
+        } else {
+          // The prefix's own directory marker relativizes to ".", which is one component with a
+          // non-empty name - otherwise indistinguishable from an object directly under it.
+          if (p.native() == ".")
+            return;
+          fname = p.native();
+        }
+        // S3 has no directories, but "Create folder" in the S3 console (and many other tools)
+        // makes a zero-byte object whose key ends with '/'. A trailing separator becomes an empty
+        // final component, so "<prefix>/class/" arrives here as ("class", "") - a directory, not
+        // a file.
+        if (fname.empty())
+          return;
+        // A file directly under the prefix has no subdirectory for dir_filters to match, and the
+        // local backend does not apply them to it either.
+        bool subdir_ok = subdir.empty() || opts.dir_filters.empty();
         bool fname_ok = opts.file_filters.empty();
         for (auto &filter : opts.dir_filters) {
           if (fnmatch(filter.c_str(), subdir.c_str(),
                       opts.case_sensitive_filter ? 0 : FNM_CASEFOLD) == 0) {
-            subdir_ok |= true;
+            subdir_ok = true;
             break;
           }
         }
@@ -69,7 +94,7 @@ std::vector<FileLabelEntry> s3_discover_files(const std::string &file_root,
         for (auto &filter : opts.file_filters) {
           if (fnmatch(filter.c_str(), fname.c_str(),
                       opts.case_sensitive_filter ? 0 : FNM_CASEFOLD) == 0) {
-            fname_ok |= true;
+            fname_ok = true;
             break;
           }
         }

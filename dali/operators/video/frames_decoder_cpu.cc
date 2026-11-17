@@ -14,12 +14,14 @@
 
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include <algorithm>
-#include <string>
-#include "dali/core/error_handling.h"
-#include "dali/core/tensor_view.h"
-#include "dali/kernels/transpose/transpose.h"
 #include <cstring>
 #include <iomanip>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <vector>
+#include "dali/core/error_handling.h"
+#include "dali/core/util.h"
 #include "dali/operators/video/video_utils.h"
 
 namespace dali {
@@ -31,6 +33,12 @@ FramesDecoderCpu::FramesDecoderCpu(const std::string &filename, DALIImageType im
 
 FramesDecoderCpu::FramesDecoderCpu(const char *memory_file, size_t memory_file_size, std::string_view source_info, DALIImageType image_type)
   : FramesDecoderBase(memory_file, memory_file_size, source_info, image_type) {
+  is_valid_ = is_valid_ && SelectVideoStream();
+}
+
+FramesDecoderCpu::FramesDecoderCpu(std::unique_ptr<InputStream> stream,
+                                   std::string_view source_info, DALIImageType image_type)
+  : FramesDecoderBase(std::move(stream), source_info, image_type) {
   is_valid_ = is_valid_ && SelectVideoStream();
 }
 
@@ -68,25 +76,47 @@ bool FramesDecoderCpu::ReadNextFrame(uint8_t *data) {
 }
 
 
-void PlanarToInterleaved(uint8_t *output, const uint8_t *input, int64_t height, int64_t width, int64_t channels) {
-  std::array<int, 3> perm = {1, 2, 0};
-  TensorView<StorageCPU, uint8_t> output_view{output, {height, width, channels}};
-  TensorView<StorageCPU, const uint8_t> input_view{input, {channels, height, width}};
-  kernels::TransposeGrouped(output_view, input_view, make_cspan(perm));
+void PlanarToInterleaved(uint8_t *output, const uint8_t *input, int64_t height, int64_t width,
+                         int64_t row_stride) {
+  const int64_t plane_stride = height * row_stride;
+  for (int64_t y = 0; y < height; y++) {
+    const uint8_t *p0 = input + y * row_stride;
+    const uint8_t *p1 = p0 + plane_stride;
+    const uint8_t *p2 = p1 + plane_stride;
+    uint8_t *dst = output + y * width * 3;
+    for (int64_t x = 0; x < width; x++) {
+      dst[3 * x + 0] = p0[x];
+      dst[3 * x + 1] = p1[x];
+      dst[3 * x + 2] = p2[x];
+    }
+  }
 }
 
 void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
+  // The output buffer and conversion context use the dimensions from the container.
+  // Decoded frames must agree with them before we convert or write any pixels.
+  if (frame_->width != Width() || frame_->height != Height()) {
+    throw std::runtime_error(
+        make_string("Decoded frame dimensions (", frame_->width, "x", frame_->height,
+                    ") do not match the video dimensions (", Width(), "x", Height(),
+                    ") in ", Filename(), "."));
+  }
   uint8_t *sws_output_data = data;
   AVPixelFormat sws_output_format = AV_PIX_FMT_RGB24;
+  int row_stride = Width() * Channels();
+  int64_t plane_stride = 0;
+  if (image_type_ == DALI_YCbCr) {
+    sws_output_format = AV_PIX_FMT_YUV444P;
+    row_stride = align_up(Width(), 32);
+    plane_stride = static_cast<int64_t>(row_stride) * Height();
+  }
   if (image_type_ == DALI_YCbCr || Width() % 32) {
     // in some cases, when Width() % 32, sws_scale go past the provided memory for
     // conversion output, so we need the memory allocated with extra padding
     auto extra_padding = 32;
-    tmp_buffer_.resize(FrameSize() + extra_padding);
+    auto buffer_size = image_type_ == DALI_YCbCr ? plane_stride * Channels() : FrameSize();
+    tmp_buffer_.resize(buffer_size + extra_padding);
     sws_output_data = tmp_buffer_.data();
-    if (image_type_ == DALI_YCbCr) {
-      sws_output_format = AV_PIX_FMT_YUV444P;
-    }
   }
   if (!sws_ctx_) {
     sws_ctx_ = std::unique_ptr<SwsContext, decltype(&sws_freeContext)>(
@@ -107,13 +137,27 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
   bool src_full_range = frame_->color_range == AVCOL_RANGE_JPEG ||
                         (frame_->color_range == AVCOL_RANGE_UNSPECIFIED &&
                          codec_params_->color_range == AVCOL_RANGE_JPEG);
-  if (sws_src_full_range_ != src_full_range) {
+  // The matrix that the stream says it uses (BT.709 for most HD video); otherwise, BT.601.
+  // It matters only when converting to RGB: YCbCr output is a copy of the decoded planes, which
+  // must not be converted to another matrix (the destination one is BT.601).
+  AVColorSpace src_colorspace = frame_->colorspace != AVCOL_SPC_UNSPECIFIED
+                                    ? frame_->colorspace
+                                    : codec_params_->color_space;
+  int sws_colorspace = (image_type_ == DALI_RGB && src_colorspace == AVCOL_SPC_BT709)
+                           ? SWS_CS_ITU709
+                           : SWS_CS_DEFAULT;
+  // RGB output is conventionally full-range (0-255). YCbCr output keeps the source's range
+  // (limited/"TV" sources stay limited, full-range sources stay full), like the GPU backend,
+  // which only upsamples chroma for YCbCr (YUV_UPSAMPLE), and the legacy reader. Forcing either
+  // range here would systematically shift YCbCr values relative to both (DALI-4916).
+  bool dst_full_range = image_type_ == DALI_YCbCr ? src_full_range : true;
+  if (sws_src_full_range_ != src_full_range || sws_src_colorspace_ != sws_colorspace) {
     int ret = sws_setColorspaceDetails(
       sws_ctx_.get(),
-      sws_getCoefficients(SWS_CS_DEFAULT),
+      sws_getCoefficients(sws_colorspace),
       src_full_range,
       sws_getCoefficients(SWS_CS_DEFAULT),
-      1,
+      dst_full_range,
       0,
       1 << 16,
       1 << 16);
@@ -121,10 +165,17 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
                  make_string("Could not set color space conversion details: ",
                              av_error_string(ret)));
     sws_src_full_range_ = src_full_range;
+    sws_src_colorspace_ = sws_colorspace;
   }
 
   uint8_t *dest[4] = {sws_output_data, nullptr, nullptr, nullptr};
-  int dest_linesize[4] = {frame_->width * Channels(), 0, 0, 0};
+  int dest_linesize[4] = {row_stride, 0, 0, 0};
+  if (image_type_ == DALI_YCbCr) {
+    // YUV444P writes three separately padded planes before interleaving them.
+    dest[1] = sws_output_data + plane_stride;
+    dest[2] = sws_output_data + 2 * plane_stride;
+    dest_linesize[1] = dest_linesize[2] = row_stride;
+  }
 
   LOG_LINE << "Converting frame data to format " << (sws_output_format == AV_PIX_FMT_RGB24 ? "RGB" : "YUV") << std::endl;
   int ret = sws_scale(
@@ -136,15 +187,15 @@ void FramesDecoderCpu::CopyToOutput(uint8_t *data) {
     dest,
     dest_linesize);
 
+  DALI_ENFORCE(ret >= 0,
+               make_string("Could not convert frame data: ", av_error_string(ret)));
+
   if (image_type_ == DALI_YCbCr) {
     LOG_LINE << "Converting planar YUV to interleaved" << std::endl;
-    PlanarToInterleaved(data, sws_output_data, Height(), Width(), Channels());
+    PlanarToInterleaved(data, sws_output_data, Height(), Width(), row_stride);
   } else if (Width() % 32) {
     std::copy(sws_output_data, sws_output_data + FrameSize(), data);
   }
-
-  DALI_ENFORCE(ret >= 0,
-               make_string("Could not convert frame data: ", av_error_string(ret)));
 }
 
 bool FramesDecoderCpu::ReadRegularFrame(uint8_t *data) {
@@ -163,6 +214,7 @@ bool FramesDecoderCpu::ReadRegularFrame(uint8_t *data) {
     ret = avcodec_send_packet(codec_ctx_, packet.get());
     DALI_ENFORCE(ret >= 0,
                  make_string("Failed to send packet to decoder: ", av_error_string(ret)));
+    decoded_pictures_++;
 
     ret = avcodec_receive_frame(codec_ctx_, frame_);
     if (ret == AVERROR(EAGAIN)) {
@@ -229,6 +281,41 @@ void FramesDecoderCpu::Reset() {
   flush_state_ = false;
 }
 
+namespace {
+
+constexpr std::array<AVCodecID, 3> kCpuCodecs = {
+  AVCodecID::AV_CODEC_ID_VP8,
+  AVCodecID::AV_CODEC_ID_VP9,
+  AVCodecID::AV_CODEC_ID_MJPEG,
+  // Those are not supported by our compiled version of libavcodec,
+  // AVCodecID::AV_CODEC_ID_AV1,
+  // AVCodecID::AV_CODEC_ID_MPEG4,
+  // AVCodecID::AV_CODEC_ID_H264,
+  // AVCodecID::AV_CODEC_ID_HEVC,
+};
+
+}  // namespace
+
+bool FramesDecoderCpu::IsCodecSupported(AVCodecID codec_id, bool warn) {
+  if (std::find(kCpuCodecs.begin(), kCpuCodecs.end(), codec_id) == kCpuCodecs.end()) {
+    if (warn)
+      DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
+                            ") is not supported by the CPU variant of this operator."));
+    return false;
+  }
+
+  return avcodec_find_decoder(codec_id) != nullptr;
+}
+
+std::vector<AVCodecID> FramesDecoderCpu::SupportedCodecs() {
+  std::vector<AVCodecID> supported;
+  for (AVCodecID codec_id : kCpuCodecs) {
+    if (IsCodecSupported(codec_id, false))
+      supported.push_back(codec_id);
+  }
+  return supported;
+}
+
 bool FramesDecoderCpu::SelectVideoStream(int stream_id) {
   if (!FramesDecoderBase::SelectVideoStream(stream_id)) {
     return false;
@@ -236,30 +323,12 @@ bool FramesDecoderCpu::SelectVideoStream(int stream_id) {
 
   assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
   assert(codec_params_);
-  AVCodecID codec_id = codec_params_->codec_id;
-
-  static constexpr std::array<AVCodecID, 3> codecs = {
-    AVCodecID::AV_CODEC_ID_VP8,
-    AVCodecID::AV_CODEC_ID_VP9,
-    AVCodecID::AV_CODEC_ID_MJPEG,
-    // Those are not supported by our compiled version of libavcodec,
-    // AVCodecID::AV_CODEC_ID_AV1,
-    // AVCodecID::AV_CODEC_ID_MPEG4,
-    // AVCodecID::AV_CODEC_ID_H264,
-    // AVCodecID::AV_CODEC_ID_HEVC,
-  };
-
-  if (std::find(codecs.begin(), codecs.end(), codec_id) == codecs.end()) {
-    DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
-                          ") is not supported by the CPU variant of this operator."));
+  if (!IsCodecSupported(codec_params_->codec_id)) {
+    LOG_LINE << "Codec " << avcodec_get_name(codec_params_->codec_id)
+             << " (codec_id=" << codec_params_->codec_id << ") cannot be decoded" << std::endl;
     return false;
   }
-
-  if ((codec_ = avcodec_find_decoder(codec_params_->codec_id)) == nullptr) {
-    LOG_LINE << "No decoder found for codec " << avcodec_get_name(codec_params_->codec_id)
-             << " (codec_id=" << codec_params_->codec_id << ")" << std::endl;
-    return false;
-  }
+  codec_ = avcodec_find_decoder(codec_params_->codec_id);
 
   codec_ctx_.reset(avcodec_alloc_context3(codec_));
   DALI_ENFORCE(codec_ctx_, "Could not alloc av codec context");

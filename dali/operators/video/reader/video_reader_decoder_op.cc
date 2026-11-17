@@ -12,20 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <algorithm>
+#include <atomic>
+#include <exception>
+#include <functional>
+#include <memory>
+#include <optional>
 #include <string>
-#include <shared_mutex>
+#include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "dali/core/boundary.h"
 #include "dali/core/cuda_stream_pool.h"
+#include "dali/core/exec/thread_pool_base.h"
 #include "dali/core/span.h"
 
 #include "dali/operators/reader/reader_op.h"
 #include "dali/operators/video/frames_decoder_base.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/frames_decoder_gpu.h"
+#include "dali/operators/video/reader/frame_index_cache.h"
 #include "dali/operators/video/video_utils.h"
+#include "dali/pipeline/util/new_thread_pool.h"
 #if NVML_ENABLED
 #include "dali/util/nvml.h"
 #endif
@@ -34,48 +44,60 @@
 
 namespace dali {
 
-class FrameIndexCache {
- private:
-  std::unordered_map<std::string, FrameIndex> index_cache_;
-  mutable std::shared_mutex rw_mutex_;
-
-  FrameIndexCache() = default;
-
-  ~FrameIndexCache() {
-#ifdef NDEBUG
-    size_t total_size = 0;
-    for (const auto& entry : index_cache_) {
-      total_size += entry.first.size();  // filename string size
-      total_size += entry.second.size() * sizeof(IndexEntry);  // index entries size
-    }
-    LOG_LINE << "FrameIndexCache stats: " << std::endl;
-    LOG_LINE << "  Number of cached files: " << index_cache_.size() << std::endl;
-    LOG_LINE << "  Total memory used: " << total_size << " bytes" << std::endl;
-#endif
-  }
-
- public:
-  static FrameIndexCache& instance() {
-    static FrameIndexCache cache;
-    return cache;
-  }
-
-  std::unordered_map<std::string, FrameIndex>::iterator find(const std::string& filename) {
-    std::shared_lock<std::shared_mutex> read_lock(rw_mutex_);
-    return index_cache_.find(filename);
-  }
-
-  std::unordered_map<std::string, FrameIndex>::iterator end() {
-    std::shared_lock<std::shared_mutex> read_lock(rw_mutex_);
-    return index_cache_.end();
-  }
-
-  void insert(const std::string& filename, const FrameIndex& index) {
-    std::unique_lock<std::shared_mutex> write_lock(rw_mutex_);
-    index_cache_[filename] = index;
-  }
+/**
+ * @brief What the second phase of PrepareMetadataImpl needs to know about a video file.
+ *
+ * It is small and does not keep the file open, so that the records of all the files of a list can
+ * be alive at the same time.
+ */
+struct VideoFileIndex {
+  bool valid = false;          // false if the file is not a valid video (it is skipped)
+  AVCodecID codec_id = AV_CODEC_ID_NONE;  // of the video stream, if valid
+  std::exception_ptr error;    // set if indexing the file failed with an exception
+  // set if valid and the codec is supported (otherwise, the file is skipped), and there's no error
+  std::shared_ptr<const FrameIndex> index;
 };
 
+/**
+ * @brief Indexes one video file. It does not throw: the exceptions are returned in the record.
+ *
+ * The file is closed before this function returns.
+ *
+ * The index is taken from FrameIndexCache, or built and cached there. It is not built for the
+ * files whose codec is not in `supported_codecs` (made by the decoder's `SupportedCodecs`), which
+ * are skipped, as with the decoder. It does not warn about them: the caller does, in the order of
+ * the file list. It does not touch CUDA, so it can run on any thread.
+ */
+static VideoFileIndex IndexVideoFile(const std::string &filename, DALIImageType image_type,
+                                     span<const AVCodecID> supported_codecs) {
+  VideoFileIndex result;
+  try {
+    // the version of the file that the indexer opens (see FrameIndexCache::GetOrBuild)
+    auto stamp = FrameIndexCache::FileStamp::Of(filename);
+    // The index needs no decoder: no codec context, parser, frame buffers nor reopening of
+    // the file.
+    FramesIndexer indexer(filename, image_type);
+    if (!indexer.IsValid()) {
+      LOG_LINE << "Invalid video file: " << filename << std::endl;
+      return result;
+    }
+    result.valid = true;
+    result.codec_id = indexer.CodecId();
+    if (std::find(supported_codecs.begin(), supported_codecs.end(), result.codec_id) ==
+        supported_codecs.end()) {
+      LOG_LINE << "Unsupported codec in video file: " << filename << std::endl;
+      return result;
+    }
+    result.index = FrameIndexCache::instance().GetOrBuild(filename, stamp, [&]() {
+      LOG_LINE << "Building index for " << filename << std::endl;
+      indexer.BuildIndex();
+      return indexer.GetIndex();
+    });
+  } catch (...) {
+    result.error = std::current_exception();
+  }
+  return result;
+}
 
 struct VideoSampleDesc {
   VideoSampleDesc(const VideoFileMeta *video_file_meta = nullptr, int start = -1, int end = -1, int stride = -1)
@@ -183,7 +205,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         step_(spec.GetArgument<int>("step")),
         image_type_(spec.GetArgument<DALIImageType>("image_type")),
         boundary_type_(GetBoundaryType(spec)),
-        uniform_sample_(spec.GetArgument<bool>("uniform_sample")) {
+        uniform_sample_(spec.GetArgument<bool>("uniform_sample")),
+        num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))) {
     if ((spec.HasArgument("file_list") + spec.HasArgument("file_root") + spec.HasArgument("filenames")) != 1) {
       DALI_FAIL("Only one of the following arguments can be provided: ``file_list``, ``file_root``, ``filenames``");
     }
@@ -257,39 +280,125 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     MoveToNextShard(++current_index_);
   }
 
+  const FrameIndex *FileIndex(const std::string &filename) const {
+    auto it = indices_.find(filename);
+    return it != indices_.end() ? it->second.get() : nullptr;
+  }
+
   Index SizeImpl() override {
     return samples_.size();
   }
 
+  /**
+   * @brief Indexes the given distinct files, one record per file, in the same order.
+   *
+   * The indices are taken from (and added to) FrameIndexCache, which is thread-safe, so the files
+   * can be indexed concurrently.
+   *
+   * Every error is fatal (the files whose codec is not supported are skipped before they are
+   * indexed), so the files after the first one that fails are not needed: they are not started,
+   * and their records are left empty. With several threads, some of them may have been started
+   * already. The files before it are all indexed, so the error reported in the second phase is
+   * that of the first failing file in the list, whatever the number of threads.
+   */
+  std::vector<VideoFileIndex> BuildFileIndices(const std::vector<std::string> &filenames) {
+    std::vector<VideoFileIndex> results(filenames.size());
+    const int num_workers = std::min<int>(num_threads_, filenames.size());
+    // Starting the threads costs about a millisecond: more than it saves only for a few very
+    // small files, while for longer ones the parallel build is faster already at a few files.
+    const bool parallel = num_workers > 1;
+
+    // Decided here, on the calling thread, before the files are indexed: the codec check of the
+    // GPU decoder queries NVDEC of the current device (once per codec, cached per process), which
+    // needs a current CUDA context; this thread has the device of the reader, the threads of the
+    // pool have none. Then the indexing does not touch CUDA.
+    const std::vector<AVCodecID> supported_codecs = FramesDecoderImpl::SupportedCodecs();
+
+    std::atomic<size_t> first_error{filenames.size()};  // the lowest failing slot so far
+    auto index_file = [&](size_t i) {
+      if (i > first_error.load(std::memory_order_relaxed))
+        return;  // a file before this one failed: the second phase does not get to this one
+      results[i] = IndexVideoFile(filenames[i], image_type_, make_cspan(supported_codecs));
+      if (results[i].error) {
+        size_t prev = first_error.load(std::memory_order_relaxed);
+        while (i < prev && !first_error.compare_exchange_weak(prev, i, std::memory_order_relaxed)) {
+        }
+      }
+    };
+
+    if (parallel) {
+      // A transient pool, destroyed on return. The loader cannot use the pool of the pipeline:
+      // this runs in the constructor of the operator or, with lazy_init, on the first use of the
+      // reader. The threads need no device. The tasks write only to their own slot, and
+      // IndexVideoFile does not throw.
+      NewThreadPool pool(num_workers, std::nullopt, false, "VideoIndex");
+      Job job;
+      for (size_t i = 0; i < filenames.size(); ++i)
+        job.AddTask([&index_file, i]() { index_file(i); });
+      job.Run(pool, true);
+    } else {
+      for (size_t i = 0; i < filenames.size(); ++i)
+        index_file(i);
+    }
+    return results;
+  }
+
+  /**
+   * @brief Builds the list of samples of the reader, in two phases.
+   *
+   * 1. Every distinct file of the list is indexed once (see BuildFileIndices), possibly in
+   *    parallel.
+   * 2. The list is walked in order, sequentially. For every entry, the frame range is resolved
+   *    (from `file_list`, if given) and the samples (or, with `uniform_sample`, the frame indices
+   *    of the sample) are made from the index of its file. The entries that are not valid videos,
+   *    whose codec is not supported or whose frame range is empty are skipped (with a warning,
+   *    except for the invalid ones). An error that occurred while indexing is thrown here, so the
+   *    one reported is that of the first failing file in the list, however many threads there are.
+   *
+   * Finally, the samples are shuffled (if `shuffle`) and the reader is set to the start of its
+   * shard.
+   */
   void PrepareMetadataImpl() override {
     LOG_LINE << "Starting PrepareMetadataImpl" << std::endl;
     samples_.clear();
     all_frame_idxs_.clear();
     if (uniform_sample_)
       all_frame_idxs_.reserve(video_files_info_.size());
+
+    // Phase 1: index each distinct file once, in the order of first appearance in the list.
+    std::vector<std::string> filenames;
+    std::vector<size_t> file_slot(video_files_info_.size());
+    {
+      std::unordered_map<std::string, size_t> slots;
+      for (size_t i = 0; i < video_files_info_.size(); ++i) {
+        const std::string &filename = video_files_info_[i].filename;
+        auto [it, inserted] = slots.try_emplace(filename, filenames.size());
+        if (inserted)
+          filenames.push_back(filename);
+        file_slot[i] = it->second;
+      }
+    }
+    std::vector<VideoFileIndex> file_indices = BuildFileIndices(filenames);
+
+    // Phase 2: build the samples, in the order of the list.
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
       auto& entry = video_files_info_[i];
       LOG_LINE << "Processing video file " << i << ": " << entry.filename << std::endl;
-      std::unique_ptr<FramesDecoderImpl> decoder;
-      if constexpr(std::is_same_v<Backend, CPUBackend>) {
-        decoder = std::make_unique<FramesDecoderImpl>(entry.filename, image_type_);
-      } else {
-        decoder = std::make_unique<FramesDecoderImpl>(entry.filename, cuda_stream_, image_type_);
-      }
-      if (!decoder->IsValid()) {
-        LOG_LINE << "Invalid video file: " << entry.filename << std::endl;
+      const VideoFileIndex &file_index = file_indices[file_slot[i]];
+      if (file_index.error)
+        std::rethrow_exception(file_index.error);  // the first failing file, in the list order
+      if (!file_index.valid)
+        continue;
+      if (!file_index.index) {
+        // The codec is not supported: skipped, as with the decoder. The check is made again (its
+        // result is cached) to warn here, once per entry and in the order of the list, not from
+        // the indexing threads.
+        FramesDecoderImpl::IsCodecSupported(file_index.codec_id);
         continue;
       }
-      auto it = FrameIndexCache::instance().find(entry.filename);
-      if (it == FrameIndexCache::instance().end()) {
-        LOG_LINE << "Building index for " << entry.filename << std::endl;
-        decoder->BuildIndex();
-        FrameIndexCache::instance().insert(entry.filename, decoder->GetIndex());
-      } else {
-        LOG_LINE << "Reusing index for " << entry.filename << std::endl;
-        decoder->SetIndex(it->second);
-      }
-      int64_t num_frames = decoder->NumFrames();
+      const FrameIndex &index = *file_index.index;
+      indices_[entry.filename] = file_index.index;  // kept for the reader's lifetime
+      int64_t num_frames = index.size();
       entry.start_frame = 0;
       entry.end_frame = num_frames;
       LOG_LINE << "Total frames in video: " << num_frames << std::endl;
@@ -306,11 +415,11 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             entry.end_frame = file_list_opts_.round_end(entry.end);
             break;
           case FileListFormat::kTimestamps:
-            entry.start_frame = decoder->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(decoder->GetTimebase(), entry.start),
+            entry.start_frame = index.GetFrameIdxByTimestamp(
+                SecondsToTimestamp(index.timebase, entry.start),
                 file_list_opts_.should_round_down_start());
-            entry.end_frame = decoder->GetFrameIdxByTimestamp(
-                SecondsToTimestamp(decoder->GetTimebase(), entry.end),
+            entry.end_frame = index.GetFrameIdxByTimestamp(
+                SecondsToTimestamp(index.timebase, entry.end),
                 file_list_opts_.should_round_down_end());
             break;
           default:
@@ -411,9 +520,13 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   DALIImageType image_type_;
   boundary::BoundaryType boundary_type_;
   bool uniform_sample_;
+  int num_threads_;
   FileListOptions file_list_opts_;
 
   std::vector<VideoFileMeta> video_files_info_;
+  // the frame indices of the valid files, built (or found in FrameIndexCache) by
+  // PrepareMetadataImpl
+  std::unordered_map<std::string, FrameIndexCache::IndexPtr> indices_;
   std::vector<std::vector<int>> all_frame_idxs_;  // owns frame index data; samples_ hold spans into these
   std::vector<VideoSampleDesc> samples_;
   CUDAStreamLease cuda_stream_;
@@ -595,6 +708,10 @@ class VideoReaderDecoder
     return true;
   }
 
+  const FrameIndex *FileIndex(const std::string &filename) const {
+    return static_cast<const VideoLoaderImpl &>(*loader_).FileIndex(filename);
+  }
+
   void Prefetch() override {
     Base::Prefetch();
     auto &current_batch = prefetched_batch_queue_[curr_batch_producer_];
@@ -613,15 +730,11 @@ class VideoReaderDecoder
         }
         LOG_LINE << "Initialized decoder to " << decoder_->Filename() << " ptr: " << decoder_.get()
                  << " num_frames: " << decoder_->NumFrames() << std::endl;
-        auto it = FrameIndexCache::instance().find(filename);
-        if (it == FrameIndexCache::instance().end()) {
-          LOG_LINE << "Building index for " << filename << std::endl;
-          decoder_->BuildIndex();
-          FrameIndexCache::instance().insert(filename, decoder_->GetIndex());
-        } else {
-          LOG_LINE << "Reusing index for " << filename << std::endl;
-          decoder_->SetIndex(it->second);
-        }
+        // the index the reader was set up with (the file is not indexed again, even if it changed)
+        auto *index = FileIndex(filename);
+        DALI_ENFORCE(index, make_string("Internal error: no frame index for \"", filename, "\"."));
+        if (!decoder_->HasIndex())
+          decoder_->SetIndex(*index);
       } else {
         LOG_LINE << "Reusing decoder for " << decoder_->Filename() << " ptr: " << decoder_.get()
                  << " num_frames: " << decoder_->NumFrames() << std::endl;
@@ -773,10 +886,18 @@ The outputs of the operator are: video, [labels], [frame_num], [timestamps].
     .AddOptionalArg("filenames",
                     R"code(Absolute paths to the video files to load.
 
+Remote files can be specified with URLs, e.g. ``s3://bucket/video.mp4`` or
+``gs://bucket/video.mp4``.
+
 This option is mutually exclusive with `file_root` and `file_list`.)code",
                     std::vector<std::string>{})
     .AddOptionalArg("file_root",
                     R"code(Path to a directory that contains the data files.
+
+The files are expected in subdirectories of `file_root`, one per label.
+
+Remote directories can be specified with URLs, e.g. ``s3://bucket/videos`` or
+``gs://bucket/videos``.
 
 This option is mutually exclusive with `filenames` and `file_list`.)code",
                     std::string())
@@ -785,6 +906,8 @@ This option is mutually exclusive with `filenames` and `file_list`.)code",
 
 ``start`` and ``end`` are optional and can be used to specify the start and end of the video to load.
 The values can be interpreted differently depending on the ``file_list_format``.
+
+The ``file`` can be a remote URL, e.g. ``s3://bucket/video.mp4`` or ``gs://bucket/video.mp4``.
 
 This option is mutually exclusive with `filenames` and `file_root`.)code",
                     std::string())
@@ -826,7 +949,7 @@ as an additional output.)code",
     .AddOptionalArg("step",
                     R"code(Frame interval between each sequence.
 
-When the value is less than 0, `step` is set to `sequence_length`.)code",
+When the value is less than or equal to 0, `step` is set to `stride * sequence_length`.)code",
                     -1)
     .AddOptionalArg("stride", R"code(Distance between consecutive frames in the sequence.)code", 1u,
                     false)
@@ -849,8 +972,9 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
         "pad_mode",
         R"code(How to handle videos with insufficient frames when using start_frame/sequence_length/stride:
 
-* ``'none'``: Return shorter sequences if not enough frames: ABC -> ABC
-* ``'constant'``: Pad with a fixed value (specified by ``pad_value``): ABC -> ABCPPP
+* ``'none'``: No padding: a sequence that would extend past the last frame is not returned, so
+  every sample has exactly ``sequence_length`` frames: ABC -> (dropped)
+* ``'constant'``: Pad with a fixed value (specified by ``fill_value``): ABC -> ABCPPP
 * ``'edge'`` or ``'repeat'``: Repeat the last valid frame: ABC -> ABCCCC
 * ``'reflect_1001'`` or ``'symmetric'``: Reflect padding, including the last element: ABC -> ABCCBA
 * ``'reflect_101'`` or ``'reflect'``: Reflect padding, not including the last element: ABC -> ABCBA
@@ -858,7 +982,7 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
 Not relevant when using ``frames`` argument.)code",
         "none", true)
     .AddOptionalArg("fill_value",
-                    R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``'.
+                    R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``.
 
 Each value must be in range [0, 255].
 If a single value is provided, it will be used for all channels.
@@ -866,7 +990,10 @@ Otherwise, the number of values must match the number of channels in the video.)
                     std::vector<int>{
                         0,
                     })
-    .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).)",
+    .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).
+
+YCbCr output contains the decoded samples upsampled to 4:4:4, in the color range and matrix of
+the stream (usually limited range); RGB output is full range.)",
                     DALI_RGB)
     .AddParent("LoaderBase")
     .OutputNDim(0, 4)

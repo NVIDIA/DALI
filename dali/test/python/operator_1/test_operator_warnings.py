@@ -1,4 +1,4 @@
-# Copyright (c) 2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2024-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-from nvidia.dali import fn, ops
+from nvidia.dali import fn, ops, Pipeline
 from nose2.tools import params
 from test_utils import load_test_operator_plugin
 from nose_utils import assert_warns
@@ -38,7 +38,7 @@ module_variants = [
     (
         ops.sub.DeprecationWarningOp(),
         "DeprecationWarningOp",
-        "sub.sub.deprecation_warning_op",
+        "sub.sub.DeprecationWarningOp",
         "Another message",
     ),
     (
@@ -50,7 +50,7 @@ module_variants = [
     (
         ops.sub.sub.DeprecationWarningOp(),
         "DeprecationWarningOp",
-        "sub.sub.deprecation_warning_op",
+        "sub.sub.DeprecationWarningOp",
         "",
     ),
 ]
@@ -61,8 +61,52 @@ def test_warnings(op, name, replacement, message):
 
     glob = f"WARNING: `{op.__module__}.{name}` is now deprecated."
     if replacement:
-        glob += f" Use `nvidia.dali.fn.{replacement}` instead."
+        # The replacement is reported through whichever API namespace (`fn` or `ops`) the
+        # deprecated operator was actually called through.
+        api = "ops" if op.__module__.startswith("nvidia.dali.ops") else "fn"
+        glob += f" Use `nvidia.dali.{api}.{replacement}` instead."
     if message:
         glob += f"\n{message}"
     with assert_warns(DeprecationWarning, glob=glob):
         op()
+
+
+# (operator, name it is called by, replacement the warning should suggest). The replacement is
+# spelled out in full: it is reported in the API namespace (`fn` or `ops`) the operator was
+# called through.
+alias_variants = [
+    (fn.mxnet_reader, "nvidia.dali.fn.mxnet_reader", "nvidia.dali.fn.readers.mxnet"),
+    (ops.MXNetReader, "nvidia.dali.ops.MXNetReader", "nvidia.dali.ops.readers.MXNet"),
+    (fn.numpy_reader, "nvidia.dali.fn.numpy_reader", "nvidia.dali.fn.readers.numpy"),
+    (
+        fn.experimental.tensor_resize,
+        "nvidia.dali.fn.experimental.tensor_resize",
+        "nvidia.dali.fn.tensor_resize",
+    ),
+    (
+        ops.experimental.TensorResize,
+        "nvidia.dali.ops.experimental.TensorResize",
+        "nvidia.dali.ops.TensorResize",
+    ),
+]
+
+
+def _call_op(op, *inputs, **kwargs):
+    if isinstance(op, type):
+        return op(**kwargs)(*inputs)
+    else:
+        return op(*inputs, **kwargs)
+
+
+@params(*alias_variants)
+def test_alias_warnings(op, full_name, replacement):
+    glob = f"WARNING: `{full_name}` is now deprecated. Use `{replacement}` instead.*"
+    with Pipeline(batch_size=1, num_threads=1, device_id=None):
+        if "reader" in full_name.lower():
+            inputs = []
+            kwargs = {"path": "dummy", "index_path": "dummy"} if "mxnet" in full_name else {}
+        else:
+            inputs = [fn.external_source(name="input")]
+            kwargs = {"sizes": [1]}
+        with assert_warns(DeprecationWarning, glob=glob):
+            _call_op(op, *inputs, **kwargs)
