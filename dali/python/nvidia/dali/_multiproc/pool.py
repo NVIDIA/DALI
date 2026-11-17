@@ -463,7 +463,7 @@ class ProcPool:
         if not exited_workers:
             return RuntimeError(msg)
         details = "\n".join(
-            "  - worker {} (pid {}) {}".format(worker_id, pid, _describe_exit_code(exitcode))
+            f"  - worker {worker_id} (pid {pid}) {_describe_exit_code(exitcode)}"
             for worker_id, pid, exitcode in exited_workers
         )
         return RuntimeError(
@@ -561,12 +561,12 @@ class ProcPool:
 
 def _describe_exit_code(exitcode):
     if exitcode >= 0:
-        return "exited with code {}".format(exitcode)
+        return f"exited with code {exitcode}"
     try:
         signal_name = signal.Signals(-exitcode).name
     except ValueError:
         signal_name = "unknown signal"
-    return "was terminated by signal {} ({})".format(-exitcode, signal_name)
+    return f"was terminated by signal {-exitcode} ({signal_name})"
 
 
 class Observer:
