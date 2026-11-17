@@ -329,6 +329,15 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
     callback_exception_ = std::move(e);
   }
 
+  /**
+   * @brief Whether a parser callback has failed during the current ParseVideoData. The parser may
+   *        still call the other callbacks for the same packet, e.g. the decode callback after the
+   *        sequence callback failed and no decoder was created: they must do nothing then.
+   */
+  bool HasCallbackException() const {
+    return callback_exception_ != nullptr;
+  }
+
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
 
   /**

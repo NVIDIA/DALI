@@ -495,6 +495,8 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
 
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
+  if (frames_decoder->HasCallbackException())
+    return 0;
 
   try {
     return frames_decoder->ProcessPictureDecode(picture_params);
@@ -506,6 +508,8 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
 
 int handle_picture_display(void *user_data, CUVIDPARSERDISPINFO *picture_display_info) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
+  if (frames_decoder->HasCallbackException())
+    return 0;
 
   try {
     return frames_decoder->HandlePictureDisplay(picture_display_info);
