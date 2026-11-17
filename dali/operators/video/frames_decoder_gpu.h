@@ -534,6 +534,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   void WaitForJpegDecoded(int surface_idx);
 
   VideoColorSpaceConversionType conversion_type_ = VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB;
+  // the rows of the NV12 chroma of the mapped pictures that hold data (see InitGpuDecoder)
+  int chroma_height_ = -1;
 
   void SendLastPacket(bool flush = false);
 

@@ -689,6 +689,14 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
                       ") in ", Filename(), "."));
     }
   }
+  // NVDEC doesn't write the last row of the NV12 chroma of a 4:2:2 or 4:4:4 JPEG whose height is
+  // 2 more than a multiple of 4 (an odd number of chroma rows), as observed; the 4:2:0 ones are
+  // complete. The conversion takes it as a copy of the row above it instead.
+  bool jpeg_chroma_downsampled = video_format->codec == cudaVideoCodec_JPEG &&
+                                 (video_format->chroma_format == cudaVideoChromaFormat_422 ||
+                                  video_format->chroma_format == cudaVideoChromaFormat_444);
+  chroma_height_ = Height() / 2 - (jpeg_chroma_downsampled && Height() % 4 == 2 ? 1 : 0);
+
   if (!nvdecode_state_->decoder) {
     if (image_type_ == DALI_RGB) {
       bool is_full_range = IsFullRange(video_format);
@@ -1006,7 +1014,8 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       Width(),
       conversion_type_,
       false,  // normalized_range_,
-      stream_);
+      stream_,
+      chroma_height_);
   ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
 
   if (keep_as_last_frame)
