@@ -2041,15 +2041,12 @@ TEST_F(FramesDecoderGpuTest, MjpegRejectsFramesOfOtherSizeThanDeclared) {
 }
 
 TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
-  // DALI-4918: for MJPEG the driver can report a minimum of 1 decode surface, with which decoding
-  // the 2nd frame used to fail with CUDA_ERROR_INVALID_VALUE.
-  //
-  // Every frame is also compared against the CPU backend. The GPU work of a JPEG decode is ordered
-  // with the legacy default stream, which the color conversion, on a non-blocking stream, must wait
-  // for: otherwise it reads surfaces that are not written yet and returns blank frames. Another
-  // thread keeps the legacy default stream busy meanwhile, which delays the decoding, so that a
-  // missing wait shows up as blank frames every time (the first frames of the decoders), not only
-  // when the timing happens to be unlucky.
+  // DALI-4918: decodes every frame of an MJPEG file, and compares it against the CPU backend.
+  // The GPU work of a JPEG decode is ordered with the legacy default stream, which the color
+  // conversion, on a non-blocking stream, must wait for: otherwise it reads surfaces that are not
+  // written yet and returns blank frames. Another thread keeps the legacy default stream busy
+  // meanwhile, which delays the decoding, so that a missing wait shows up as blank frames every
+  // time (the first frames of the decoders), not only when the timing happens to be unlucky.
 
   // The test file is 8-bit 4:4:4 (yuvj444p), which not every NVDEC generation can decode.
   if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
