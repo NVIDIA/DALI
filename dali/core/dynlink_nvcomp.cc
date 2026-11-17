@@ -1,4 +1,4 @@
-// Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,26 +23,21 @@ namespace {
 
 typedef void* NVCOMP;
 
-static const char __nvCompfileLibName[] = "libnvcomp.so";
-static const char __nvCompfileLibName1[] = "libnvcomp.so.5";
+// Set by the build system to match the nvCOMP version DALI was built against.
+// There's no fallback to the unversioned libnvcomp.so, which may be any (ABI-incompatible) version.
+static const char __nvCompfileLibName[] = DALI_NVCOMP_SONAME;
 
 NVCOMP loadNvCompFileLibrary() {
-  NVCOMP ret = nullptr;
-
-  ret = dlopen(__nvCompfileLibName1, RTLD_NOW);
+  NVCOMP ret = dlopen(__nvCompfileLibName, RTLD_NOW);
 
   if (!ret) {
-    ret = dlopen(__nvCompfileLibName, RTLD_NOW);
-
-    if (!ret) {
 #if FOR_CONDA_ENABLED
-      fprintf(stderr, "dlopen libnvcomp.so failed with error %s!. Please install libnvcomp: "
-              "`conda install -c conda-forge libnvcomp`.\n", dlerror());
+    fprintf(stderr, "dlopen %s failed with error %s!. Please install libnvcomp: "
+            "`conda install -c conda-forge libnvcomp`.\n", __nvCompfileLibName, dlerror());
 #else
-      fprintf(stderr, "dlopen libnvcomp.so failed with error %s!. Please install libnvcomp.\n",
-              dlerror());
+    fprintf(stderr, "dlopen %s failed with error %s!. Please install libnvcomp.\n",
+            __nvCompfileLibName, dlerror());
 #endif
-    }
   }
   return ret;
 }

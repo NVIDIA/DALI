@@ -173,6 +173,11 @@ DALI_API daliResult_t daliInit();
 
 /** Decrements initialization counts and shuts down the library when the count reaches 0.
  *
+ * When the count reaches 0, waits for DALI calls in progress in other threads to return and then
+ * destroys any remaining pipelines (including ones created with the legacy C API); a warning is
+ * printed. Their handles, and any daliPipelineOutputs_h obtained from them, become invalid and
+ * must not be used afterwards, even after a subsequent daliInit.
+ *
  * Calling this function is optional. DALI will be shut down automatically when the program exits.
  */
 DALI_API daliResult_t daliShutdown();

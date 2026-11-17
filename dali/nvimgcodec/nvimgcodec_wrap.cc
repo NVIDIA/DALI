@@ -56,9 +56,9 @@ const char nvimgcodecLibDefaultPath[] =
 NVIMGCODECDRIVER loadNvimgcodecLibrary() {
   static const char *paths[] = {nvimgcodecLibNameFullVer,
                                 nvimgcodecLibNameMajorVer,
-                                nvimgcodecLibName,
                                 nvimgcodecLibDefaultPathFullVer,
                                 nvimgcodecLibDefaultPathMajorVer,
+                                nvimgcodecLibName,
                                 nvimgcodecLibDefaultPath};
   NVIMGCODECDRIVER ret = nullptr;
   std::string attempts;

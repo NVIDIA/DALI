@@ -22,7 +22,7 @@ from nose_utils import attr, raises, assert_raises, assert_equals
 from nose2.tools import params, cartesian_params
 import itertools
 
-from test_utils import np_type_to_dali
+from test_utils import dali_type_to_np, np_type_to_dali
 
 
 def list_product(*args):
@@ -645,6 +645,38 @@ def test_arithmetic_ops_selected():
             for types_in in itertools.product(selected_input_types, selected_input_types):
                 if types_in != (np.bool_, np.bool_) or op_desc == "*":
                     yield check_arithm_op, kinds, types_in, op, shape_small, get_range, op_desc
+
+
+@params(
+    (1 << 40, types.INT64),
+    ((1 << 32) - 1, types.UINT32),
+)
+def test_wide_integer_constant(value, dtype):
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+    def pipe():
+        return types.Constant([0], dtype=dtype) + types.Constant(value, dtype=dtype)
+
+    output = pipe().run()[0].at(0)
+    assert_equals(output.dtype, dali_type_to_np(dtype))
+    assert_equals(output.item(), value)
+
+
+@params(
+    (1 << 31, types.INT32),
+    (-(1 << 31) - 1, types.INT32),
+    (-1, types.UINT32),
+    (1 << 32, types.UINT32),
+)
+def test_integer_constant_overflow(value, dtype):
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None)
+    def pipe():
+        return types.Constant([0], dtype=dtype) + types.Constant(value, dtype=dtype)
+
+    with assert_raises(
+        OverflowError,
+        glob=f"Integer constant {value} out of range for {dtype.name.lower()}",
+    ):
+        pipe().run()
 
 
 @attr("slow")
@@ -1312,6 +1344,20 @@ def test_nested_datanode_error_math():
 
     with assert_raises(
         TypeError, glob="input 0 of operator `max` must be*" "Got a `list` with nested *DataNode"
+    ):
+        _ = err_pipe()
+
+
+@params(("[[v]]",), ("([v],)",), ("[1, [2, [v]]]",))
+def test_deeply_nested_datanode_error_math(nested):
+    @pipeline_def(device_id=None, batch_size=1, num_threads=4)
+    def err_pipe():
+        u = fn.random.uniform(range=[0, 1])  # noqa(F841)
+        v = fn.random.uniform(range=[0, 1])  # noqa(F841)
+        return math.max(eval(nested), 5)
+
+    with assert_raises(
+        TypeError, glob="input 0 of operator `max` must be*" "Got a `*` with nested *DataNode"
     ):
         _ = err_pipe()
 

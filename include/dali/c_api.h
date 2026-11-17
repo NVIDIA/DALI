@@ -131,6 +131,8 @@ DLL_PUBLIC void daliInitialize();
  * gpu_prefetch_queue_depth and cpu_prefetch_queue_depth are ignored.
  * When separated_execution is not equal to 0, cpu_prefetch_queue_depth and
  * gpu_prefetch_queue_depth are considered and prefetch_queue_depth is ignored.
+ * @remark Pipelines still alive when the final `daliShutdown` (see dali/dali.h) is called are
+ *         destroyed by it; their handles must not be used afterwards, even after `daliInit`.
  */
 DLL_PUBLIC void daliCreatePipeline(daliPipelineHandle *pipe_handle, const char *serialized_pipeline,
                                    int length, int max_batch_size, int num_threads, int device_id,
@@ -679,6 +681,10 @@ daliCopyTensorListNTo(daliPipelineHandle *pipe_handle, void *dst, int output_id,
 
 /**
  * @brief Delete the pipeline object.
+ *
+ * On success, `*pipe_handle` is set to NULL. Deleting a NULL handle is a no-op.
+ * @remark Pipelines still alive when the final `daliShutdown` (see dali/dali.h) is called are
+ *         destroyed by it; their handles must not be used afterwards, even after `daliInit`.
  */
 DLL_PUBLIC void daliDeletePipeline(daliPipelineHandle *pipe_handle);
 

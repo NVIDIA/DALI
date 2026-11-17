@@ -1,4 +1,4 @@
-# Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -209,6 +209,29 @@ def test_operator_cast_empty_volumes():
                         device,
                         empty_volume_policy,
                     )
+
+
+@params(*itertools.product(("cpu", "gpu"), (np.float16, np.float32, np.float64)))
+def test_cast_fp_to_bool(device, in_dtype):
+    # Values in (-0.5, 0.5) would be rounded to 0 if the conversion went through rounding.
+    nonzero = [0.1, -0.1, 0.4, -0.4, 0.5, -0.5, 0.9, 1.0, -1.0, 1e-3, 1000.0, np.nan]
+    data = np.array([0.0, -0.0] + nonzero, dtype=in_dtype)
+    assert np.signbit(data[1])
+    expected = np.array([False, False] + [True] * len(nonzero))
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=None if device == "cpu" else 0)
+    def cast_pipe():
+        inp = fn.external_source(lambda: [data])
+        inp = inp.gpu() if device == "gpu" else inp
+        return fn.cast(inp, dtype=np_type_to_dali(np.bool_))
+
+    pipe = cast_pipe()
+    (out,) = pipe.run()
+    if device == "gpu":
+        out = out.as_cpu()
+    out = np.array(out[0])
+    assert out.dtype == np.bool_, f"{out.dtype} != bool"
+    np.testing.assert_array_equal(out, expected, err_msg=f"Input: {data}")
 
 
 @params(

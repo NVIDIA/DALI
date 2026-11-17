@@ -192,24 +192,27 @@ to store frame metadata and longer initialization time to scan the entire video 
 stores metadata, such as whether it is a key frame and the presentation timestamp (PTS).
 
 Building an index is particularly useful when decoding a small number of frames spaced far
-apart or starting playback from a frame deep into the video.)code",
+apart or starting playback from a frame deep into the video.
+
+.. warning::
+
+  Without an index, the decoder cannot seek to the keyframe before the requested frame, so it
+  decodes every frame from the start of the file up to it. It also returns the frames that an
+  MP4 edit list hides (for example, the lead-in of a clip cut without re-encoding), so the frame
+  indices differ from those of an indexed decoder and of the video reader.)code",
                     true)
     .OutputNDim(0, 4)
     .OutputDType(0, DALI_UINT8)
     .OutputLayout(0, "FHWC");
 
-DALI_SCHEMA(experimental__decoders__Video)
-    .AddParent("decoders__Video")
-    .DocStr("Legacy alias for :meth:`decoders.video`.")
-    .NumInput(1)
-    .NumOutput(1)
-    .MakeDocHidden()
+DALI_SCHEMA_ALIAS(experimental__decoders__Video, decoders__Video)
     .Deprecate(
         "2.0",
         "decoders__Video",
         "This operator was moved out from the experimental phase, "
         "and is now a regular DALI operator. This is just a deprecated "
-        "alias kept for backward compatibility.");
+        "alias kept for backward compatibility.")
+    .MakeDocHidden();
 
 class VideoDecoderCpu : public VideoDecoderBase<CPUBackend, FramesDecoderCpu> {
  public:
@@ -217,7 +220,6 @@ class VideoDecoderCpu : public VideoDecoderBase<CPUBackend, FramesDecoderCpu> {
     VideoDecoderBase<CPUBackend, FramesDecoderCpu>(spec) {}
 };
 
-DALI_REGISTER_OPERATOR(experimental__decoders__Video, VideoDecoderCpu, CPU);
 DALI_REGISTER_OPERATOR(decoders__Video, VideoDecoderCpu, CPU);
 
 }  // namespace dali

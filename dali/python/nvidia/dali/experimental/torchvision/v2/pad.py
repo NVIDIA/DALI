@@ -22,7 +22,7 @@ import nvidia.dali.fn as fn
 from .operator import (
     Operator,
     get_HWC_from_layout_pipeline,
-    _ArgumentValidateRule,
+    ArgumentValidateRule,
     _ValidateIfNonNegative,
 )
 
@@ -176,7 +176,7 @@ PADDING_CLASS = {
 }
 
 
-class _ValidatePaddingMode(_ArgumentValidateRule):
+class _ValidatePaddingMode(ArgumentValidateRule):
     """
     Verifies the PaddingMode
 

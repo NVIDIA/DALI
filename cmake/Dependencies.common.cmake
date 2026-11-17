@@ -44,6 +44,9 @@ if (BUILD_OPENCV)
   list(APPEND DALI_LIBS opencv_core opencv_imgproc)
   message("OpenCV production libraries: opencv_core opencv_imgproc")
   list(APPEND DALI_EXCLUDES libopencv_core.a;libopencv_imgproc.a;libopencv_highgui.a)
+  # On aarch64 OpenCV pulls in KleidiCV as its HAL; hide it too, otherwise its
+  # kleidicv::neon::* symbols leak from libdali*.so (names not matching any linked archive are ignored).
+  list(APPEND DALI_EXCLUDES libkleidicv_hal.a;libkleidicv.a;libkleidicv_thread.a)
 
   if (BUILD_TEST)
     set(DALI_OPENCV_TEST_EXTRA_LIBS opencv_imgcodecs CACHE INTERNAL
@@ -143,23 +146,60 @@ endif()
 ##################################################################
 # nvcomp
 ##################################################################
+# The nvCOMP version DALI is built against and depends on. Only the major version
+# is enforced when looking for the headers and the library, as it defines the ABI.
+set(DALI_NVCOMP_VERSION "6.0.0.12")
+string(REGEX MATCH "^[0-9]+" DALI_NVCOMP_VERSION_MAJOR "${DALI_NVCOMP_VERSION}")
 set(DALI_INSTALL_REQUIRES_NVCOMP "")
 if(BUILD_NVCOMP)
+  # The Linux distribution packages put each major version in a versioned subdirectory
+  # and expose only one of them (not necessarily ours) in the default location.
   find_path(
     nvcomp_INCLUDE_DIR
     NAMES nvcomp.h
-    PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
-    PATH_SUFFIXES include include/nvcomp)
+    HINTS ${NVCOMP_ROOT_DIR}
+    PATHS "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+    PATH_SUFFIXES libnvcomp${DALI_NVCOMP_VERSION_MAJOR}-dev-cuda-${CUDA_VERSION_MAJOR}
+                  include/libnvcomp${DALI_NVCOMP_VERSION_MAJOR}-dev-cuda-${CUDA_VERSION_MAJOR}
+                  include include/nvcomp)
   if (${nvcomp_INCLUDE_DIR} STREQUAL nvcomp_INCLUDE_DIR-NOTFOUND)
     message(FATAL_ERROR "nvCOMP headers could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
   endif()
+  set(nvcomp_VERSION_MAJOR "unknown")
+  if (EXISTS "${nvcomp_INCLUDE_DIR}/nvcomp/version.h")
+    file(STRINGS "${nvcomp_INCLUDE_DIR}/nvcomp/version.h" nvcomp_VERSION_MAJOR
+         REGEX "^#define NVCOMP_VER_MAJOR +[0-9]+")
+    string(REGEX REPLACE "^#define NVCOMP_VER_MAJOR +([0-9]+).*" "\\1"
+           nvcomp_VERSION_MAJOR "${nvcomp_VERSION_MAJOR}")
+  endif()
+  if (NOT nvcomp_VERSION_MAJOR STREQUAL DALI_NVCOMP_VERSION_MAJOR)
+    # Don't keep the wrong location in the cache, so that the next run searches again.
+    # This must precede message(FATAL_ERROR), which stops processing.
+    set(nvcomp_WRONG_INCLUDE_DIR "${nvcomp_INCLUDE_DIR}")
+    unset(nvcomp_INCLUDE_DIR CACHE)
+    message(FATAL_ERROR "nvCOMP ${DALI_NVCOMP_VERSION_MAJOR}.x is required, but the headers found in "
+                        "${nvcomp_WRONG_INCLUDE_DIR} are version ${nvcomp_VERSION_MAJOR}. "
+                        "Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
+  endif()
   include_directories(SYSTEM ${nvcomp_INCLUDE_DIR})
   if (NOT WITH_DYNAMIC_NVCOMP)
+    # Discard a library with a wrong major version, e.g. found by an older configuration.
+    # Symlinks are resolved, so an unversioned libnvcomp.so pointing to the right version is kept.
+    if (nvcomp_LIBS)
+      get_filename_component(nvcomp_LIBS_REALPATH "${nvcomp_LIBS}" REALPATH)
+      if (NOT nvcomp_LIBS_REALPATH MATCHES
+          "libnvcomp\\.so\\.${DALI_NVCOMP_VERSION_MAJOR}(\\.[0-9]+)*$")
+        message(STATUS "Discarding nvcomp_LIBS=${nvcomp_LIBS}, as it's not "
+                       "libnvcomp.so.${DALI_NVCOMP_VERSION_MAJOR}. Searching again.")
+        unset(nvcomp_LIBS CACHE)
+      endif()
+    endif()
     find_library(
       nvcomp_LIBS
-      NAMES nvcomp
-      PATHS ${NVCOMP_ROOT_DIR} "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
-      PATH_SUFFIXES lib lib64)
+      NAMES libnvcomp.so.${DALI_NVCOMP_VERSION_MAJOR}
+      HINTS ${NVCOMP_ROOT_DIR}
+      PATHS "/usr/local/cuda" "/usr/local" ${CMAKE_SYSTEM_PREFIX_PATH}
+      PATH_SUFFIXES lib lib64 libnvcomp${DALI_NVCOMP_VERSION_MAJOR}-cuda-${CUDA_VERSION_MAJOR})
     if(${nvcomp_LIBS} STREQUAL nvcomp_LIBS-NOTFOUND)
       message(FATAL_ERROR "nvCOMP libs could not be found. Try to specify nvcomp location with `-DNVCOMP_ROOT_DIR`.")
     endif()
@@ -167,7 +207,7 @@ if(BUILD_NVCOMP)
     list(APPEND DALI_LIBS ${nvcomp_LIBS})
   else()
     message(STATUS "Found nvCOMP: ${nvcomp_INCLUDE_DIR}.")
-    set(DALI_INSTALL_REQUIRES_NVCOMP "\'nvidia-libnvcomp-cu${CUDA_VERSION_MAJOR} == 5.3.0.16\',")
+    set(DALI_INSTALL_REQUIRES_NVCOMP "\'nvidia-libnvcomp-cu${CUDA_VERSION_MAJOR} == ${DALI_NVCOMP_VERSION}\',")
     message(STATUS "Adding nvComp requirement as: ${DALI_INSTALL_REQUIRES_NVCOMP}")
   endif()
 endif()
@@ -240,7 +280,12 @@ if (BUILD_FFTS AND NOT PREBUILD_DALI_LIBS)
     SET(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -Xcompiler -msse -Xcompiler -msse2 -Xcompiler -msse3")
   endif()
 
-  check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/ffts EXCLUDE_FROM_ALL)
+  block(SCOPE_FOR VARIABLES)
+    # FFTS passes sizes that are not multiples of 32 to aligned_alloc(32, size).
+    # Use its posix_memalign fallback, which accepts these sizes, including under ASan.
+    set(HAVE_ALIGNED_ALLOC OFF)
+    check_and_add_cmake_submodule(${PROJECT_SOURCE_DIR}/third_party/ffts EXCLUDE_FROM_ALL)
+  endblock()
   include_directories(SYSTEM ${PROJECT_SOURCE_DIR}/third_party/ffts/include)
   list(APPEND DALI_LIBS ffts)
   list(APPEND DALI_EXCLUDES libffts.a)
@@ -307,8 +352,8 @@ endif()
 ##################################################################
 set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
 if(BUILD_NVIMAGECODEC)
-  set(NVIMGCODEC_MIN_VERSION "0.9.0")
-  set(NVIMGCODEC_MAX_VERSION "0.10.0")
+  set(NVIMGCODEC_MIN_VERSION "0.10.0")
+  set(NVIMGCODEC_MAX_VERSION "0.11.0")
   message(STATUS "nvImageCodec - requires version >=${NVIMGCODEC_MIN_VERSION}, <${NVIMGCODEC_MAX_VERSION}")
   if (WITH_DYNAMIC_NVIMGCODEC)
     message(STATUS "nvImageCodec - dynamic load")
@@ -326,14 +371,14 @@ if(BUILD_NVIMAGECODEC)
       if ("${CUDA_VERSION_MAJOR}" EQUAL "13")
         FetchContent_Declare(
             nvimgcodec_headers
-            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.9.0.20_cuda13-archive.tar.xz
-            URL_HASH SHA512=a7a07e8f297eaeb41c51769dba57bd56773a88c2612df8bc7c563c8679ffb2da137106589af48f4448a1481764ca62bf5e1250dbfd017e3acbf394b1680e92c1
+            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.10.0.9_cuda13-archive.tar.xz
+            URL_HASH SHA512=66fa44280a327f1c876b0329cd5f823fad857aa786f970b611181146913c36331df50ba2ceb824a1e4c2648c3ab2dd9d1cdbe9f557b5e1bdbcd4a1a94597d213
         )
       elseif ("${CUDA_VERSION_MAJOR}" EQUAL "12")
         FetchContent_Declare(
             nvimgcodec_headers
-            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.9.0.20_cuda12-archive.tar.xz
-            URL_HASH SHA512=687e88cd850574bcfd7dbd5b728580ac4a8bd00ba64ed27f1866efa2b01c7ae0743617daddc3f3b743089484cfdd7fff85d1dc3c0fd99e016988171fbaf83363
+            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.10.0.9_cuda12-archive.tar.xz
+            URL_HASH SHA512=3adada7a49fc60eed735853b453d82a3dc5e6edb8bf7d462e3db1b68c8d509e5be5b4a6e85fe2ed4fedc0e2b01b033b3ad10749d86cafa3f07b6775aec1bbd5d
         )
       else()
         message(FATAL_ERROR "Unsupported CUDA major version: ${CUDA_VERSION_MAJOR}")
@@ -377,7 +422,7 @@ if(BUILD_NVIMAGECODEC)
     ExternalProject_Add(
       nvImageCodec
       GIT_REPOSITORY    https://github.com/NVIDIA/nvImageCodec.git
-      GIT_TAG           v0.9.0
+      GIT_TAG           v${NVIMGCODEC_MIN_VERSION}
       GIT_SUBMODULES    "external/pybind11"
                         "external/NVTX"
                         "external/googletest"

@@ -11,6 +11,8 @@ function CLEAN_AND_EXIT {
 # enable compat for CUDA 13 if the test image doesn't support it yet
 source <(echo "set -x"; cat ../setup_test_common.sh; echo "set +x")
 
+check_required_paths "${COCO_DIR}"
+
 install_cuda_compat
 
 cd /opt/dali/docs/examples/use_cases/pytorch/single_stage_detector/
@@ -20,23 +22,7 @@ pip install git+https://github.com/NVIDIA/cocoapi.git#subdirectory=PythonAPI --n
 
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
-export DATA_DIR=/data/coco/coco-2017/coco2017
-export IS_TMP_DIR=0
-if [ -f "/data/coco/coco-2017/coco2017/train2017.zip" ]; then
-    apt update && apt install -y unzip
-    export DATA_DIR=$(mktemp -d)
-    export IS_TMP_DIR=1
-    pushd ${DATA_DIR}
-    cp /data/coco/coco-2017/coco2017/train2017.zip . &
-    cp /data/coco/coco-2017/coco2017/val2017.zip . &
-    cp /data/coco/coco-2017/coco2017/annotations_trainval2017.zip . &
-    wait
-    unzip -q train2017.zip &
-    unzip -q val2017.zip &
-    unzip -q annotations_trainval2017.zip &
-    wait
-    popd
-fi
+prepare_coco_dataset
 
 LOG=dali.log
 

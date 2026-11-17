@@ -178,9 +178,29 @@ py::dict ArrayInterfaceRepr(Tensor<Backend> &t) {
   tup[1] = false;
   d["data"] = tup;
   if constexpr (std::is_same<Backend, GPUBackend>::value) {
-    // see https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html
-    // this set of atributes is tagged as version 2
-    d["version"] = 2;
+    // see https://numba.readthedocs.io/en/stable/cuda/cuda_array_interface.html
+    // this set of attributes is tagged as version 3
+    d["version"] = 3;
+    const auto &order = t.order();
+    if (order.is_device()) {
+      // make the exported stream wait for the data to be ready, so that synchronizing with
+      // the stream (as CAI v3 requires from the consumer) is sufficient
+      if (auto &event = t.ready_event())
+        order.wait(event);
+      cudaStream_t stream = order.stream();
+      // CAI v3: 0 is disallowed, 1 denotes the legacy default stream and 2 - the per-thread one
+      if (stream == 0)
+        d["stream"] = 1;
+      else if (stream == cudaStreamPerThread)
+        d["stream"] = 2;
+      else
+        d["stream"] = PyLongFromVoidPtr(stream);
+    } else {
+      // the data is host-synchronous - no synchronization is needed on the consumer's side
+      if (auto &event = t.ready_event())
+        AccessOrder::host().wait(event);
+      d["stream"] = py::none();
+    }
   } else {
     // see https://docs.scipy.org/doc/numpy/reference/arrays.interface.html
     // this set of atributes is tagged as version 3
@@ -1167,7 +1187,12 @@ void ExposeTensor(py::module &m) {
     })
     .def_property("__cuda_array_interface__",  &ArrayInterfaceRepr<GPUBackend>, nullptr,
       R"code(
-      Returns CUDA Array Interface (Version 2) representation of TensorGPU.
+      Returns CUDA Array Interface (Version 3) representation of TensorGPU.
+
+      The ``stream`` entry denotes the CUDA stream on which the tensor's data is produced
+      (``1`` for the legacy default stream, ``2`` for the per-thread default stream);
+      the consumer has to synchronize with it before accessing the data. If the entry is
+      ``None``, the data is already available and no synchronization is required.
       )code")
     .def_property_readonly("dtype", [](Tensor<GPUBackend> &t) {
           return static_cast<DALIDataTypePlaceholder>(t.type());
@@ -1186,8 +1211,8 @@ void ExposeTensor(py::module &m) {
       samples of a :class:`TensorListGPU` or used to wrap GPU memory that is intended
       to be passed as an input to DALI.
 
-      It is compatible with `CUDA Array Interface <https://numba.pydata.org/numba-doc/dev/cuda/cuda_array_interface.html>`_
-      and `DLPack <https://github.com/dmlc/dlpack>`_.)code";
+      It is compatible with `CUDA Array Interface <https://numba.readthedocs.io/en/stable/cuda/cuda_array_interface.html>`_
+      (version 3) and `DLPack <https://github.com/dmlc/dlpack>`_.)code";
 }
 
 template <typename Backend>
@@ -2148,21 +2173,51 @@ void ExposeTensorList(py::module &m) {
   ExposeTesorListGPU(m);
 }
 
-#define GetRegisteredOpsFor(OPTYPE)                                           \
-static vector<string> GetRegistered##OPTYPE##Ops(bool internal_ops = false) { \
-  return OPTYPE##OperatorRegistry::Registry().RegisteredNames(internal_ops);  \
+/** Lists the names of the operators (including aliases) which support given backend. */
+static vector<string> GetRegisteredOps(bool (OpSchema::*supports_backend)() const,
+                                       bool internal_ops) {
+  vector<string> names;
+  for (const OpSchema *schema : SchemaRegistry::ListSchemas()) {
+    if (!internal_ops && schema->IsInternal())
+      continue;
+    // Aliases don't declare backends - check the actual operator
+    const OpSchema *actual = SchemaRegistry::TryGetSchema(schema->name(), FollowAliases::Yes);
+    if (actual && (actual->*supports_backend)())
+      names.push_back(schema->name());
+  }
+  return names;
 }
-GetRegisteredOpsFor(CPU)
-GetRegisteredOpsFor(GPU)
-GetRegisteredOpsFor(Mixed)
-#undef GetRegisteredOpsFor
 
-static const OpSchema &GetSchema(const string &name) {
-  return SchemaRegistry::GetSchema(name);
+static vector<string> GetRegisteredCPUOps(bool internal_ops = false) {
+  return GetRegisteredOps(&OpSchema::SupportsCPU, internal_ops);
 }
 
-static const OpSchema *TryGetSchema(const string &name) {
-  return SchemaRegistry::TryGetSchema(name);
+static vector<string> GetRegisteredGPUOps(bool internal_ops = false) {
+  return GetRegisteredOps(&OpSchema::SupportsGPU, internal_ops);
+}
+
+static vector<string> GetRegisteredMixedOps(bool internal_ops = false) {
+  return GetRegisteredOps(&OpSchema::SupportsMixed, internal_ops);
+}
+
+static const OpSchema &GetSchema(const string &name, bool follow_aliases) {
+  return SchemaRegistry::GetSchema(name, FollowAliases(follow_aliases));
+}
+
+static const OpSchema *TryGetSchema(const string &name, bool follow_aliases) {
+  return SchemaRegistry::TryGetSchema(name, FollowAliases(follow_aliases));
+}
+
+/** Returns a pair: (schema under the given name, schema of the actual operator)
+ *
+ * If `name` is not an alias, both elements are the same schema.
+ * If `name` is an alias whose target is not registered, the second element is None.
+ */
+static py::tuple GetSchemaAndTarget(const string &name) {
+  auto ref = py::return_value_policy::reference;
+  const OpSchema &schema = SchemaRegistry::GetSchema(name);
+  const OpSchema *target = SchemaRegistry::TryGetSchema(name, FollowAliases::Yes);
+  return py::make_tuple(py::cast(&schema, ref), py::cast(target, ref));
 }
 
 static constexpr int GetCxx11AbiFlag() {
@@ -3069,15 +3124,20 @@ void ExposeOperator(py::module &m) {
     }, "data"_a);
 }
 
-auto GetSupportedBackends(OpSchema &schema) {
+auto GetSupportedBackends(const OpSchema &schema) {
   std::vector<std::string_view> ret;
   ret.reserve(2);  // the vast majority of operators will have only one or two supported backends
-  auto &name = schema.name();
-  if (CPUOperatorRegistry::Registry().IsRegistered(name))
+  // Aliases don't declare backends - check the actual operator
+  const OpSchema *actual = schema.AliasFor().empty()
+                         ? &schema
+                         : SchemaRegistry::TryGetSchema(schema.name(), FollowAliases::Yes);
+  if (!actual)
+    return ret;
+  if (actual->SupportsCPU())
     ret.push_back("cpu");
-  if (GPUOperatorRegistry::Registry().IsRegistered(name))
+  if (actual->SupportsGPU())
     ret.push_back("gpu");
-  if (MixedOperatorRegistry::Registry().IsRegistered(name))
+  if (actual->SupportsMixed())
     ret.push_back("mixed");
   return ret;
 }
@@ -3107,8 +3167,8 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
 
   m.def("IsDriverInitialized", [] {
     // we just want to check if cuda has been loaded already
-    if (dlopen("libcuda.so", RTLD_NOLOAD | RTLD_NOW) ||
-        dlopen("libcuda.so.1", RTLD_NOLOAD | RTLD_NOW)) {
+    if (dlopen("libcuda.so.1", RTLD_NOLOAD | RTLD_NOW) ||
+        dlopen("libcuda.so", RTLD_NOLOAD | RTLD_NOW)) {
       int place_holder = -1;
       // call cuDeviceGetCount only if cuda is loaded, if not there is not point in calling
       // a check that would load it
@@ -3441,8 +3501,11 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
   m.def("RegisteredMixedOps", &GetRegisteredMixedOps, py::arg("internal_ops") = false);
 
   // Registry for OpSchema
-  m.def("GetSchema", &GetSchema, py::return_value_policy::reference);
-  m.def("TryGetSchema", &TryGetSchema, py::return_value_policy::reference);
+  m.def("GetSchema", &GetSchema, "name"_a, "follow_aliases"_a = false,
+        py::return_value_policy::reference);
+  m.def("TryGetSchema", &TryGetSchema, "name"_a, "follow_aliases"_a = false,
+        py::return_value_policy::reference);
+  m.def("GetSchemaAndTarget", &GetSchemaAndTarget);
 
   py::class_<OpSchema>(m, "OpSchema")
     .def("Name", &OpSchema::name)
@@ -3528,6 +3591,7 @@ PYBIND11_MODULE(backend_impl, m, py::mod_gil_not_used()) {
     .def("DeprecatedInVersion", &OpSchema::DeprecatedInVersion)
     .def("DeprecatedInFavorOf", &OpSchema::DeprecatedInFavorOf)
     .def("DeprecationMessage", &OpSchema::DeprecationMessage)
+    .def("AliasFor", py::overload_cast<>(&OpSchema::AliasFor, py::const_))
     .def("IsDeprecatedArg", &OpSchema::IsDeprecatedArg)
     .def("DeprecatedArgInfo",
         [](OpSchema *schema, const std::string &arg_name) {

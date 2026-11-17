@@ -92,6 +92,8 @@ std::string FormatStack(const std::vector<PythonStackFrame> &stack_summary, bool
     throw std::out_of_range(make_string(error.context_info, e.what(), error.additional_message));
   } catch (std::range_error &e) {
     throw std::range_error(make_string(error.context_info, e.what(), error.additional_message));
+  } catch (std::overflow_error &e) {
+    throw std::overflow_error(make_string(error.context_info, e.what(), error.additional_message));
   }
   // Map the rest into runtime error (it would happen this way regardless)
   catch (std::exception &e) {

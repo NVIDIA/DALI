@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ if (BUILD_TEST)
   # get all the test srcs
 
   file(GLOB tmp *.cc *.cu *.h)
+  # Keep generated protobuf messages and their ownership inside libdali.
+  list(REMOVE_ITEM tmp "${CMAKE_CURRENT_SOURCE_DIR}/argument_test_helper.cc")
   if (NOT BUILD_CFITSIO)
     list(REMOVE_ITEM tmp "${CMAKE_CURRENT_SOURCE_DIR}/cfitsio_test.cc")
   endif()

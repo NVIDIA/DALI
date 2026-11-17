@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,18 +13,33 @@
 // limitations under the License.
 
 #include <gtest/gtest.h>
+#include <unistd.h>
+#include <cstdio>
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <memory>
+#include <stdexcept>
+#include <string>
+#include <tuple>
+#include <vector>
 
 #include "dali/core/common.h"
+#include "dali/core/call_at_exit.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/operator/op_spec.h"
 #include "dali/test/dali_test.h"
 
 #include "dali/operators/reader/loader/loader.h"
+#include "dali/operators/reader/loader/numpy_loader.h"
 #include "dali/operators/reader/loader/file_label_loader.h"
 #include "dali/operators/reader/loader/recordio_loader.h"
 #include "dali/operators/reader/loader/indexed_file_loader.h"
 #include "dali/operators/reader/loader/coco_loader.h"
+
+#if CUFILE_ENABLED
+#include "dali/operators/reader/loader/numpy_loader_gpu.h"
+#endif
 
 #if LMDB_ENABLED
 #include "dali/operators/reader/loader/lmdb.h"
@@ -305,5 +320,127 @@ TEST(LoaderCheckpointingTest, TestCheckpointShortEpoch) {
     100 /* add 100*current_epoch to each output to differentiate samples */),
   32);
 }
+
+#if CUFILE_ENABLED
+namespace {
+
+// Exercise the GPU reader's host-side header path without GPU allocation or GDS I/O.
+class NumpyHeaderCUFileStream : public CUFileStream {
+ public:
+  explicit NumpyHeaderCUFileStream(const std::string &path)
+      : CUFileStream(path), stream_(FileStream::Open(path)) {}
+
+  size_t Read(void *buffer, size_t bytes) override { return stream_->Read(buffer, bytes); }
+  void SeekRead(ptrdiff_t pos, int whence = SEEK_SET) override { stream_->SeekRead(pos, whence); }
+  ssize_t TellRead() const override { return stream_->TellRead(); }
+  size_t Size() const override { return stream_->Size(); }
+  void Close() override { stream_->Close(); }
+
+  size_t ReadGPU(void *, size_t, ptrdiff_t) override {
+    throw std::logic_error("Unexpected GPU payload read in a header-only test.");
+  }
+
+  size_t ReadAtGPU(void *, size_t, ptrdiff_t, int64_t) override {
+    throw std::logic_error("Unexpected GPU payload read in a header-only test.");
+  }
+
+ private:
+  std::unique_ptr<FileStream> stream_;
+};
+
+}  // namespace
+#endif
+
+enum class NumpyReadMode { Mmap, Plain, Gpu };
+
+class NumpyLoaderCacheTest : public ::testing::TestWithParam<std::tuple<NumpyReadMode, bool>> {};
+
+TEST_P(NumpyLoaderCacheTest, RejectChangedFileWithCachedHeader) {
+  const auto [read_mode, truncate_header] = GetParam();
+  bool use_mmap = read_mode == NumpyReadMode::Mmap;
+  auto path = (std::filesystem::temp_directory_path() / "dali-numpy-cache-XXXXXX").string();
+  int fd = mkstemp(path.data());
+  ASSERT_GE(fd, 0);
+  auto cleanup = AtScopeExit([&] {
+    close(fd);
+    std::remove(path.c_str());
+  });
+  {
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    std::string header = "{'descr': '<f8', 'fortran_order': False, 'shape': (8,), }";
+    header.resize(117, ' ');
+    header += '\n';
+    file.write("\x93NUMPY\x01\x00\x76\x00", 10);
+    file << header;
+    const double values[8] = {};
+    file.write(reinterpret_cast<const char *>(values), sizeof(values));
+    ASSERT_TRUE(file.good());
+  }
+  auto spec = OpSpec("readers__Numpy")
+                  .AddArg("files", std::vector<std::string>{path})
+                  .AddArg("max_batch_size", 1)
+                  .AddArg("device_id", CPU_ONLY_DEVICE_ID)
+                  .AddArg("cache_header_information", true)
+                  .AddArg("dont_use_mmap", !use_mmap);
+  NumpyLoader loader(spec, false);
+  loader.PrepareMetadata();
+  int64_t data_offset = 0;
+#if CUFILE_ENABLED
+  detail::NumpyHeaderCache gpu_cache(true);
+#endif
+  auto read_sample = [&] {
+#if CUFILE_ENABLED
+    if (read_mode == NumpyReadMode::Gpu) {
+      NumpyFileWrapperGPU sample;
+      sample.filename = path;
+      sample.file_stream_ = std::make_unique<NumpyHeaderCUFileStream>(path);
+      sample.ReadHeader(gpu_cache);
+      EXPECT_EQ(sample.shape, TensorShape<>(8));
+      EXPECT_EQ(sample.type, DALI_FLOAT64);
+      data_offset = sample.data_offset;
+      return;
+    }
+#endif
+    NumpyFileWrapper sample;
+    loader.ReadSample(sample);
+    EXPECT_EQ(sample.nbytes, 64);
+    EXPECT_EQ(sample.data.shares_data(), use_mmap);
+    data_offset = sample.data_offset;
+  };
+  read_sample();
+  ASSERT_GT(data_offset, 4);
+  // Release all mappings/streams before changing the file, retaining only the header caches.
+  {
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    // An invalid magic string proves the second load uses the cached header instead of parsing.
+    std::string replacement(truncate_header ? 4 : data_offset + 8, 'x');
+    file.write(replacement.data(), replacement.size());
+    ASSERT_TRUE(file.good());
+  }
+  try {
+    // Call the loader/header path directly so prefetch cannot hide the file replacement.
+    read_sample();
+    FAIL() << "Expected rejection of the changed file";
+  } catch (const std::runtime_error &e) {
+    std::string error = e.what();
+    EXPECT_NE(error.find(path), std::string::npos);
+    EXPECT_NE(error.find(truncate_header ? "data offset is outside the file"
+                                         : "payload exceeds the available file data"),
+              std::string::npos);
+    EXPECT_NE(error.find(truncate_header ? "file size 4 bytes" : "available 8 bytes"),
+              std::string::npos);
+  }
+}
+
+const std::vector<NumpyReadMode> kNumpyReadModes = {
+    NumpyReadMode::Mmap, NumpyReadMode::Plain,
+#if CUFILE_ENABLED
+    NumpyReadMode::Gpu,
+#endif
+};
+
+INSTANTIATE_TEST_SUITE_P(
+    CpuAndGpuHeaders, NumpyLoaderCacheTest,
+    ::testing::Combine(::testing::ValuesIn(kNumpyReadModes), ::testing::Bool()));
 
 };  // namespace dali

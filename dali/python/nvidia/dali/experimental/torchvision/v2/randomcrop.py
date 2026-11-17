@@ -22,7 +22,7 @@ from ._enums import InterpolationMode
 from .centercrop import CenterCrop
 from .operator import (
     Operator,
-    _ArgumentValidateRule,
+    ArgumentValidateRule,
     _ValidateIfNonNegative,
     _ValidateSizeDescriptor,
     get_HWC_from_layout_pipeline,
@@ -31,7 +31,7 @@ from .pad import PADDING_CLASS, _ValidatePaddingMode
 from .resize import Resize
 
 
-class _ValidateCropSize(_ArgumentValidateRule):
+class _ValidateCropSize(ArgumentValidateRule):
     """
     Verify RandomCrop size values.
     """
@@ -42,7 +42,7 @@ class _ValidateCropSize(_ArgumentValidateRule):
             raise ValueError(f"Size values must be integers, got {size}")
 
 
-class _ValidatePadding(_ArgumentValidateRule):
+class _ValidatePadding(ArgumentValidateRule):
     """
     Verify RandomCrop padding arguments.
     """
@@ -70,7 +70,7 @@ class _ValidatePadding(_ArgumentValidateRule):
             _ValidatePaddingMode.verify(padding_mode=padding_mode)
 
 
-class _ValidateFill(_ArgumentValidateRule):
+class _ValidateFill(ArgumentValidateRule):
     """
     Verify RandomCrop fill argument.
     """
@@ -88,7 +88,7 @@ class _ValidateFill(_ArgumentValidateRule):
         raise TypeError(f"fill must be a number, sequence of numbers, or None, got {fill!r}")
 
 
-class _ValidateRandomResizedCropScaleRatio(_ArgumentValidateRule):
+class _ValidateRandomResizedCropScaleRatio(ArgumentValidateRule):
     """
     Verify RandomResizedCrop scale and ratio arguments.
     """
@@ -110,7 +110,7 @@ class _ValidateRandomResizedCropScaleRatio(_ArgumentValidateRule):
         cls._verify_range(ratio, "ratio")
 
 
-class _ValidateRandomResizedCropInterpolation(_ArgumentValidateRule):
+class _ValidateRandomResizedCropInterpolation(ArgumentValidateRule):
     """
     Verify RandomResizedCrop interpolation argument.
     """

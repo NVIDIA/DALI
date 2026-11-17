@@ -1,4 +1,4 @@
-// Copyright (c) 2021-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2021-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,13 +13,31 @@
 // limitations under the License.
 
 #include "dali/operators/video/frames_decoder_base.h"
+#include <algorithm>
 #include <iomanip>
 #include <memory>
+#include <stdexcept>
+#include <utility>
+#include <vector>
 #include "dali/core/error_handling.h"
 #include "dali/core/small_vector.h"
 #include "dali/operators/video/video_utils.h"
+#include "dali/util/file.h"
+#include "dali/util/uri.h"
 
 namespace dali {
+
+namespace {
+
+// FFmpeg's log level is a plain global (av_log_set_level only stores it). It is set once, while the
+// library is loaded and before any decoder exists, rather than by every decoder: decoders are
+// created on several threads
+const bool av_log_level_set = [] {
+  av_log_set_level(AV_LOG_ERROR);
+  return true;
+}();
+
+}  // namespace
 
 int MemoryVideoFile::Read(unsigned char *buffer, int buffer_size) {
   int left_in_file = size_ - position_;
@@ -70,7 +88,73 @@ int64_t seek_memory_video_file(void *data_ptr, int64_t new_position, int origin)
   return memory_video_file->Seek(new_position, origin);
 }
 
+// The callbacks below are called from libavformat (C code) - exceptions must not escape them.
+
+int read_input_stream(void *data_ptr, uint8_t *av_io_buffer, int av_io_buffer_size) {
+  InputStream *stream = static_cast<InputStream *>(data_ptr);
+  try {
+    // Some streams (e.g. S3) fail when asked to read past the end, so we check it here.
+    ssize_t left = stream->SSize() - stream->TellRead();
+    if (left <= 0)
+      return AVERROR_EOF;
+    size_t n = stream->Read(av_io_buffer, std::min<ssize_t>(left, av_io_buffer_size));
+    if (n == 0) {
+      // Reported as the end of the file, this would silently truncate the video.
+      DALI_WARN("Error while reading video data: the stream ended before its reported size.");
+      return AVERROR(EIO);
+    }
+    return static_cast<int>(n);
+  } catch (const std::exception &e) {
+    DALI_WARN(make_string("Error while reading video data: ", e.what()));
+    return AVERROR(EIO);
+  }
+}
+
+int64_t seek_input_stream(void *data_ptr, int64_t new_position, int origin) {
+  InputStream *stream = static_cast<InputStream *>(data_ptr);
+  try {
+    origin &= ~AVSEEK_FORCE;
+    switch (origin) {
+      case AVSEEK_SIZE:
+        return stream->Size();
+      case SEEK_SET:
+      case SEEK_CUR:
+      case SEEK_END:
+        stream->SeekRead(new_position, origin);
+        return stream->TellRead();
+      default:
+        return AVERROR(EINVAL);
+    }
+  } catch (const std::out_of_range &) {
+    return AVERROR(EINVAL);
+  } catch (const std::exception &e) {
+    DALI_WARN(make_string("Error while seeking in video data: ", e.what()));
+    return AVERROR(EIO);
+  }
+}
+
 }  // namespace detail
+
+namespace {
+
+/**
+ * @brief Checks whether the path should be opened with FileStream::Open instead of libavformat.
+ *
+ * libavformat is built only with the "file" protocol, so any other scheme (e.g. s3://, gs://)
+ * is handled by DALI's FileStream.
+ */
+bool IsRemotePath(const std::string &path) {
+  auto uri = URI::Parse(path, URI::ParseOpts::AllowNonEscaped);
+  return uri.valid() && uri.scheme() != "file";
+}
+
+void ValidateImageType(DALIImageType image_type) {
+  DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
+               make_string("Unsupported `image_type`: ", to_string(image_type),
+                           ". Supported values are DALI_RGB and DALI_YCbCr."));
+}
+
+}  // namespace
 
 int FramesDecoderBase::OpenFile(const std::string& filename) {
   LOG_LINE << "Opening file " << filename << std::endl;
@@ -86,21 +170,43 @@ int FramesDecoderBase::OpenFile(const std::string& filename) {
 
 int FramesDecoderBase::OpenMemoryFile(MemoryVideoFile &memory_video_file) {
   LOG_LINE << "Opening memory file" << std::endl;
+  static constexpr int DEFAULT_AV_BUFFER_SIZE = (1 << 15);
+  return OpenCustomIO(&memory_video_file,
+                      detail::read_memory_video_file,
+                      detail::seek_memory_video_file,
+                      DEFAULT_AV_BUFFER_SIZE);
+}
+
+int FramesDecoderBase::OpenInputStream(InputStream &stream) {
+  LOG_LINE << "Opening input stream" << std::endl;
+  // libavformat assumes that the stream starts at the current position
+  stream.SeekRead(0, SEEK_SET);
+  // Each read may result in a separate request to a remote storage, so we use a larger buffer.
+  static constexpr int INPUT_STREAM_AV_BUFFER_SIZE = (1 << 20);
+  return OpenCustomIO(&stream,
+                      detail::read_input_stream,
+                      detail::seek_input_stream,
+                      INPUT_STREAM_AV_BUFFER_SIZE);
+}
+
+int FramesDecoderBase::OpenCustomIO(void *opaque,
+                                    int (*read_packet)(void *opaque, uint8_t *buf, int buf_size),
+                                    int64_t (*seek)(void *opaque, int64_t offset, int whence),
+                                    int buffer_size) {
   ctx_.reset(avformat_alloc_context());
   DALI_ENFORCE(ctx_, "Could not alloc avformat context");
 
-  static constexpr int DEFAULT_AV_BUFFER_SIZE = (1 << 15);
-  uint8_t* buffer = static_cast<uint8_t*>(av_malloc(DEFAULT_AV_BUFFER_SIZE));
+  uint8_t* buffer = static_cast<uint8_t*>(av_malloc(buffer_size));
   DALI_ENFORCE(buffer, "Could not alloc avio context buffer");
 
   auto avio_ctx = avio_alloc_context(
     buffer,
-    DEFAULT_AV_BUFFER_SIZE,
+    buffer_size,
     0,
-    &memory_video_file,
-    detail::read_memory_video_file,
+    opaque,
+    read_packet,
     nullptr,
-    detail::seek_memory_video_file);
+    seek);
 
   if (!avio_ctx) {
     av_freep(&buffer);
@@ -213,12 +319,16 @@ bool FramesDecoderBase::CheckDimensions() {
 }
 
 FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType image_type) {
-  av_log_set_level(AV_LOG_ERROR);
   filename_ = filename;
-  DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
-               make_string("Invalid image type: ", image_type));
+  ValidateImageType(image_type);
   image_type_ = image_type;
-  int ret = OpenFile(filename);
+  int ret = -1;
+  if (IsRemotePath(filename)) {
+    input_stream_ = FileStream::Open(filename);
+    ret = OpenInputStream(*input_stream_);
+  } else {
+    ret = OpenFile(filename);
+  }
   if (ret < 0) {
     DALI_WARN(make_string("Failed to open video file \"", Filename(), "\", due to ",
                           av_error_string(ret)));
@@ -234,10 +344,8 @@ FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType 
 }
 
 FramesDecoderBase::FramesDecoderBase(const char *memory_file, size_t memory_file_size, std::string_view source_info, DALIImageType image_type) {
-  av_log_set_level(AV_LOG_ERROR);
   filename_ = source_info;
-  DALI_ENFORCE(image_type == DALI_YCbCr || image_type == DALI_RGB,
-               make_string("Invalid image type: ", image_type));
+  ValidateImageType(image_type);
   image_type_ = image_type;
   memory_video_file_ = std::make_unique<MemoryVideoFile>(memory_file, memory_file_size);
   int ret = OpenMemoryFile(*memory_video_file_);
@@ -255,12 +363,62 @@ FramesDecoderBase::FramesDecoderBase(const char *memory_file, size_t memory_file
   next_frame_idx_ = 0;
 }
 
+FramesDecoderBase::FramesDecoderBase(std::unique_ptr<InputStream> stream,
+                                     std::string_view source_info, DALIImageType image_type) {
+  filename_ = source_info;
+  DALI_ENFORCE(stream, "The `stream` argument must not be null.");
+  ValidateImageType(image_type);
+  image_type_ = image_type;
+  input_stream_ = std::move(stream);
+  int ret = OpenInputStream(*input_stream_);
+  if (ret < 0) {
+    DALI_WARN(make_string("Failed to open video file \"", Filename(), "\" due to: ",
+                          av_error_string(ret), "."));
+    return;
+  }
+
+  packet_.reset(av_packet_alloc());
+  DALI_ENFORCE(packet_, "Could not allocate an AVPacket.");
+
+  is_valid_ = true;
+  can_seek_ = true;
+  next_frame_idx_ = 0;
+}
+
+int FramesDecoderBase::ReadFrameError(int ret) const {
+  if (ret != AVERROR_EOF)
+    return ret;
+  // A failed read also sets the end-of-file flag of the I/O context, and some demuxers check
+  // only that flag - the error is still recorded in the context, though.
+  if (ctx_->pb && ctx_->pb->error < 0)
+    return ctx_->pb->error;
+  return 0;
+}
+
+FramesIndexer::FramesIndexer(const std::string &filename, DALIImageType image_type)
+    : FramesDecoderBase(filename, image_type) {
+  is_valid_ = is_valid_ && SelectVideoStream();
+}
+
+bool FramesIndexer::ReadNextFrame(uint8_t *data) {
+  throw std::logic_error("FramesIndexer does not decode the frames of a video.");
+}
+
+void FramesIndexer::CopyFrame(uint8_t *dst, const uint8_t *src) {
+  throw std::logic_error("FramesIndexer does not decode the frames of a video.");
+}
+
 void FramesDecoderBase::ParseNumFrames() {
   num_frames_ = 0;
   while (true) {
     int ret = av_read_frame(ctx_, packet_);
     auto packet = AVPacketScope(packet_, av_packet_unref);
     if (ret != 0) {
+      if (int err = ReadFrameError(ret)) {
+        num_frames_ = -1;
+        DALI_FAIL(make_string("Failed to read video file \"", Filename(),
+                              "\" while counting its frames: ", av_error_string(err), "."));
+      }
       break;  // End of file
     }
 
@@ -292,6 +450,191 @@ static inline uint32_t read_nal_unit_length(uint8_t *buf) {
   return length;
 }
 
+namespace {
+
+/**
+ * @brief Identifies a packet of the stream when it is read again (e.g. after a seek): by its
+ * position in the file or, if unknown, by its timestamp.
+ *
+ * The kind of the value (true: position) is part of the key, so that a timestamp never matches
+ * the position of another packet.
+ */
+using PacketKeyType = std::pair<bool, int64_t>;
+
+inline PacketKeyType PacketKey(const AVPacket &packet) {
+  if (packet.pos >= 0)
+    return {true, packet.pos};
+  return {false, packet.dts != AV_NOPTS_VALUE ? packet.dts : packet.pts};
+}
+
+constexpr int kMpeg4IVop = 0;
+constexpr int kMpeg4BVop = 2;
+
+// Reads the bits of an MPEG-4 Part 2 header, most significant first; zeros past the end
+class Mpeg4BitReader {
+ public:
+  Mpeg4BitReader(const uint8_t *data, int size) : data_(data), bits_(int64_t{size} * 8) {}
+
+  unsigned Get(int n) {
+    unsigned value = 0;
+    for (int i = 0; i < n; i++, pos_++) {
+      unsigned bit = pos_ < bits_ ? (data_[pos_ >> 3] >> (7 - (pos_ & 7))) & 1 : 0;
+      value = (value << 1) | bit;
+    }
+    return value;
+  }
+
+  void Skip(int n) { pos_ += n; }
+
+  // Whether no bit was read past the end
+  bool IsWithinBounds() const { return pos_ <= bits_; }
+
+ private:
+  const uint8_t *data_;
+  int64_t bits_;
+  int64_t pos_ = 0;
+};
+
+// The start codes of MPEG-4 Part 2: 00 00 01 and the code
+inline bool IsMpeg4StartCode(const uint8_t *p) {
+  return p[0] == 0 && p[1] == 0 && p[2] == 1;
+}
+
+/**
+ * @brief Reads the length of vop_time_increment from a video object layer header (ISO/IEC
+ * 14496-2, 6.2.3), which starts after its start code. Returns -1 if the header is cut short.
+ */
+int Mpeg4TimeIncrementBits(Mpeg4BitReader r) {
+  r.Skip(1 + 8);  // random_accessible_vol, video_object_type_indication
+  int verid = 1;
+  if (r.Get(1)) {  // is_object_layer_identifier
+    verid = r.Get(4);
+    r.Skip(3);  // video_object_layer_priority
+  }
+  if (r.Get(4) == 0xF)  // aspect_ratio_info: extended PAR
+    r.Skip(8 + 8);
+  if (r.Get(1)) {  // vol_control_parameters
+    r.Skip(2 + 1);  // chroma_format, low_delay
+    if (r.Get(1))   // vbv_parameters: bit rate, buffer size and occupancy, with their markers
+      r.Skip(15 + 1 + 15 + 1 + 15 + 1 + 3 + 11 + 1 + 15 + 1);
+  }
+  int shape = r.Get(2);
+  if (shape == 3 && verid != 1)  // grayscale
+    r.Skip(4);  // video_object_layer_shape_extension
+  r.Skip(1);  // marker_bit
+  unsigned resolution = r.Get(16);  // vop_time_increment_resolution
+  if (!r.IsWithinBounds() || resolution == 0)
+    return -1;
+  int bits = 1;  // as many as resolution - 1 takes, and at least 1
+  while ((1u << bits) < resolution)
+    bits++;
+  return bits;
+}
+
+struct Mpeg4Vop {
+  int type;    // vop_coding_type: I, P, B or S
+  bool coded;  // vop_coded: a not-coded VOP repeats the previous one (e.g. a DivX placeholder)
+};
+
+/**
+ * @brief The VOPs of an MPEG-4 Part 2 packet, in order: two for a DivX packed packet (a P- or
+ * I-VOP and the B-VOP shown before it).
+ *
+ * A video object layer header in the packet sets `time_increment_bits`, which is needed to read
+ * vop_coded. While it is unknown (-1), the VOPs are taken as coded.
+ */
+SmallVector<Mpeg4Vop, 2> Mpeg4Vops(const uint8_t *data, int size, int &time_increment_bits) {
+  SmallVector<Mpeg4Vop, 2> vops;
+  for (int i = 0; i + 4 < size; i++) {
+    if (!IsMpeg4StartCode(data + i))
+      continue;
+    uint8_t code = data[i + 3];
+    Mpeg4BitReader r(data + i + 4, size - i - 4);
+    if ((code & 0xF0) == 0x20) {  // video_object_layer_start_code
+      int bits = Mpeg4TimeIncrementBits(r);
+      if (bits > 0)
+        time_increment_bits = bits;
+    } else if (code == 0xB6) {  // vop_start_code
+      Mpeg4Vop vop = {static_cast<int>(r.Get(2)), true};
+      if (time_increment_bits > 0) {
+        while (r.Get(1) && r.IsWithinBounds()) {}  // modulo_time_base
+        r.Skip(1 + time_increment_bits + 1);  // marker_bit, vop_time_increment, marker_bit
+        unsigned coded = r.Get(1);
+        vop.coded = coded || !r.IsWithinBounds();  // cut short: taken as coded
+      }
+      vops.push_back(vop);
+    }
+    i += 3;
+  }
+  return vops;
+}
+
+// A packet where a seek can land: a key packet, or the first packet of the stream
+struct SyncPacket {
+  PacketKeyType key;
+  int decode_idx;  // its position in decoding order
+};
+
+/**
+ * @brief Records IndexEntry::seek_decode_idx for the frames that SeekFrame seeks to.
+ *
+ * A seek lands on the keyframe itself, or at the start of the stream for a target that is not a
+ * keyframe (frame 0 before the first keyframe). With hidden packets (e.g. an edit list), the
+ * demuxer is asked instead, as its rule is not exposed: mov, for one, can land a whole GOP or a
+ * hidden lead-in before the keyframe. All-intra streams are not asked: a seek lands on the keyframe
+ * there, and asking would read the whole file again.
+ *
+ * Leaves the demuxer at an arbitrary position: the caller resets it.
+ */
+void RecordSeekLandings(AVFormatContext *ctx, int stream_id, AVPacket *packet_buf,
+                        FrameIndex &index, bool has_hidden_packets,
+                        std::vector<SyncPacket> sync_packets) {
+  bool all_keyframes = std::all_of(index.index.begin(), index.index.end(),
+                                   [](const IndexEntry &e) { return e.is_keyframe; });
+  bool ask_demuxer = has_hidden_packets && !all_keyframes;
+  // Sorted by key, keeping the decoding order of packets with the same key: the first one wins
+  if (ask_demuxer)
+    std::stable_sort(sync_packets.begin(), sync_packets.end(),
+                     [](const SyncPacket &a, const SyncPacket &b) { return a.key < b.key; });
+  int prev_target = -1;
+  for (size_t i = 0; i < index.size(); i++) {
+    int target = index[i].last_keyframe_id;
+    if (target == prev_target)
+      continue;  // last_keyframe_id does not decrease
+    prev_target = target;
+    auto &entry = index[target];
+    entry.seek_decode_idx = entry.is_keyframe ? entry.decode_idx : 0;
+    if (!ask_demuxer)
+      continue;
+    if (av_seek_frame(ctx, stream_id, entry.pts, AVSEEK_FLAG_BACKWARD) < 0) {
+      LOG_LINE << "Not seekable: seeks are assumed to land on their keyframes" << std::endl;
+      ask_demuxer = false;
+      continue;
+    }
+    int ret;
+    while ((ret = av_read_frame(ctx, packet_buf)) == 0) {
+      auto packet = AVPacketScope(packet_buf, av_packet_unref);
+      if (packet->stream_index != stream_id)
+        continue;
+      auto key = PacketKey(*packet);
+      auto landing = std::lower_bound(
+          sync_packets.begin(), sync_packets.end(), key,
+          [](const SyncPacket &s, const PacketKeyType &k) { return s.key < k; });
+      if (landing != sync_packets.end() && landing->key == key)
+        entry.seek_decode_idx = landing->decode_idx;
+      else
+        LOG_LINE << "A seek to frame " << target << " landed on an unknown packet: assumed to "
+                 << "land on decoding position " << entry.seek_decode_idx << std::endl;
+      break;
+    }
+    if (ret != 0)
+      LOG_LINE << "No packet read after a seek to frame " << target << ": "
+               << av_error_string(ret) << std::endl;
+  }
+}
+
+}  // namespace
+
 void FramesDecoderBase::BuildIndex() {
   if (HasIndex()) {
     return;
@@ -301,17 +644,42 @@ void FramesDecoderBase::BuildIndex() {
   index_.index.clear();
   index_.filename = Filename();
   index_.timebase = ctx_->streams[stream_id_]->time_base;
+  index_.decode_order_timestamps = HasDecodeOrderTimestamps();
 
   // Track the position of the last keyframe seen
   int last_keyframe = -1;
   int frame_count = 0;
   num_frames_ = 0;
+  int decode_idx = 0;  // packets of the stream so far, in decoding order
+  // Where a seek can land, in decoding order (see RecordSeekLandings)
+  std::vector<SyncPacket> sync_packets;
+  // Packets decoded but not shown (e.g. hidden by an edit list): marked as discarded by the
+  // demuxer, or with negative timestamps
+  bool has_hidden_packets = false;
+  // MPEG-4 Part 2 with timestamps in decoding order (AVI): the VOPs tell where a seek can start,
+  // and the B-VOPs right after an I-VOP in decoding order, which are shown before it: its leading
+  // pictures
+  bool read_vops = index_.decode_order_timestamps &&
+                   ctx_->streams[stream_id_]->codecpar->codec_id == AV_CODEC_ID_MPEG4;
+  int time_increment_bits = -1;  // from the video object layer header, to read the VOP headers
+  int leading_of = -1;  // the keyframe whose leading B-VOPs the next packets may hold
+  if (read_vops) {
+    auto *par = ctx_->streams[stream_id_]->codecpar;
+    Mpeg4Vops(par->extradata, par->extradata_size, time_increment_bits);
+  }
 
   while (true) {
     // Read the next frame from the video
     int ret = av_read_frame(ctx_, packet_);
     auto packet = AVPacketScope(packet_, av_packet_unref);
     if (ret != 0) {
+      if (int err = ReadFrameError(ret)) {
+        // Only the whole file makes a valid index - a partial one would drop the remaining frames.
+        index_.index.clear();
+        num_frames_ = -1;
+        DALI_FAIL(make_string("Failed to read video file \"", Filename(),
+                              "\" while building its frame index: ", av_error_string(err), "."));
+      }
       LOG_LINE << "End of file reached after " << frame_count << " frames" << std::endl;
       break;  // Just break when we hit EOF instead of trying to seek back
     }
@@ -323,8 +691,20 @@ void FramesDecoderBase::BuildIndex() {
       continue;
     }
 
+    SmallVector<Mpeg4Vop, 2> vops;
+    if (read_vops)
+      vops = Mpeg4Vops(packet->data, packet->size, time_increment_bits);
+
     IndexEntry entry;
     entry.is_keyframe = false;  // Default to false, set true only if confirmed
+    // Counted before the negative timestamps are skipped: hidden packets are decoded too
+    entry.decode_idx = decode_idx++;
+    // The first packet too: a demuxer can fall back to the start of the stream
+    if ((packet->flags & AV_PKT_FLAG_KEY) || entry.decode_idx == 0)
+      sync_packets.push_back({PacketKey(*packet), entry.decode_idx});
+    // An empty edit shifts the timeline, so hidden packets can have non-negative timestamps too
+    if (packet->flags & AV_PKT_FLAG_DISCARD)
+      has_hidden_packets = true;
 
     // Check if this packet contains a keyframe
     if (packet->flags & AV_PKT_FLAG_KEY) {
@@ -354,6 +734,7 @@ void FramesDecoderBase::BuildIndex() {
             // IDR frames are special keyframes that clear all reference buffers
             if (nal_unit_type == 5) {
               entry.is_keyframe = true;
+              entry.leading_pictures = 0;  // no picture after an IDR is shown before it
               break;
             }
           } else {  // AV_CODEC_ID_HEVC
@@ -363,11 +744,18 @@ void FramesDecoderBase::BuildIndex() {
             // which serve as keyframes in HEVC
             if (nal_unit_type >= 16 && nal_unit_type <= 21) {
               entry.is_keyframe = true;
+              // IDR_N_LP has no leading pictures; the others may have (RADL, RASL)
+              if (nal_unit_type == 20)
+                entry.leading_pictures = 0;
               break;
             }
           }
           nal_start += nal_size;  // Advance to next NAL unit
         }
+      } else if (read_vops) {
+        // AVI key flags are not always on coded I-VOPs: e.g. a remux of a packed stream flags the
+        // not-coded VOP (typed I) after a packed I+B packet. A seek must start at a coded I-VOP.
+        entry.is_keyframe = !vops.empty() && vops[0].type == kMpeg4IVop && vops[0].coded;
       } else {
         // For other codecs, trust the AV_PKT_FLAG_KEY flag
         entry.is_keyframe = true;
@@ -382,6 +770,7 @@ void FramesDecoderBase::BuildIndex() {
 
     if (entry.pts < 0) {
       LOG_LINE << "Negative timestamp: " << entry.pts << ", skipping" << std::endl;
+      has_hidden_packets = true;
       continue;
     }
 
@@ -395,6 +784,21 @@ void FramesDecoderBase::BuildIndex() {
     entry.is_flush_frame = false;
     index_.index.push_back(entry);
     ++num_frames_;
+
+    if (read_vops) {
+      size_t first = 0;
+      if (entry.is_keyframe) {
+        leading_of = static_cast<int>(index_.size()) - 1;
+        index_[leading_of].leading_pictures = 0;
+        first = 1;  // after the I-VOP: a DivX packed packet holds the B-VOP shown before it
+      }
+      for (size_t v = first; leading_of >= 0 && v < vops.size(); v++) {
+        if (vops[v].type == kMpeg4BVop)
+          index_[leading_of].leading_pictures++;
+        else
+          leading_of = -1;  // the next reference picture: shown after the keyframe
+      }
+    }
   }
 
   LOG_LINE << "Index building complete. Total frames: " << index_.size() << std::endl;
@@ -406,9 +810,12 @@ void FramesDecoderBase::BuildIndex() {
   index_.index.back().is_flush_frame = true;
 
   // Sort frames by presentation timestamp
-  // This is needed because frames may be stored out of order in the container
+  // This is needed because frames may be stored out of order in the container. Frames that share
+  // a timestamp keep their decoding order, so that their order does not depend on the sort.
   std::sort(index_.index.begin(), index_.index.end(),
-            [](const IndexEntry &a, const IndexEntry &b) { return a.pts < b.pts; });
+            [](const IndexEntry &a, const IndexEntry &b) {
+              return a.pts != b.pts ? a.pts < b.pts : a.decode_idx < b.decode_idx;
+            });
 
   // After sorting, we need to update last_keyframe_id references
   std::vector<int> keyframe_positions;
@@ -432,6 +839,10 @@ void FramesDecoderBase::BuildIndex() {
       index_[i].last_keyframe_id = *(--it);
     }
   }
+
+  // For estimating the decoding work; the Reset below restores the demuxer
+  RecordSeekLandings(ctx_, stream_id_, packet_, index_, has_hidden_packets,
+                     std::move(sync_packets));
 
   // Detect if video has variable frame rate (VFR)
   DetectVariableFrameRate();
@@ -480,6 +891,11 @@ void FramesDecoderBase::Reset() {
     DALI_ENFORCE(ret >= 0,
                  make_string("Could not open video file from memory buffer due to: ",
                              av_error_string(ret)));
+  } else if (input_stream_) {
+    ret = OpenInputStream(*input_stream_);
+    DALI_ENFORCE(ret >= 0,
+                 make_string("Could not open video file \"", Filename(),
+                    "\" due to: ", av_error_string(ret)));
   } else {
     ret = OpenFile(Filename());
     DALI_ENFORCE(ret >= 0,
@@ -490,10 +906,13 @@ void FramesDecoderBase::Reset() {
   is_valid_ = true;
   can_seek_ = true;
   next_frame_idx_ = 0;
+  reopens_++;
 
   SelectVideoStream(stream_id);
 }
 
+// The decision to seek is SeekTarget, shared with AddDecodeWork. Keep the rest (Reset at the end
+// of the file, skipping to the frame) in sync with AddDecodeWork.
 void FramesDecoderBase::SeekFrame(int frame_id) {
   LOG_LINE << "SeekFrame: Seeking to frame " << frame_id
             << " (current=" << next_frame_idx_ << ")" << std::endl;
@@ -515,49 +934,32 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   }
   assert(next_frame_idx_ >= 0);
 
-  // If we are seeking to a frame that is before the current frame,
-  // or we are seeking to a frame that is more than MINIMUM_SEEK_LEAP frames away,
-  // or the current frame index is invalid (e.g. end of file),
-  // we will to seek to the nearest keyframe first
   LOG_LINE << "SeekFrame: frame_id=" << frame_id << ", next_frame_idx=" << next_frame_idx_
            << std::endl;
-  constexpr int MINIMUM_SEEK_LEAP = 10;
-  if (frame_id < next_frame_idx_ || frame_id > next_frame_idx_ + MINIMUM_SEEK_LEAP) {
-    // If we have an index, we can seek to the nearest keyframe first
-    if (HasIndex()) {
-      LOG_LINE << "Using index to find nearest keyframe" << std::endl;
-      const auto &current_frame = index_[next_frame_idx_];
-      const auto &requested_frame = index_[frame_id];
-      auto keyframe_id = requested_frame.last_keyframe_id;
-      // if we are seeking to a different keyframe than the current frame,
-      // or if we are seeking to a frame that is before the current frame,
-      // we need to seek to the keyframe first
-      LOG_LINE << "current_frame.last_keyframe_id=" << current_frame.last_keyframe_id
-               << ", keyframe_id=" << keyframe_id << ", frame_id=" << frame_id
-               << ", next_frame_idx_=" << next_frame_idx_ << std::endl;
-
-      if (current_frame.last_keyframe_id != keyframe_id || frame_id < next_frame_idx_) {
-        // We are seeking to a different keyframe than the current frame,
-        // so we need to seek to the keyframe first
-        auto &keyframe_entry = index_[keyframe_id];
-        LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << keyframe_entry.pts
-                 << " for requested frame " << frame_id << " timestamp " << requested_frame.pts
-                 << std::endl;
-
-        if (!AvSeekFrame(keyframe_entry.pts, keyframe_id)) {
-          LOG_LINE << "Failed to seek to keyframe " << keyframe_id << " timestamp "
-                   << keyframe_entry.pts << ". Resetting decoder." << std::endl;
-          Reset();
-        }
+  if (HasIndex()) {
+    // Seek to the keyframe of the requested frame, unless decoding through is enough
+    int keyframe_id = SeekTarget(index_, next_frame_idx_, frame_id);
+    if (keyframe_id >= 0) {
+      auto &keyframe_entry = index_[keyframe_id];
+      LOG_LINE << "Seeking to key frame " << keyframe_id << " timestamp " << keyframe_entry.pts
+               << " for requested frame " << frame_id << std::endl;
+      // With hidden packets the seek can land before the keyframe (see seek_decode_idx)
+      if (!AvSeekFrame(keyframe_entry.pts, keyframe_id)) {
+        LOG_LINE << "Failed to seek to keyframe " << keyframe_id << " timestamp "
+                 << keyframe_entry.pts << ". Resetting decoder." << std::endl;
+        Reset();
       }
-    } else if (frame_id < next_frame_idx_) {
-      LOG_LINE << "No index & seeking backwards. Resetting decoder." << std::endl;
-      Reset();
     }
+  } else if (frame_id < next_frame_idx_) {
+    LOG_LINE << "No index & seeking backwards. Resetting decoder." << std::endl;
+    Reset();
   }
   LOG_LINE << "After seeking: next_frame_idx_=" << next_frame_idx_ << ", frame_id=" << frame_id
            << std::endl;
   assert(next_frame_idx_ <= frame_id);
+  // Unless DecodeFrames knows more, the requested frame is the next one read with its data
+  FramesToReadScope frames_to_read(*this);
+  frames_to_read.Declare(make_cspan(&frame_id, 1));
   // Skip all remaining frames until the requested frame
   LOG_LINE << "Skipping frames from " << next_frame_idx_ << " to " << frame_id << std::endl;
   for (int i = next_frame_idx_; i < frame_id; i++) {
@@ -566,6 +968,76 @@ void FramesDecoderBase::SeekFrame(int frame_id) {
   LOG_LINE << "After skipping: next_frame_idx_=" << next_frame_idx_ << ", frame_id=" << frame_id
            << std::endl;
   assert(next_frame_idx_ == frame_id);
+}
+
+int FramesDecoderBase::SeekTarget(const FrameIndex &index, int next_frame, int frame) {
+  assert(next_frame >= 0 && next_frame < static_cast<int>(index.size()));
+  if (frame >= next_frame && frame <= next_frame + kMinimumSeekLeap)
+    return -1;  // a short leap forward
+  int keyframe = index[frame].last_keyframe_id;
+  if (index.decode_order_timestamps && keyframe > 0) {
+    // Maybe a leading picture of the keyframe: it needs the pictures before the keyframe
+    int leading = index[keyframe].leading_pictures;
+    if (frame - keyframe < (leading >= 0 ? leading : kMaxLeadingPictures))
+      keyframe = index[keyframe - 1].last_keyframe_id;
+  }
+  if (frame > next_frame && index[next_frame].last_keyframe_id >= keyframe)
+    return -1;  // further ahead, but past the keyframe that it would seek to
+  return keyframe;
+}
+
+bool FramesDecoderBase::HasDecodeOrderTimestamps() const {
+  if (!ctx_ || !ctx_->iformat || strcmp(ctx_->iformat->name, "avi") != 0)
+    return false;
+  switch (ctx_->streams[stream_id_]->codecpar->codec_id) {
+    case AV_CODEC_ID_MPEG4:
+    case AV_CODEC_ID_H264:
+    case AV_CODEC_ID_HEVC:
+      return true;
+    default:
+      return false;  // each packet shown in its own place (e.g. MJPEG, VP8, VP9)
+  }
+}
+
+FramesDecoderBase::DecodePosition FramesDecoderBase::PositionAt(const FrameIndex &index,
+                                                                int next_frame) {
+  if (next_frame < 0 || next_frame >= static_cast<int>(index.size()))
+    return {-1, -1};
+  if (next_frame == 0)
+    return {0, -1};
+  // It decoded the pictures of all the frames read. These are decoded after the keyframe of the
+  // last frame read, or after the keyframe before it: the leading pictures of an open GOP are
+  // shown before its keyframe, but decoded after it.
+  int first = index[next_frame - 1].last_keyframe_id;
+  if (first > 0)
+    first = index[first - 1].last_keyframe_id;
+  int decoded = -1;
+  for (int i = first; i < next_frame; i++)
+    decoded = std::max(decoded, index.DecodeIdx(i));
+  return {next_frame, decoded};
+}
+
+void FramesDecoderBase::AddDecodeWork(const FrameIndex &index, DecodePosition &pos, int frame,
+                                      DecodeWork &work) {
+  int n = static_cast<int>(index.size());
+  if (frame < 0 || frame >= n)
+    return;  // not decoded: DecodeFramesImpl copies a constant frame
+  if (frame != pos.next_frame) {
+    if (pos.next_frame < 0 || pos.next_frame >= n) {  // Reset(): reopens the file
+      pos = {0, -1};
+      work.reopens++;
+    }
+    int keyframe = SeekTarget(index, pos.next_frame, frame);
+    if (keyframe >= 0)
+      pos = {keyframe, index.SeekDecodeIdx(keyframe) - 1};  // AvSeekFrame and Flush
+  }
+  // A frame is returned once the pictures up to its own (in decoding order) are decoded, so the
+  // decoder decodes up to the furthest picture of the frames it reads, skipped ones included
+  int start = pos.decoded;
+  for (int i = pos.next_frame; i <= frame; i++)
+    pos.decoded = std::max(pos.decoded, index.DecodeIdx(i));
+  work.pictures += pos.decoded - start;
+  pos.next_frame = frame + 1 < n ? frame + 1 : -1;
 }
 
 int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id, int roi_start, int roi_end) {
@@ -606,12 +1078,23 @@ void FramesDecoderBase::DecodeFramesImpl(uint8_t *data,
   DALI_ENFORCE(constant_frame != nullptr || boundary_type != boundary::BoundaryType::CONSTANT,
                make_string("Constant frame must be provided if boundary type is CONSTANT"));
 
+  // The frames read with their data, in order (see frames_to_read_)
+  SmallVector<int, 32> to_read;
+  for (auto &[frame_id, i] : frame_ids) {
+    if (frame_id >= 0 && frame_id < NumFrames())
+      to_read.push_back(frame_id);
+  }
+  FramesToReadScope frames_to_read(*this);
+  int num_read = 0;
+
   uint8_t *last_out_frame_start = nullptr;
   for (auto &[frame_id, i] : frame_ids) {
     uint8_t* out_frame_start = data + ptrdiff_t(i) * FrameSize();
     assert(out_frame_start >= data);
     if (frame_id >= 0 && frame_id < NumFrames()) {
       LOG_LINE << "Decoding frame " << frame_id << " to position " << i << std::endl;
+      frames_to_read.Declare(make_cspan(to_read.data() + num_read, to_read.size() - num_read));
+      num_read++;
       SeekFrame(frame_id);
       ReadNextFrame(out_frame_start);
       last_out_frame_start = out_frame_start;

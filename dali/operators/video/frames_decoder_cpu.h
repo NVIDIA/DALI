@@ -19,6 +19,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace dali {
 
@@ -45,12 +46,38 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
    */
   FramesDecoderCpu(const char *memory_file, size_t memory_file_size, std::string_view = {}, DALIImageType image_type = DALI_RGB);
 
+  /**
+   * @brief Construct a new FramesDecoder object.
+   *
+   * @param stream Input stream with video file data; the decoder takes ownership of it.
+   * @param source_info Source info of the video file.
+   * @param image_type Image type of the video.
+   *
+   * @note This constructor assumes that the stream covers the entire video file,
+   * including the header.
+   */
+  explicit FramesDecoderCpu(std::unique_ptr<InputStream> stream, std::string_view source_info = {},
+                            DALIImageType image_type = DALI_RGB);
+
   FramesDecoderCpu(FramesDecoderCpu&&) = default;
 
   bool ReadNextFrame(uint8_t *data) override;
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
   void Reset() override;
   void Flush() override;
+
+  /**
+   * @brief Checks if the codec can be decoded by this decoder, as it is done when the video stream
+   *        is selected: it is on the list of the supported codecs and libavcodec has a decoder
+   *        for it. It warns if it is not, unless `warn` is false.
+   */
+  static bool IsCodecSupported(AVCodecID codec_id, bool warn = true);
+
+  /**
+   * @brief The codecs for which `IsCodecSupported` is true: a codec is supported if and only if it
+   *        is on this list, which can be used from any thread.
+   */
+  static std::vector<AVCodecID> SupportedCodecs();
 
  protected:
   bool SelectVideoStream(int stream_id = -1) override;
@@ -65,6 +92,7 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
   std::unique_ptr<SwsContext, decltype(&sws_freeContext)> sws_ctx_{
     nullptr, sws_freeContext};
   std::optional<bool> sws_src_full_range_;
+  std::optional<int> sws_src_colorspace_;
 
   std::vector<uint8_t> tmp_buffer_;
 };
