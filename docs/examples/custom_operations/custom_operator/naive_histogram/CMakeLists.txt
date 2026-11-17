@@ -16,6 +16,9 @@ set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 include_directories(SYSTEM "${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}")
 
 # Use the Python interpreter that has DALI installed - the plugin is built against that DALI.
+# Prefer the `python` from PATH (the one used to run the plugin) over other interpreters that
+# FindPython might find first. Has no effect when `Python_EXECUTABLE` is set, e.g. by pip.
+find_program(Python_EXECUTABLE NAMES python python3)
 find_package(Python REQUIRED COMPONENTS Interpreter)
 
 execute_process(
