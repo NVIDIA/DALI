@@ -1548,35 +1548,20 @@ TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
 
 namespace {
 
-/**
- * A copy of an MJPEG AVI that declares the FLV1 codec, which the GPU decoder does not support, in
- * a temporary file that is removed with the object. The file opens, with a video stream of a known
- * size: it is rejected because of its codec only. No file in DALI_extra has a codec that the GPU
- * decoder never supports. Same as write_unsupported_gpu_source in test_video_reader_index.py.
- */
-class Flv1TaggedCopy {
+/** A temporary file with the given contents, removed with the object. */
+class TempVideoFile {
  public:
-  explicit Flv1TaggedCopy(std::vector<char> avi) {
-    // the codec is declared by the stream header and the stream format chunks
-    auto header_end = avi.begin() + std::min<size_t>(avi.size(), 8192);
-    const std::string mjpg = "MJPG";
-    int count = 0;
-    auto it = avi.begin();
-    while ((it = std::search(it, header_end, mjpg.begin(), mjpg.end())) != header_end) {
-      std::copy_n("FLV1", 4, it);
-      it += 4;
-      count++;
-    }
-    DALI_ENFORCE(count == 2, "Unexpected AVI header");
-    std::string path = (std::filesystem::temp_directory_path() / "dali_flv1_XXXXXX.avi").string();
-    int fd = mkstemps(path.data(), 4);
+  explicit TempVideoFile(const std::vector<char> &contents, const std::string &extension) {
+    std::string path =
+        (std::filesystem::temp_directory_path() / ("dali_video_XXXXXX" + extension)).string();
+    int fd = mkstemps(path.data(), extension.size());
     DALI_ENFORCE(fd >= 0, "Could not create a temporary file");
     close(fd);
     path_ = path;
-    std::ofstream(path_, std::ios::binary).write(avi.data(), avi.size());
+    std::ofstream(path_, std::ios::binary).write(contents.data(), contents.size());
   }
 
-  ~Flv1TaggedCopy() {
+  ~TempVideoFile() {
     std::remove(path_.c_str());
   }
 
@@ -1588,6 +1573,42 @@ class Flv1TaggedCopy {
   std::string path_;
 };
 
+/**
+ * Makes an MJPEG AVI declare the FLV1 codec, which the GPU decoder does not support. The file
+ * still opens, with a video stream of a known size: it is rejected because of its codec only. No
+ * file in DALI_extra has a codec that the GPU decoder never supports. Same as
+ * write_unsupported_gpu_source in test_video_reader_index.py.
+ */
+std::vector<char> Flv1Tagged(std::vector<char> avi) {
+  // the codec is declared by the stream header and the stream format chunks
+  auto header_end = avi.begin() + std::min<size_t>(avi.size(), 8192);
+  const std::string mjpg = "MJPG";
+  int count = 0;
+  auto it = avi.begin();
+  while ((it = std::search(it, header_end, mjpg.begin(), mjpg.end())) != header_end) {
+    std::copy_n("FLV1", 4, it);
+    it += 4;
+    count++;
+  }
+  DALI_ENFORCE(count == 2, "Unexpected AVI header");
+  return avi;
+}
+
+/**
+ * Changes the frame size that an AVI declares, in its stream format chunk ('strf', the chunk size,
+ * the bitmap header size, the width and the height), and returns the one it declared before.
+ */
+std::pair<int, int> DeclareAviFrameSize(std::vector<char> &avi, int width, int height) {
+  const std::string strf = "strf";
+  auto it = std::search(avi.begin(), avi.end(), strf.begin(), strf.end());
+  DALI_ENFORCE(it != avi.end(), "Unexpected AVI header");
+  int32_t *size = reinterpret_cast<int32_t *>(&*it + 12);
+  std::pair<int, int> declared = {size[0], size[1]};
+  size[0] = width;
+  size[1] = height;
+  return declared;
+}
+
 }  // namespace
 
 // The files that the video reader skips as invalid are the same with the indexer as with the
@@ -1598,7 +1619,7 @@ class Flv1TaggedCopy {
 TEST_F(FramesDecoderGpuTest, IndexerIsValidForTheSameFilesAsTheDecoder) {
   const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
   const std::string mjpeg = make_string(video_dir, "/mjpeg/mjpeg.avi");
-  Flv1TaggedCopy flv1(MemoryVideo(mjpeg));
+  TempVideoFile flv1(Flv1Tagged(MemoryVideo(mjpeg)), ".avi");
   for (const auto &path : {make_string(video_dir, "/nonexistent.mp4"),
                            make_string(video_dir, "/corrupted/audio_only.mp4"), flv1.path(), mjpeg,
                            cfr_videos_paths_[0]}) {
@@ -1759,15 +1780,19 @@ TEST_F(FramesDecoderGpuTest, ReadsTheLastFrameOfCodecsWithoutDecodeLag) {
 
 // The indexer, like the CPU decoder, does not probe the pixel format of MJPEG streams on its own:
 // the probe opens a decoder and reads a packet, and only the GPU decoder needs its result. Probed,
-// it has the pixel format and the color range of the stream, the size declared by the container,
-// and the same index.
+// it has the pixel format and the color range of the stream, and keeps the size declared by the
+// container and the index. The file declares another size than that of its frames, so that keeping
+// the declared size is visible.
 TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerProbesMjpegPixelFormatOnRequest) {
-  auto path = make_string(testing::dali_extra_path(), "/db/video/mjpeg/mjpeg.avi");
-  FramesIndexer unprobed(path);
+  auto video = MemoryVideo(make_string(testing::dali_extra_path(), "/db/video/mjpeg/mjpeg.avi"));
+  ASSERT_EQ(DeclareAviFrameSize(video, 640, 360), std::make_pair(1280, 720));
+  TempVideoFile file(video, ".avi");
+
+  FramesIndexer unprobed(file.path());
   ASSERT_TRUE(unprobed.IsValid());
   EXPECT_EQ(unprobed.CodecParameters().format, AV_PIX_FMT_NONE);
 
-  FramesIndexer probed(path);
+  FramesIndexer probed(file.path());
   ASSERT_TRUE(probed.IsValid());
   ASSERT_TRUE(probed.ProbeMjpegPixelFormat());
   auto pix_fmt = static_cast<AVPixelFormat>(probed.CodecParameters().format);
@@ -1779,8 +1804,8 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerProbesMjpegPixelFormatOnRequest) {
   EXPECT_EQ(desc->log2_chroma_h, 0);
   EXPECT_EQ(desc->comp[0].depth, 8);
   EXPECT_EQ(probed.CodecParameters().color_range, AVCOL_RANGE_JPEG);
-  EXPECT_EQ(probed.Width(), unprobed.Width());
-  EXPECT_EQ(probed.Height(), unprobed.Height());
+  EXPECT_EQ(probed.Width(), 640);
+  EXPECT_EQ(probed.Height(), 360);
   ExpectIndexerGivesTheIndexOfTheDecoder(probed, unprobed);
 }
 
@@ -2109,10 +2134,6 @@ double AvgAbsDiff(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) 
   return static_cast<double>(sum) / a.size();
 }
 
-}  // namespace
-
-namespace {
-
 /**
  * Reads all the frames of the video with both backends, which must fail with an error whose
  * message contains `message`. A CUDA error is a std::runtime_error too, hence the message.
@@ -2149,16 +2170,8 @@ TEST_F(FramesDecoderGpuTest, MjpegRejectsFramesOfOtherSizeThanDeclared) {
   }
   auto memory_video = MemoryVideo(
       make_string(testing::dali_extra_path(), "/db/video/mjpeg/mjpeg.avi"));
-  // Declare a size that differs from the one of the frames, in the stream format chunk of the AVI
-  // ('strf', the chunk size, the bitmap header size, the width and the height).
-  const std::string strf = "strf";
-  auto it = std::search(memory_video.begin(), memory_video.end(), strf.begin(), strf.end());
-  ASSERT_NE(it, memory_video.end());
-  int32_t *size = reinterpret_cast<int32_t *>(&*it + 12);
-  ASSERT_EQ(size[0], 1280);
-  ASSERT_EQ(size[1], 720);
-  size[0] = 640;
-  size[1] = 360;
+  // Declare a size that differs from the one of the frames
+  ASSERT_EQ(DeclareAviFrameSize(memory_video, 640, 360), std::make_pair(1280, 720));
 
   ExpectFrameSizeMismatch(memory_video, "Decoded frame dimensions (1280x720)");
 }
@@ -2203,16 +2216,19 @@ TEST_F(FramesDecoderGpuTest, MjpegOnlyYCbCrAndGrayscaleAreSupported) {
   }
   EXPECT_TRUE(FramesDecoderGpu::IsStreamSupported(AV_CODEC_ID_MJPEG, AV_PIX_FMT_YUVJ420P));
   EXPECT_EQ(FramesDecoderGpu::IsStreamSupported(AV_CODEC_ID_MJPEG, AV_PIX_FMT_GRAY8),
-            FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_Monochrome));
+            FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG,
+                                             cudaVideoChromaFormat_Monochrome));
 }
 
 TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
   // DALI-4918: decodes every frame of an MJPEG file, and compares it against the CPU backend.
   // The GPU work of a JPEG decode is ordered with the legacy default stream, which the color
   // conversion, on a non-blocking stream, must wait for: otherwise it reads surfaces that are not
-  // written yet and returns blank frames. Another thread keeps the legacy default stream busy
-  // meanwhile, which delays the decoding, so that a missing wait shows up as blank frames every
-  // time (the first frames of the decoders), not only when the timing happens to be unlucky.
+  // written yet. Another thread keeps the legacy default stream busy meanwhile, which delays the
+  // decoding, so that a missing wait shows up every time, not only when the timing happens to be
+  // unlucky, as wrong frames: blank ones from a decoder created here, or pictures left by an
+  // earlier test in one reused from NVDECCache. Either differs from the expected frame at least as
+  // much as a neighbouring frame does (see the tolerance below).
 
   // The test file is 8-bit 4:4:4 (yuvj444p), which not every NVDEC generation can decode.
   if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
@@ -2256,7 +2272,7 @@ TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
       // a blank frame by tens. A loss of chroma resolution is not visible here.
       double diff = AvgAbsDiff(actual, expected);
       EXPECT_LT(diff, 0.05) << "GPU decoder " << d << ": frame " << i
-                           << " differs from the CPU backend's (avg abs diff " << diff << ")";
+                            << " differs from the CPU backend's (avg abs diff " << diff << ")";
     }
   }
 }
