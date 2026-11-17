@@ -15,8 +15,10 @@
 #include "dali/operators/reader/loader/webdataset/tar_utils.h"
 #include <algorithm>
 #include <cstdarg>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <list>
 #include <stdexcept>
 #include <string>
@@ -28,6 +30,28 @@
 
 namespace dali {
 namespace detail {
+
+uint64_t ParseTarSize(const char (&field)[12]) {
+  const auto *bytes = reinterpret_cast<const unsigned char *>(field);
+  if (bytes[0] & 0x80) {
+    // GNU base-256: big-endian two's complement, the top bit of the first byte is the marker.
+    // Only non-negative values that fit in 64 bits are representable; the 4 bytes that precede
+    // the 8 low-order ones must therefore be exactly the bare marker followed by zeros.
+    if (bytes[0] != 0x80 || bytes[1] != 0 || bytes[2] != 0 || bytes[3] != 0)
+      return std::numeric_limits<uint64_t>::max();
+    uint64_t value = 0;
+    for (int i = 4; i < 12; i++)
+      value = (value << 8) | bytes[i];
+    return value;
+  }
+  // Copy to a terminated buffer so that a full 12-digit field never spills into the next one.
+  char buf[sizeof(field) + 1];
+  std::memcpy(buf, field, sizeof(field));
+  buf[sizeof(field)] = '\0';
+  char *end = nullptr;
+  uint64_t value = std::strtoull(buf, &end, 8);
+  return end == buf ? 0 : value;
+}
 
 namespace {
 
@@ -230,7 +254,11 @@ inline void TarArchive::ParseHeader() {
     SetEof();
   } else {
     filename_ = th_get_pathname(ToTarHandle(handle_));
-    filesize_ = th_get_size(ToTarHandle(handle_));
+    // Don't use th_get_size(): depending on the libtar build it returns an `unsigned int`
+    // (stock libtar, e.g. the conda package) or a `size_t` (the patched libtar DALI builds
+    // against elsewhere). The 32-bit variant silently truncates entries of 4 GiB or more, which
+    // then pass the bounds check below and make NextFile land in the middle of the payload.
+    filesize_ = ParseTarSize(ToTarHandle(handle_)->th_buf.size);
 
     if (TH_ISREG(ToTarHandle(handle_))) {
       filetype_ = ENTRY_FILE;
