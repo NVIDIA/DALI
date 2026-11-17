@@ -641,6 +641,7 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
 
 void FramesDecoderGpu::InitGpuParser() {
   nvdecode_state_ = std::make_unique<NvDecodeState>();
+  nvdecode_state_->stream = stream_;
   labels_from_parser_ = HasDecodeOrderTimestamps();
 
   InitBitStreamFilter();
@@ -1480,17 +1481,29 @@ NvDecodeState::~NvDecodeState() {
     unsigned int pitch = 0;
     CUVIDPROCPARAMS params = {};
     params.progressive_frame = 1;
+    // On the stream of the decoder, not the legacy default stream: there, the post-processing of
+    // the map would wait for the work of the blocking streams of the context (e.g. a training
+    // loop's), and the next pictures decoded with this decoder, by whoever takes it from the cache,
+    // would wait for it in turn
+    params.output_stream = stream;
     CUresult res = cuvidMapVideoFrame(decoder, last_decoded, &frame, &pitch, &params);
     if (res == CUDA_SUCCESS) {
-      CUDA_DTOR_CALL(cuvidUnmapVideoFrame(decoder, frame));
-    } else {
-      // Without the map, the pictures sent to the decoder may still be in progress, so it must not
-      // go back to the cache, where it could be reconfigured for another stream right away.
-      if (res != CUDA_ERROR_DEINITIALIZED)
-        DALI_WARN(make_string("Could not wait for the last picture of an NVDEC decoder ",
-                              "(error code ", static_cast<int>(res), "); destroying it."));
-      decoder.Discard();
+      cudaError_t err = cudaStreamSynchronize(stream);  // before the unmap, which does not wait
+      if (err == cudaSuccess || err == cudaErrorCudartUnloading) {
+        CUDA_DTOR_CALL(cuvidUnmapVideoFrame(decoder, frame));
+        return;
+      }
+      cudaGetLastError();  // clear the error
+      cuvidUnmapVideoFrame(decoder, frame);  // the decoder is destroyed below
+      DALI_WARN(make_string("Could not wait for the last picture of an NVDEC decoder (",
+                            cudaGetErrorName(err), "); destroying it."));
+    } else if (res != CUDA_ERROR_DEINITIALIZED) {
+      DALI_WARN(make_string("Could not wait for the last picture of an NVDEC decoder ",
+                            "(error code ", static_cast<int>(res), "); destroying it."));
     }
+    // Without the wait, the work sent to the decoder may still be in progress, so it must not go
+    // back to the cache, where it could be reconfigured for another stream right away.
+    decoder.Discard();
   }
 }
 

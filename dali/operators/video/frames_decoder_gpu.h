@@ -142,6 +142,10 @@ struct NvDecodeState {
   int last_decoded = -1;
   bool last_mapped = true;
 
+  // The stream that the pictures of the decoder are mapped on: a copy of FramesDecoderGpu::stream_,
+  // which is destroyed before this is
+  cudaStream_t stream = 0;
+
   /**
    * @brief Waits for the pictures that were sent to the decoder, before it goes back to the cache.
    *
@@ -151,6 +155,10 @@ struct NvDecodeState {
    * cuvidReconfigureDecoder returns while pictures of the previous stream are in progress.
    * NVDEC decodes the pictures of a decoder in the order that they were sent, and the map of a
    * picture waits for its decode, so mapping the last one is enough.
+   *
+   * The map also post-processes the picture into an output surface, on `stream`, and neither the
+   * map nor the unmap waits for that: the stream is synchronized before the unmap, as it is when a
+   * picture is displayed. If the map or the wait fails, the decoder is destroyed instead.
    */
   ~NvDecodeState();
 };
