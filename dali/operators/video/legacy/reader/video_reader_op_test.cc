@@ -251,9 +251,8 @@ inline bool IsUnsupportedCodec(const char *error_message) {
       // readers.video
       "Decoder hardware does not support this video codec and/or chroma format",
       "Unsupported Code",
-      // experimental.readers.video
-      "Codec configuration not supported on this GPU",
-      "is not supported by NVDEC on this platform"};
+      // experimental.readers.video (the other reasons it skips a file are only warned about)
+      "Codec configuration not supported on this GPU"};
   for (const char *part : unsupported_codec_messages) {
     if (std::strstr(error_message, part)) return true;
   }
@@ -384,9 +383,8 @@ TEST_F(VIDEO_READER_TEST_CLASS, MJpeg) {
   }
 
   // richer FFmpeg configuration leads to different behaviour of VFR heuristics, so disable the
-  // VFR check for this video. readers__Video's default (VFR check enabled) rejects this file;
-  // experimental__readers__Video's default is already permissive (no VFR check unless
-  // require_constant_frame_rate=True is explicitly requested), so it needs no equivalent arg.
+  // VFR check of readers__Video for this video. experimental__readers__Video has no VFR check (and
+  // no skip_vfr_check argument).
   auto op_spec = OpSpec(VIDEO_READER_OP_STR)
                      .AddArg("device", "gpu")
                      .AddArg("sequence_length", sequence_length)
@@ -394,7 +392,7 @@ TEST_F(VIDEO_READER_TEST_CLASS, MJpeg) {
                                                                    "/db/video/mjpeg/mjpeg.avi"})
                      .AddOutput("frames", StorageDevice::GPU);
   if (strcmp(VIDEO_READER_OP_STR, "experimental__readers__Video") != 0) {
-    op_spec = op_spec.AddArg("skip_vfr_check", true);
+    op_spec.AddArg("skip_vfr_check", true);
   }
   pipe.AddOperator(op_spec);
 
