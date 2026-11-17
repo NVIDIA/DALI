@@ -118,19 +118,21 @@ if(BUILD_NVML)
     "${CMAKE_CURRENT_SOURCE_DIR}/nvml_wrap.h")
 
   if (NOT LINK_DRIVER)
+    find_cuda_header(NVML_INCLUDE_DIR nvml.h)
     set(NVML_GENERATED_STUB "${CMAKE_CURRENT_BINARY_DIR}/dynlink_nvml_gen.cc")
     add_custom_command(
         OUTPUT ${NVML_GENERATED_STUB}
         COMMAND python ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py --unique_prefix=Nvml --
                     "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/nvml.json" ${NVML_GENERATED_STUB}
-                    "${CUDAToolkit_TARGET_DIR}/include/nvml.h" "-I${CUDAToolkit_TARGET_DIR}/include"
+                    "${NVML_INCLUDE_DIR}/nvml.h" "-I${NVML_INCLUDE_DIR}"
+                    "-I${CUDAToolkit_TARGET_DIR}/include"
                     # for some reason QNX fails with 'too many errors emitted' is this is not set
                     "-ferror-limit=0"
                     # let clang know which architecutre we compile for
                     "--target=${CMAKE_SYSTEM_PROCESSOR}-linux-gnu"
                     ${DEFAULT_COMPILER_INCLUDE}
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/stub_codegen.py
-                "${CUDAToolkit_TARGET_DIR}/include/nvml.h"
+                "${NVML_INCLUDE_DIR}/nvml.h"
                 "${CMAKE_CURRENT_SOURCE_DIR}/../../internal_tools/stub_generator/nvml.json"
         COMMENT "Running nvml.h stub generator"
         VERBATIM)

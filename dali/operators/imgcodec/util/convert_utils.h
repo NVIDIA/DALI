@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2024, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,23 @@ inline int PositiveBits(DALIDataType dtype) {
   assert(IsIntegral(dtype));
   int positive_bits = 8 * TypeTable::GetTypeInfo(dtype).size() - IsSigned(dtype);
   return positive_bits;
+}
+
+/**
+ * @brief Converts the `precision` reported by a codec to the same basis as `PositiveBits`
+ *
+ * Codecs report the bit width of the stored sample (e.g. TIFF BitsPerSample), which for a signed
+ * integral type includes the sign bit, whereas `PositiveBits` counts only the magnitude bits.
+ * Without the conversion, a full-width signed source would look like it used one bit less than
+ * its actual dynamic range.
+ *
+ * @remarks This assumes that a codec producing a signed type reports the precision including the
+ *          sign bit. A precision of 0 (unknown) or 1 is returned unchanged.
+ */
+inline int PositiveBitsFromPrecision(int precision, DALIDataType dtype) {
+  if (precision > 1 && IsIntegral(dtype) && IsSigned(dtype))
+    return precision - 1;
+  return precision;
 }
 
 /**

@@ -52,8 +52,8 @@ class ConstantStorage {
   void Initialize(const OpSpec &spec, AccessOrder order,
                   const std::vector<ExprConstant *> &constant_nodes) {
     auto integers_vec = spec.HasArgument("integer_constants")
-                            ? spec.GetRepeatedArgument<int>("integer_constants")
-                            : std::vector<int>{};
+                            ? spec.GetRepeatedArgument<int64_t>("integer_constants")
+                            : std::vector<int64_t>{};
     auto reals_vec = spec.HasArgument("real_constants")
                          ? spec.GetRepeatedArgument<float>("real_constants")
                          : std::vector<float>{};
@@ -113,6 +113,14 @@ class ConstantStorage {
       TYPE_SWITCH(node->GetTypeId(), type2id, Type, CONSTANT_STORAGE_ALLOWED_TYPES, (
           auto idx = node->GetConstIndex();
           auto *ptr = reinterpret_cast<Type *>(data + idx * kPaddingSize);
+          if constexpr (std::is_integral_v<T> && std::is_integral_v<Type> &&
+                        !std::is_same_v<Type, bool>) {
+            if (!std::in_range<Type>(constants[idx])) {
+              throw std::overflow_error(make_string(
+                  "Integer constant ", constants[idx], " out of range for ",
+                  TypeName(node->GetTypeId()), "."));
+            }
+          }
           *ptr = cast_const<Type>(constants[idx]);
         ), DALI_FAIL(make_string("Unsupported type: ", node->GetTypeId())););  // NOLINT
     }

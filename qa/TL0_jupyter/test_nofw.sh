@@ -14,16 +14,30 @@ do_once() {
 }
 
 test_body() {
+    kernel_args=()
+    if [ -n "${DALI_ENABLE_SANITIZERS:-}" ]; then
+        kernel_args+=('--ExecutePreprocessor.extra_arguments=["--IPKernelApp.capture_fd_output=False"]')
+    fi
+
     # test code
     # test all jupyters except one related to a particular FW,
     # and one requiring a dedicated HW (multiGPU, GDS and OF)
     # optical flow requires TU102 architecture whilst this test can be run on any GPU
     exclude_files="multigpu\|mxnet\|tensorflow\|pytorch\|paddle\|jax\|external_input.ipynb\|webdataset-externalsource.ipynb\|numpy_reader\|optical_flow\|python_operator\|torchvision\|#"
+    if [ -n "$DALI_ENABLE_SANITIZERS" ]; then
+        # Numba stalls in llvmlite's LLVM JIT finalization with ASan preloaded.
+        echo "Skipping numba_function.ipynb with sanitizers: LLVM JIT finalization times out."
+        exclude_files="${exclude_files}\|numba_function.ipynb"
+        # Patch only the QA copy to keep sanitizer setup out of the public tutorial.
+        # NVCC's TCMalloc conflicts with ASan, so build tools need preloads cleared,
+        # while DALI's Python queries and the notebook kernel must retain them.
+        python "$topdir/qa/TL0_jupyter/prepare_sanitizer_notebooks.py" || return $?
+    fi
 
     find * -name "*.ipynb" | sed "/${exclude_files}/d" | xargs -i jupyter nbconvert \
                     --to notebook --inplace --execute \
                     --ExecutePreprocessor.kernel_name=python${PYVER:0:1} \
-                    --ExecutePreprocessor.timeout=300 {}
+                    --ExecutePreprocessor.timeout=300 "${kernel_args[@]}" {}
 }
 
 pushd ../..

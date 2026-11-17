@@ -13,3 +13,4 @@
 // limitations under the License.
 
 #include "dali/dali.h"
+#include "dali/core/version.h"

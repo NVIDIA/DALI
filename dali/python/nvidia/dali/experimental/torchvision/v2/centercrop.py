@@ -92,22 +92,29 @@ class CenterCrop(Operator):
         floor_quarter_w = N_w // 4
         half_w = floor_half_w + (floor_half_w - 2 * floor_quarter_w) * (N_w - 2 * floor_half_w)
 
-        # Compute normalised position for fn.crop:
+        # When the crop is larger than the image, torchvision pads the input first, with
+        # (crop - dim) // 2 on the left/top and the remainder on the right/bottom. In terms of
+        # the (negative) slack N this puts the crop anchor at -((-N) // 2). The operand of // is
+        # kept non-negative because integer // currently rounds towards zero, which the DALI
+        # docs mark as subject to change; this form gives the same result either way.
+        #
+        # Normalised position for fn.crop, anchor = crop_pos * N:
         #   N > 0  (no padding): crop_pos = half / N  (exact round-trip through fn.crop)
         #   N = 0  (crop = image): position is irrelevant; fn.crop gives 0 regardless
-        #   N < 0  (crop > image): use 0.5 so out_of_bounds_policy pads symmetrically
+        #   N < 0  (crop > image): crop_pos = -((-N) // 2) / N
         #
         # Implementation avoids Python conditionals on DALI nodes:
-        #   is_pos   = 1.0 if N > 0, else 0.0
-        #   N_safe   = max(N, 1)            <- avoids division by zero
-        #   crop_pos = is_pos * (half / N_safe) + (1 - is_pos) * 0.5
-        is_pos_h = N_h > 0
-        is_pos_w = N_w > 0
-        N_h_safe = dali.math.max(N_h, 1)
-        N_w_safe = dali.math.max(N_w, 1)
+        #   is_neg   = 1 if N < 0, else 0
+        #   N_safe   = N, or 1 when N == 0   <- avoids division by zero
+        is_neg_h = N_h < 0
+        is_neg_w = N_w < 0
+        anchor_h = is_neg_h * -((is_neg_h * -N_h) // 2) + (1 - is_neg_h) * half_h
+        anchor_w = is_neg_w * -((is_neg_w * -N_w) // 2) + (1 - is_neg_w) * half_w
+        N_h_safe = N_h + (N_h == 0)
+        N_w_safe = N_w + (N_w == 0)
 
-        crop_pos_y = is_pos_h * half_h / N_h_safe + (1.0 - is_pos_h) * 0.5
-        crop_pos_x = is_pos_w * half_w / N_w_safe + (1.0 - is_pos_w) * 0.5
+        crop_pos_y = anchor_h / N_h_safe
+        crop_pos_x = anchor_w / N_w_safe
 
         return fn.crop(
             tensor,

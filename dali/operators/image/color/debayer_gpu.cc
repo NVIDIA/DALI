@@ -1,4 +1,4 @@
-// Copyright (c) 2022-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,16 +13,36 @@
 // limitations under the License.
 
 #include <vector>
+#include "dali/core/error_handling.h"
 #include "dali/core/span.h"
 #include "dali/core/static_switch.h"
+#include "dali/core/version_util.h"
 #include "dali/kernels/imgproc/color_manipulation/debayer/debayer.h"
 #include "dali/kernels/imgproc/color_manipulation/debayer/debayer_npp.h"
 #include "dali/kernels/kernel_manager.h"
+#include "dali/npp/npp.h"
 #include "dali/operators/image/color/debayer.h"
 
 namespace dali {
 
 namespace debayer {
+
+namespace {
+
+void WarnIfNppVersionAffected() {
+  const int npp_version = NPPGetVersion();
+  if (MakeVersionNumber(12, 2, 5) < npp_version && npp_version < MakeVersionNumber(13, 0, 0)) {
+    DALI_WARN_ONCE(
+        "The loaded NPP library is affected by a known regression in CUDA 12 NPP "
+        "versions newer than 12.2.5 that can produce incorrect GPU debayer results. "
+        "Install a working version with: pip install \"nvidia-npp-cu12==12.2.5.30\", "
+        "and ensure DALI loads that library, or switch to the CUDA 13 DALI package "
+        "(nvidia-dali-cuda130). See https://github.com/NVIDIA/DALI/issues/6595 "
+        "for details.");
+  }
+}
+
+}  // namespace
 
 template <typename InOutT>
 class DebayerImplGPU : public DebayerImplBase<GPUBackend> {
@@ -30,6 +50,7 @@ class DebayerImplGPU : public DebayerImplBase<GPUBackend> {
   using Kernel = kernels::debayer::NppDebayerKernel<InOutT>;
   explicit DebayerImplGPU(const OpSpec &spec, const std::vector<debayer::DALIBayerPattern> &pattern)
       : pattern_{pattern} {
+    WarnIfNppVersionAffected();
     kmgr_.Resize<Kernel>(1, spec.template GetArgument<int>("device_id"));
   }
 

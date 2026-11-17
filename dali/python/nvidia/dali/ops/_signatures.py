@@ -984,6 +984,7 @@ def _group_signatures(api: Api):
     api_module = _api_to_module(api)
 
     for schema_name in sorted(_registry._all_registered_ops()):
+        # Use the alias (if any) - visibility is a property of the name, not the actual operator
         schema = _b.TryGetSchema(schema_name)
 
         _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
@@ -1111,7 +1112,7 @@ def gen_all_signatures(nvidia_dali_path: Union[Path, str], api: Api):
         }
         for schema_name, op in sig_groups["generated"]:
             _, module_nesting, op_name = _names._process_op_name(schema_name, api=api)
-            schema = _b.TryGetSchema(schema_name)
+            schema = _b.TryGetSchema(schema_name, follow_aliases=True)
 
             signature = signature_generators[api](schema, schema_name, op_name)
             stub_manager.get(module_nesting).write(signature)

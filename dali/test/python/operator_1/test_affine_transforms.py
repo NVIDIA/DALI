@@ -650,13 +650,17 @@ def test_combine_transforms_correct_order():
 
 
 def test_transform_translation_deprecation():
-    fmt = (
-        "WARNING: `nvidia.dali.{}` is now deprecated."
+    fn_fmt = (
+        "WARNING: `nvidia.dali.fn.transform_translation` is now deprecated."
         " Use `nvidia.dali.fn.transforms.translation` instead."
     )
-    with assert_warns(DeprecationWarning, glob=fmt.format("fn.transform_translation")):
+    ops_fmt = (
+        "WARNING: `nvidia.dali.ops.TransformTranslation` is now deprecated."
+        " Use `nvidia.dali.ops.transforms.Translation` instead."
+    )
+    with assert_warns(DeprecationWarning, glob=fn_fmt):
         fn.transform_translation(offset=(0, 0))
-    with assert_warns(DeprecationWarning, glob=fmt.format("ops.TransformTranslation")):
+    with assert_warns(DeprecationWarning, glob=ops_fmt):
         ops.TransformTranslation(offset=(0, 0))()
 
 

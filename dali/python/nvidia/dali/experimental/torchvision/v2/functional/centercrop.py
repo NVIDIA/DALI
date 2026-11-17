@@ -37,11 +37,14 @@ def center_crop(
 
     in_h, in_w, _ = get_HWC_from_layout_dynamic(inpt)
 
-    # torchvision: crop_top = int(round((H - crop_H) / 2.0))  — banker's rounding
+    # torchvision: crop_top = int(round((H - crop_H) / 2.0)) — banker's rounding. If the crop is
+    # larger than the input, torchvision first pads (crop_H - H) // 2 on top, so the anchor
+    # is -((-N) // 2).
     N_h, N_w = in_h - crop_h, in_w - crop_w
-    # use 0.5 so out_of_bounds_policy pads symmetrically
-    crop_pos_y = int(round(N_h / 2.0)) / N_h if N_h > 0 else 0.5
-    crop_pos_x = int(round(N_w / 2.0)) / N_w if N_w > 0 else 0.5
+    anchor_y = -((-N_h) // 2) if N_h < 0 else int(round(N_h / 2.0))
+    anchor_x = -((-N_w) // 2) if N_w < 0 else int(round(N_w / 2.0))
+    crop_pos_y = anchor_y / N_h if N_h else 0.0
+    crop_pos_x = anchor_x / N_w if N_w else 0.0
 
     return ndd.crop(
         inpt,

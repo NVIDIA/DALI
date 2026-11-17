@@ -1,4 +1,4 @@
-# Copyright (c) 2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,9 +18,17 @@ import nvidia.dali.experimental.dynamic as ndd
 import numpy as np
 import os
 import cv2
+import atexit
+import enum
+import functools
+import itertools
+import random
+import shutil
 import tempfile
+import unittest
+import uuid
 from test_utils import get_dali_extra_path
-from nose2.tools import cartesian_params
+from nose2.tools import cartesian_params, params
 
 np.random.seed(42)
 debug = False  # Set to True to print file_list contents and other debug information
@@ -35,6 +43,20 @@ VIDEO_FILES = [VIDEO_DIRECTORY + "/" + f for f in VIDEO_FILES]
 PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + "/" + f for f in PLENTY_VIDEO_FILES]
 FILE_LIST = "/tmp/file_list.txt"
 MULTIPLE_RESOLUTION_ROOT = "/tmp/video_resolution/vp9/"
+VFR_VIDEO_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "vfr_test.mp4")
+CFR_VIDEO_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "cfr_test.mp4")
+
+# VP9, 24 fps, 240 frames, timebase 1/12288, first pts 0 (cut with ffmpeg -ss 0 -t 10 by
+# qa/TL0_videoreader_test/test.sh). Pinned by test_video_0_fixture_assumptions.
+VIDEO_0 = sorted(VIDEO_FILES)[0]
+
+# VP9, 60 fps, 50 frames, first pts 0 (see db/video/cfr/README.txt in DALI_extra).
+CFR_VP9_60FPS_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "cfr", "test_1_vp9.mp4")
+
+# VP9, full ("pc") color range (see db/video/full_dynamic_range/README.rst in DALI_extra).
+FULL_RANGE_VP9_FILE = os.path.join(
+    DALI_EXTRA_PATH, "db", "video", "full_dynamic_range", "video_vp9.mp4"
+)
 
 devices = ["cpu", "gpu"]
 sequence_lengths = [3]
@@ -49,24 +71,28 @@ image_type_supported_by_legacy_reader = [types.RGB]  # TODO(janton): Add types.Y
 def compare_frames(
     frame, ref_frame, iteration_idx, batch_idx, frame_idx, diff_step=2, threshold=0.03
 ):
-    # Compare frames
+    # Compare frames. `diff_step` is expressed in the 8-bit [0, 255] intensity scale, so frames
+    # must be given in that scale (normalized float frames should be multiplied by 255 first).
     diff_pixels = np.count_nonzero(np.abs(np.float32(frame) - np.float32(ref_frame)) > diff_step)
     total_pixels = frame.size
     # More than threshold of the pixels differ in more than 2 steps
     if diff_pixels / total_pixels > threshold:
         # Save the mismatched frames for inspection
-        frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        ref_frame_bgr = cv2.cvtColor(ref_frame, cv2.COLOR_RGB2BGR)
-
-        output_path = f"frame_{iteration_idx:03d}_{batch_idx:03d}_{frame_idx:03d}.png"
-        ref_output_path = f"ref_frame_{iteration_idx:03d}_{batch_idx:03d}_{frame_idx:03d}.png"
-
-        cv2.imwrite(output_path, frame_bgr)
-        cv2.imwrite(ref_output_path, ref_frame_bgr)
+        out_dir = tempfile.mkdtemp(prefix="dali_video_reader_mismatch_")
+        frame_u8 = np.uint8(np.clip(np.round(frame), 0, 255))
+        ref_frame_u8 = np.uint8(np.clip(np.round(ref_frame), 0, 255))
+        suffix = f"{iteration_idx:03d}_{batch_idx:03d}_{frame_idx:03d}.png"
+        cv2.imwrite(
+            os.path.join(out_dir, "frame_" + suffix), cv2.cvtColor(frame_u8, cv2.COLOR_RGB2BGR)
+        )
+        cv2.imwrite(
+            os.path.join(out_dir, "ref_frame_" + suffix),
+            cv2.cvtColor(ref_frame_u8, cv2.COLOR_RGB2BGR),
+        )
         assert False, (
-            f"Frame {frame_idx+1} differs from reference by more than {diff_step} steps in "
-            + f"{diff_pixels/total_pixels*100}% of pixels (threshold: {threshold}). "
-            + f"Expected {ref_frame_bgr} but got {frame_bgr}"
+            f"Frame {frame_idx} of sample {batch_idx} in iteration {iteration_idx} differs from "
+            f"reference by more than {diff_step} steps in {diff_pixels / total_pixels * 100:.2f}% "
+            f"of pixels (threshold: {threshold}). Frames saved to {out_dir}."
         )
 
 
@@ -148,6 +174,63 @@ def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
         break
 
 
+_legacy_gpu_reader = functools.partial(fn.readers.video, device="gpu")
+
+
+def _experimental_reader(device):
+    return functools.partial(fn.experimental.readers.video, device=device)
+
+
+_file_list_dir = tempfile.mkdtemp(prefix="dali_video_reader_file_lists_")
+atexit.register(shutil.rmtree, _file_list_dir, ignore_errors=True)
+
+
+def _write_file_list(lines):
+    """Writes the given file_list entries (one string per line) to a new temporary file and
+    returns its path. The files are removed when the test process exits."""
+    path = os.path.join(_file_list_dir, f"file_list_{uuid.uuid4().hex}.txt")
+    with open(path, "w") as list_file:
+        list_file.write("".join(line + "\n" for line in lines))
+    return path
+
+
+def _collect_samples(reader_fn, **kwargs):
+    """Runs exactly one epoch of `reader_fn` with batch_size=1 and returns
+    (epoch_size, samples), where `samples` is a list of (label, first_frame_num, num_frames)
+    tuples in reader order.
+
+    The reader configuration must produce labels (file_list, file_root, or filenames+labels).
+    """
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        video, label, frame_num = reader_fn(name="reader", enable_frame_num=True, **kwargs)
+        return video, label, frame_num
+
+    p = pipe()
+    p.build()
+    epoch_size = p.reader_meta("reader")["epoch_size"]
+    samples = []
+    for _ in range(epoch_size):
+        video, label, frame_num = p.run()
+        samples.append(
+            (
+                int(np.array(label.as_cpu()[0]).flatten()[0]),
+                int(np.array(frame_num.as_cpu()[0]).flatten()[0]),
+                int(video.shape()[0][0]),
+            )
+        )
+    return epoch_size, samples
+
+
+def _file_list_frame_selection(reader_fn, file_list, **kwargs):
+    """Returns (epoch_size, sorted start frame indices) for a single-frame-per-sample reader."""
+    epoch_size, samples = _collect_samples(
+        reader_fn, file_list=file_list, sequence_length=1, step=1, **kwargs
+    )
+    return epoch_size, sorted(frame_num for _, frame_num, _ in samples)
+
+
 @cartesian_params(
     devices,
     batch_sizes,
@@ -186,7 +269,7 @@ def test_compare_experimental_to_legacy_reader_file_list(
     device, batch_size, sequence_length, file_list_format, file_list_rounding, pad_mode, image_type
 ):
     files = VIDEO_FILES
-    list_file = tempfile.NamedTemporaryFile(mode="w", delete=False)
+    lines = []
     for i, file in enumerate(files):
         label = np.random.randint(0, 20)
         start = end = 0
@@ -197,18 +280,17 @@ def test_compare_experimental_to_legacy_reader_file_list(
             else:
                 start = np.random.random() * 0.4  # Range [0, 0.4)
                 end = 0.6 + np.random.random() * 0.4  # Range [0.6, 1.0)
-        list_file.write(f"{file} {label} {start} {end}\n")
-    list_file.close()
+        lines.append(f"{file} {label} {start} {end}")
+    list_file = _write_file_list(lines)
 
     if debug:
         print("File list contents:")
-        with open(list_file.name, "r") as f:
-            print(f.read())
+        print("\n".join(lines))
 
     compare_experimental_to_legacy_reader(
         device=device,
         batch_size=batch_size,
-        file_list=list_file.name,
+        file_list=list_file,
         sequence_length=sequence_length,
         enable_timestamps=True,
         enable_frame_num=True,
@@ -432,3 +514,387 @@ def test_uniform_sample_stride_step_ignored(device):
     assert np.array_equal(
         idxs_default, idxs_stride_step
     ), "stride/step should be ignored when uniform_sample=True"
+
+
+@cartesian_params(devices)
+def test_video_0_fixture_assumptions(device):
+    # Tests that hard-code frame numbers rely on VIDEO_0 being 240 frames at 24 fps. Also checks
+    # the other pinned fixtures are present, and that the shared helpers agree with the legacy
+    # reader on a trivial selection.
+    for path in (CFR_VP9_60FPS_FILE, FULL_RANGE_VP9_FILE, VFR_VIDEO_FILE, CFR_VIDEO_FILE):
+        assert os.path.isfile(path), f"Missing test fixture {path}."
+
+    epoch_size, samples = _collect_samples(
+        _experimental_reader(device), filenames=[VIDEO_0], labels=[7], sequence_length=1
+    )
+    assert epoch_size == 240
+    assert samples == [(7, i, 1) for i in range(240)]
+
+    list_file = _write_file_list([f"{VIDEO_0} 0 5 15"])
+    experimental = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_format="frames", pad_mode="none"
+    )
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file, file_list_frame_num=True)
+    assert experimental == legacy, f"experimental: {experimental}, legacy: {legacy}"
+
+
+# MPEG-4 Part 2 (Xvid) in AVI with packed B-frames, 91 frames showing their frame number on a
+# plain background (see db/video/ucf101_test/README.rst in DALI_extra), so wrong frames differ
+# from the right ones in a small area only.
+PACKED_BFRAMES_AVI = os.path.join(
+    DALI_EXTRA_PATH, "db", "video", "ucf101_test", "packed_bframes_test.avi"
+)
+
+
+def _opencv_frames(path):
+    """Yields the frames of `path` (RGB) in display order, decoded by OpenCV, which is independent
+    of the DALI decoders."""
+    cap = cv2.VideoCapture(path)
+    try:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                return
+            yield cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    finally:
+        cap.release()
+
+
+@functools.lru_cache(maxsize=4)
+def _display_order_reference(path):
+    """Returns the frames of `path` in display order, decoded by OpenCV, to identify DALI's frames
+    with _identify_frame: `truth` (frames, pixels, channels) holds them in the `mask` area only,
+    where they differ from each other. The colour conversion differs from the one of the DALI GPU
+    decoder, so these frames are only meant to tell which frame is which, not to be compared byte
+    by byte."""
+    if not os.path.isfile(path):
+        raise unittest.SkipTest(f"{path} not found: DALI_extra is too old")
+    # Two passes keep the memory low: the spread of each pixel, then the pixels that spread
+    count, total, total_sq = 0, 0.0, 0.0
+    for frame in _opencv_frames(path):
+        frame = frame.astype(np.float64)
+        count, total, total_sq = count + 1, total + frame, total_sq + frame * frame
+    std = np.sqrt(np.maximum(total_sq / count - (total / count) ** 2, 0))
+    mask = std.max(-1) > 20
+    assert mask.any()
+    truth = np.stack([np.int16(frame[mask]) for frame in _opencv_frames(path)])
+    return truth, mask
+
+
+def _identify_frame(frame, truth, mask):
+    """Returns the index of the frame in `truth` that `frame` is closest to, in the `mask` area (see
+    _display_order_reference)."""
+    return int(np.abs(np.int16(frame[mask])[None] - truth).mean((1, 2)).argmin())
+
+
+def test_packed_bframes_avi_seek_shows_requested_frames():
+    """MPEG-4 Part 2 in AVI goes through the stateful mpeg4_unpack_bframes bitstream filter,
+    which holds back the B-frame of a packed P+B packet until the next packet. The GPU decoder
+    used to keep that held-back B-frame across seeks, so after a seek it was decoded in place of
+    the keyframe: the pictures no longer matched their timestamps, the requested frames were
+    never written and the samples kept stale content (e.g. the frames of an earlier sample).
+
+    The frames are checked against an independent (OpenCV) decode in display order, rather than
+    against the sequential output of the reader under test, so the test also catches frames
+    that are returned in decode order."""
+    if not os.path.isfile(PACKED_BFRAMES_AVI):
+        raise unittest.SkipTest(
+            f"{PACKED_BFRAMES_AVI} not found: DALI_extra is too old to contain the "
+            "db/video/ucf101_test fixture"
+        )
+    # The pixels that differ between frames: the area where the frame number is drawn.
+    truth, mask = _display_order_reference(PACKED_BFRAMES_AVI)
+    # The last of the 91 frames is a not-coded VOP, which repeats frame 89: OpenCV returns 90.
+    assert len(truth) >= 90, f"expected at least 90 frames, got {len(truth)}"
+
+    sequence_length = 4
+    starts = [0, 63, 28, 77, 56, 14, 7, 21, 49, 70, 84, 42, 35]
+    assert max(starts) + sequence_length <= len(truth)
+    list_file = _write_file_list(
+        [f"{PACKED_BFRAMES_AVI} 0 {s} {s + sequence_length}" for s in starts]
+    )
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        video, _, frame_num = fn.experimental.readers.video(
+            device="gpu",
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=sequence_length,
+            enable_frame_num=True,
+        )
+        return video, frame_num
+
+    p = pipe()
+    p.build()
+    for s in starts:
+        video, frame_num = p.run()
+        first = int(np.array(frame_num.as_cpu()[0]).flatten()[0])
+        assert first == s, f"expected the sequence starting at frame {s}, got {first}"
+        for k, frame in enumerate(np.array(video.as_cpu()[0])):
+            shown = _identify_frame(frame, truth, mask)
+            assert shown == first + k, (
+                f"frame {first + k} (frame {k} of the sequence starting at {first}) "
+                f"shows frame {shown}"
+            )
+
+
+# AVI files with B-frames: AVI stores no presentation timestamps, only the order of the packets,
+# which is the decoding order. DivX packed B-frames (MPEG-4 Part 2, 91 frames) and H.264 with
+# pyramid B-frames (180 frames).
+AVI_WITH_BFRAMES = (
+    PACKED_BFRAMES_AVI,
+    os.path.join(DALI_EXTRA_PATH, "db", "video", "containers", "avi", "cfr.avi"),
+)
+
+
+def _check_frames_shown(path, frames, video, truth, mask):
+    """Checks that `video` holds the frames `frames` of `path`, in display order."""
+    for k, frame in zip(frames, video, strict=True):
+        # The packed fixture has a 91st frame, a not-coded VOP, which repeats the previous one and
+        # which OpenCV does not return
+        expected = min(k, len(truth) - 1)
+        shown = _identify_frame(frame, truth, mask)
+        assert shown == expected, f"{os.path.basename(path)}: frame {k} shows frame {shown}"
+
+
+@params(*AVI_WITH_BFRAMES)
+def test_avi_with_bframes_read_in_display_order(path):
+    """The GPU reader returned the frames of an AVI file with B-frames in decoding order: it took
+    their order from the timestamps of the packets, which AVI gives in decoding order. The frames
+    are read in a row, and then with seeks backward and forward."""
+    truth, mask = _display_order_reference(path)
+    sequence_length = 10
+    num_frames = 91 if path == PACKED_BFRAMES_AVI else len(truth)
+    starts = list(range(0, num_frames - sequence_length + 1, sequence_length))
+    starts += [num_frames - sequence_length, 3, 45, 12, num_frames - sequence_length - 1]
+    list_file = _write_file_list([f"{path} 0 {s} {s + sequence_length}" for s in starts])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        video, _, frame_num = fn.experimental.readers.video(
+            device="gpu",
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=sequence_length,
+            enable_frame_num=True,
+        )
+        return video, frame_num
+
+    p = pipe()
+    p.build()
+    for s in starts:
+        video, frame_num = p.run()
+        first = int(np.array(frame_num.as_cpu()[0]).flatten()[0])
+        assert first == s, f"expected the sequence starting at frame {s}, got {first}"
+        video = np.array(video.as_cpu()[0])
+        _check_frames_shown(path, range(s, s + sequence_length), video, truth, mask)
+        if path == PACKED_BFRAMES_AVI and s + sequence_length == num_frames:
+            # The not-coded VOP repeats the frame before it exactly
+            np.testing.assert_array_equal(video[-1], video[-2])
+
+
+@params(*itertools.product(AVI_WITH_BFRAMES, (True, False)))
+def test_avi_with_bframes_decoded_in_display_order(path, build_index):
+    """As test_avi_with_bframes_read_in_display_order, for the video decoder: with an index, and
+    without one (the frames in the order that the decoder outputs them)."""
+    truth, mask = _display_order_reference(path)
+    # Without an index, the frames are the pictures: the not-coded VOP is not one
+    last = 90 if path == PACKED_BFRAMES_AVI and build_index else len(truth) - 1
+    frames = [0, 1, 2, 3, 4, 5, 6, 7, 30, 31, 32, 33, 15, 16, last - 2, last - 1, last, 8, 9]
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        encoded, _ = fn.readers.file(files=[path])
+        return fn.experimental.decoders.video(
+            encoded, device="mixed", frames=frames, build_index=build_index
+        )
+
+    p = pipe()
+    p.build()
+    (video,) = p.run()
+    _check_frames_shown(path, frames, np.array(video.as_cpu()[0]), truth, mask)
+
+
+# MPEG-4 Part 2 in AVI with B-frames and open GOPs (FFmpeg's encoder): 90 frames of 160x128, a
+# keyframe about every 15, each frame showing its number as the one bright cell of a 10x9 grid of
+# 16x14 cells. qa/TL0_videoreader_test/test.sh makes it.
+MPEG4_OPEN_GOP_AVI = "/tmp/avi_video_files/mpeg4_open_gop.avi"
+
+
+def _frame_number(frame):
+    """The number that a frame of MPEG4_OPEN_GOP_AVI shows: the index of its bright cell."""
+    cells = np.float32(frame).mean(-1)[:126, :160].reshape(9, 14, 10, 16).mean((1, 3))
+    return int(cells.argmax())
+
+
+@params("reader", "decoder")
+def test_avi_open_gop_seeks_show_requested_frames(op):
+    """The keyframes of an open GOP have leading pictures: shown before the keyframe, but decoded
+    after it from the pictures before it. In AVI, whose timestamps follow the decoding order, they
+    take the frames right after the keyframe, so a seek to one of them has to start at the keyframe
+    before. Every frame is read once, in a shuffled order, so that most reads seek, also to the
+    leading pictures and to the keyframes."""
+    if not os.path.isfile(MPEG4_OPEN_GOP_AVI):
+        raise unittest.SkipTest(f"{MPEG4_OPEN_GOP_AVI} not found: made by the qa test script")
+    num_frames = 90
+    order = list(range(num_frames))
+    random.Random(42).shuffle(order)
+
+    if op == "reader":
+        sequence_length = 3
+        starts = [s for s in order if s + sequence_length <= num_frames]
+        list_file = _write_file_list(
+            [f"{MPEG4_OPEN_GOP_AVI} 0 {s} {s + sequence_length}" for s in starts]
+        )
+
+        @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+        def pipe():
+            video, _ = fn.experimental.readers.video(
+                device="gpu",
+                file_list=list_file,
+                file_list_format="frames",
+                sequence_length=sequence_length,
+            )
+            return video
+
+        p = pipe()
+        p.build()
+        reads = [(s, np.array(p.run()[0].as_cpu()[0])) for s in starts]
+    else:
+        # One frame per iteration: the frames of one sample are decoded in order, without seeks
+        @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+        def pipe():
+            encoded, _ = fn.readers.file(files=[MPEG4_OPEN_GOP_AVI])
+            frame = fn.external_source(
+                source=lambda info: np.array([order[info.iteration]], dtype=np.int32),
+                batch=False,
+            )
+            return fn.experimental.decoders.video(encoded, device="mixed", frames=frame)
+
+        p = pipe()
+        p.build()
+        reads = [(f, np.array(p.run()[0].as_cpu()[0])) for f in order]
+
+    for first, frames in reads:
+        for k, frame in enumerate(frames):
+            shown = _frame_number(frame)
+            assert shown == first + k, f"frame {first + k} shows frame {shown}"
+
+
+class _Reader(enum.Enum):
+    LEGACY = enum.auto()
+    EXPERIMENTAL_CPU = enum.auto()
+    EXPERIMENTAL_GPU = enum.auto()
+
+    def make(self):
+        if self is _Reader.LEGACY:
+            return _legacy_gpu_reader
+        return _experimental_reader("cpu" if self is _Reader.EXPERIMENTAL_CPU else "gpu")
+
+
+class _PathKind(enum.Enum):
+    ABSOLUTE = enum.auto()
+    RELATIVE = enum.auto()
+
+
+@cartesian_params(list(_Reader), list(_PathKind))
+def test_filename_with_colon_can_be_opened(reader, path_kind):
+    """A file name such as `clip:01.mp4` must not be parsed as a URL with protocol `clip`: the
+    file opens and all 50 frames are indexed, like any other file."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        abs_name = os.path.join(tmp_dir, "clip:01.mp4")
+        shutil.copy(CFR_VP9_60FPS_FILE, abs_name)
+        name = abs_name if path_kind is _PathKind.ABSOLUTE else "clip:01.mp4"
+        reader_fn = reader.make()
+
+        @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+        def pipe():
+            return reader_fn(filenames=[name], sequence_length=1, name="r")
+
+        prev_cwd = os.getcwd()
+        os.chdir(tmp_dir)
+        try:
+            try:
+                p = pipe()
+                p.build()
+            except RuntimeError as e:
+                raise AssertionError(
+                    f"[{reader.name}, {path_kind.name} path] could not open {name!r}: {e}."
+                )
+            epoch_size = p.reader_meta("r")["epoch_size"]
+            assert epoch_size == 50, (
+                f"[{reader.name}, {path_kind.name} path] indexed {epoch_size} frames of {name!r}, "
+                f"expected 50."
+            )
+            p.run()
+        finally:
+            os.chdir(prev_cwd)
+
+
+@cartesian_params(devices)
+def test_file_url_can_be_opened(device):
+    """A `file://` URL names a local file and must open like a plain path (experimental reader
+    only: the legacy reader does not accept URLs)."""
+    url = "file://" + os.path.abspath(CFR_VP9_60FPS_FILE)
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        return _experimental_reader(device)(filenames=[url], sequence_length=1, name="r")
+
+    p = pipe()
+    p.build()
+    assert p.reader_meta("r")["epoch_size"] == 50
+    p.run()
+
+
+def _first_frame(device, filename, image_type):
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device=device,
+            filenames=[filename],
+            sequence_length=1,
+            image_type=image_type,
+        )
+
+    p = pipe()
+    p.build()
+    (video,) = p.run()
+    return np.float64(np.array(video.as_cpu()[0])[0])
+
+
+@cartesian_params(
+    devices,
+    (
+        # (file, expected slope, expected offset) of Y as a function of the RGB output's luma
+        ("limited", CFR_VP9_60FPS_FILE, 219 / 255, 16.0),
+        ("full", FULL_RANGE_VP9_FILE, 1.0, 0.0),
+    ),
+)
+def test_ycbcr_preserves_source_color_range(device, source):
+    # YCbCr output keeps the source's range, RGB is full range, so Y relates to the RGB output's
+    # luma by slope 1 / offset 0 for a full-range source and by slope 219/255 / offset 16 for a
+    # limited-range one. The limited-range case fails if the CPU backend expands to full range.
+    _, filename, expected_slope, expected_offset = source
+
+    rgb = _first_frame(device, filename, types.RGB)
+    ycbcr = _first_frame(device, filename, types.YCbCr)
+    luma = rgb @ np.array([0.299, 0.587, 0.114])  # BT.601
+    slope, offset = np.polyfit(luma.ravel(), ycbcr[..., 0].ravel(), 1)
+    assert abs(slope - expected_slope) < 0.05 and abs(offset - expected_offset) < 5.0, (
+        f"Y = {slope:.3f} * luma(RGB) + {offset:.2f}, expected slope {expected_slope:.3f}, "
+        f"offset {expected_offset:.1f} (Y range {ycbcr[..., 0].min()}..{ycbcr[..., 0].max()})"
+    )
+
+
+@cartesian_params((("limited", CFR_VP9_60FPS_FILE), ("full", FULL_RANGE_VP9_FILE)))
+def test_ycbcr_cpu_matches_gpu(source):
+    # Compares all three channels (Y, Cb, Cr) of both backends. Unlike the Y-only check above, this
+    # catches chroma-only regressions, and covers both limited- and full-range sources.
+    _, filename = source
+    cpu = _first_frame("cpu", filename, types.YCbCr)
+    gpu = _first_frame("gpu", filename, types.YCbCr)
+    assert cpu.shape == gpu.shape
+    max_diff = np.abs(cpu - gpu).max()
+    assert max_diff <= 1, f"CPU and GPU YCbCr differ by up to {max_diff}"

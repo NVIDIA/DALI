@@ -29,8 +29,7 @@ from ._call_site import mark_transparent, resolve_callsite_frame
 from ._capture import _capture_intercept
 from ._eval_mode import EvalMode
 from ._nvtx import NVTXRange
-from ._source_analysis import _Classifier
-from ._source_analysis import call_info as _call_info
+from ._source_analysis import constant_kwargs
 from ._tensor import Tensor
 from ._tensor import tensor as to_tensor
 from .capture._invariant import unwrap_invariant, unwrap_invariants
@@ -510,6 +509,8 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
     header = f"{fn_name}({', '.join(inputs + signature_args)})"
 
     nvtx_get_instance_range = NVTXRange(f"get instance {op._op_name}", category="op_builder")
+    # Constant bounds don't speed up slicing; skipping spares analyzing modules that only slice
+    detect_constants = op._schema_name != "_TensorSubscript"
 
     @mark_transparent
     @NVTXRange(f"{fn_name}()", category="op_builder")
@@ -524,29 +525,8 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
         if _caller_frame is None:
             _caller_frame = resolve_callsite_frame(depth_hint=3)
 
-        constant_args = None
-        if _caller_frame is not None:
-            info = _call_info(_caller_frame)
-            if info is not None:
-                arg_classification = None
-                if "constant_args" in info.meta:
-                    constant_args = info.meta["constant_args"]
-                else:
-                    # TODO(michalz): use (inputs, raw_kwargs) when we have a way to utilize
-                    #                constant inputs
-                    arg_classification = _Classifier(
-                        info.module_info, _caller_frame
-                    ).detect_invariant_args([], raw_kwargs)
-                    if arg_classification is not None:
-                        # For future use
-                        # info.meta["constant_inputs"] = arg_classification[0]
-                        info.meta["constant_args"] = arg_classification[1]
-                        constant_args = arg_classification[1]
-                    else:
-                        # For future use
-                        # info.meta["constant_inputs"] = None
-                        info.meta["constant_args"] = None
-                        constant_args = None
+        # TODO(michalz): utilize constant inputs
+        constant_args = constant_kwargs(_caller_frame, raw_kwargs) if detect_constants else None
 
         init_args = {}
         call_args = {}
@@ -586,11 +566,13 @@ def build_fn_wrapper(op, fn_name=None, add_to_module=True):
             **call_args,
         )
 
+    eager_call = fn_call
     fn_call = _capture_intercept(fn_call, op, op_name=fn_name)
 
     doc = _docs._docstring_generator_fn(schema.Name(), api="dynamic", args=used_kwargs)
     function = mark_transparent(makefun.create_function(header, fn_call, doc=doc))
     function._op_class = op
+    function._eager_call = eager_call
     function._schema = schema
     function._schema_name = schema.Name()
     function._generated = True
@@ -621,23 +603,20 @@ def build_operators():
     Returns a tuple of all operator classes and functional wrappers."""
     _all_ops = _legacy_ops._registry._all_registered_ops()
     all_op_classes = []
-    deprecated = {}
+    aliases = {}
     op_map = {}
     for schema_name in _all_ops:
         if not _op_filter.should_create_dynamic_op(schema_name):
             continue
 
-        schema = _b.GetSchema(schema_name)
-        deprecated_in_favor = schema.DeprecatedInFavorOf()
-        if deprecated_in_favor:
-            deprecated[schema_name] = deprecated_in_favor
+        original_schema, schema = _b.GetSchemaAndTarget(schema_name)
+        if original_schema.AliasFor():
+            # An alias - it will reuse the class of the actual operator
+            aliases[schema_name] = schema.Name()
+            continue
         cls = build_operator_class(schema)
         all_op_classes.append(cls)
         op_map[schema_name] = cls
-    for what, in_favor in deprecated.items():
-        schema = _b.GetSchema(what)
-        module = _find_or_create_module(_ops, schema.ModulePath())
-        setattr(module, what, op_map[in_favor])
 
     # Protect from infinite recursion when calling to_device, which internally uses operator Copy.
     op_map["Copy"]._input_device = (
@@ -645,5 +624,26 @@ def build_operators():
     )
 
     all_fn_wrappers = build_fn_wrappers(all_op_classes)
+    _expose_aliases(aliases, op_map, all_fn_wrappers)
 
     return all_op_classes, all_fn_wrappers
+
+
+def _expose_aliases(aliases, op_map, fn_wrappers):
+    """Exposes the operator classes and functional wrappers under the alias names."""
+    from .. import dynamic as parent
+
+    fn_map = {fn._op_class: fn for fn in fn_wrappers}
+    for alias_name, actual_name in aliases.items():
+        op_class = op_map.get(actual_name)
+        if op_class is None:
+            continue
+        alias_schema = _b.GetSchema(alias_name)
+        module_path = alias_schema.ModulePath()
+        class_name = alias_schema.OperatorName()
+        class_module = _find_or_create_module(parent if op_class._is_reader else _ops, module_path)
+        setattr(class_module, class_name, op_class)
+        fn = fn_map.get(op_class)
+        if fn is not None:
+            fn_module = _internal.get_submodule(parent, module_path)
+            setattr(fn_module, _to_snake_case(class_name), fn)

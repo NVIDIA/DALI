@@ -9,7 +9,12 @@ DIR=$(cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null && pwd )
 DALI_EXTRA_VERSION_PATH="${DIR}/../DALI_EXTRA_VERSION"
 DALI_EXTRA_VERSION=${DALI_EXTRA_VERSION_SHA:-$(cat ${DALI_EXTRA_VERSION_PATH})}
 echo "Using DALI_EXTRA_VERSION = ${DALI_EXTRA_VERSION}"
-if [ ! -d "$DALI_EXTRA_PATH" ] && [ "${DALI_EXTRA_NO_DOWNLOAD}" == "" ]; then
+if [ ! -d "$DALI_EXTRA_PATH" ]; then
+    if [ "${DALI_EXTRA_NO_DOWNLOAD}" != "" ]; then
+        echo "ERROR: DALI_EXTRA_PATH=${DALI_EXTRA_PATH} does not exist and" \
+             "DALI_EXTRA_NO_DOWNLOAD is set. Make sure DALI_extra is mounted in the container." >&2
+        exit 1
+    fi
     git clone "$DALI_EXTRA_URL" "$DALI_EXTRA_PATH"
 fi
 

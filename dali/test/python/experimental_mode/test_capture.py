@@ -362,20 +362,33 @@ def test_capture_device_op_mismatch():
     reader = ndd.readers.File(file_root=images_root, pad_last_batch=True)
 
     for epoch, device in enumerate([None, "gpu"]):
-        raised = False
         for jpegs, _ in reader.next_epoch(batch_size=4, capture=True):
             images = ndd.decoders.image(jpegs)
-            try:
-                ndd.resize(images, size=[64, 64], device=device)
-            except RuntimeError as e:
-                assert epoch == 1
-                assert "Cannot change device" in str(e)
-                raised = True
-                break
-        if raised:
-            break
-    else:
-        assert False, "RuntimeError not raised for device mismatch"
+            resized = ndd.resize(images, size=[64, 64], device=device)
+            if epoch == 1:
+                assert not _is_captured(resized)
+                assert resized.device == ndd.Device("gpu")
+
+
+def test_capture_shared_helper_uncaptured_call():
+    if _backend.GetCUDADeviceCount() == 0:
+        raise SkipTest("At least 1 GPU needed for device mismatch test")
+
+    def flip(x):
+        return ndd.flip(x, horizontal=1)
+
+    sample = np.arange(12, dtype=np.uint8).reshape(2, 2, 3)
+    host = ndd.batch([sample, sample])
+
+    reader = ndd.readers.File(file_root=images_root)
+    for jpegs, _ in reader.next_epoch(batch_size=2, capture=True):
+        images = ndd.decoders.image(jpegs, device="gpu")
+        captured_flip = flip(images)
+        assert _is_captured(captured_flip)
+
+        uncaptured_flip = flip(host)
+        assert not _is_captured(uncaptured_flip)
+        np.testing.assert_array_equal(ndd.as_tensor(uncaptured_flip), [sample[:, ::-1]] * 2)
 
 
 def test_capture_stale_batch():

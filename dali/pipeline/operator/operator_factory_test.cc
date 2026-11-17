@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2018, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2017-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -97,22 +97,13 @@ TYPED_TEST_SUITE(OperatorFactoryTest, TestTypes);
 
 TYPED_TEST(OperatorFactoryTest, TestRegisterAndConstruct) {
   OperatorRegistry<DummyBase<CPUBackend>> &registry = CPUDummyRegistry::Registry();
-  vector<string> names = registry.RegisteredNames(true);
   vector<string> val_names = {"DummyDerivedOne",
                               "DummyDerivedTwo",
                               "DummyDerivedThree"};
 
   // Check that all names are registered
-  for (auto &target : val_names) {
-    bool found = false;
-    for (auto &n : names) {
-      if (n == target) {
-        found = true;
-        break;
-      }
-    }
-    ASSERT_TRUE(found) << "Did not find name " << target << " in registry.";
-  }
+  for (auto &target : val_names)
+    ASSERT_TRUE(registry.IsRegistered(target)) << "Did not find " << target << " in registry.";
 
   // Try constructing the ops an validating them by ID
   int val_id = 1;

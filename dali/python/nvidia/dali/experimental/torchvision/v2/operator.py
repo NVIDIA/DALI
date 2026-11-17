@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from abc import ABC, abstractmethod
+import functools
+import inspect
 import logging
 from typing import Literal
 
@@ -23,7 +25,28 @@ import numpy as np
 import nvidia.dali.experimental.dynamic as ndd
 
 
-class _DataValidateRule(ABC):
+def find_op_rejecting_pil(op_list):
+    """
+    Returns the first operator in ``op_list`` that would receive a ``PIL.Image`` and does not
+    support it, or ``None``. The search stops at an operator that converts the image to a tensor.
+    Operators that wrap other operators (``RandomApply``) are searched through, because the wrapped
+    operators receive the image whenever they are applied. Wrappers that are not ``Operator``
+    subclasses (e.g. ``Pad``) are assumed to support PIL.
+    """
+    for op in op_list:
+        if getattr(op, "converts_pil_to_tensor", False):
+            return None
+        wrapped = getattr(op, "_op_list", None)
+        if wrapped is not None:
+            rejecting = find_op_rejecting_pil(wrapped)
+            if rejecting is not None:
+                return rejecting
+        elif not getattr(op, "supports_pil", True):
+            return op
+    return None
+
+
+class DataValidateRule(ABC):
     """
     Abstract base class for data verification rules
 
@@ -36,7 +59,7 @@ class _DataValidateRule(ABC):
         pass
 
 
-class _ArgumentValidateRule(ABC):
+class ArgumentValidateRule(ABC):
     """
     Abstract base class for input verification rules
 
@@ -49,7 +72,7 @@ class _ArgumentValidateRule(ABC):
         pass
 
 
-class _ValidateIsTensor(_DataValidateRule):
+class _ValidateIsTensor(DataValidateRule):
     """
     Verify if the data is a ``torch.Tensor``.
 
@@ -65,7 +88,7 @@ class _ValidateIsTensor(_DataValidateRule):
             raise TypeError(f"Data should be Tensor. Got {type(data)}")
 
 
-class _ValidateTensorOrImage(_DataValidateRule):
+class _ValidateTensorOrImage(DataValidateRule):
     """
     Verify if the data is a ``torch.Tensor`` or ``PIL.Image``.
 
@@ -81,7 +104,7 @@ class _ValidateTensorOrImage(_DataValidateRule):
             raise TypeError(f"inpt should be Tensor or PIL Image. Got {type(data)}")
 
 
-class _ValidateChannelCount(_DataValidateRule):
+class _ValidateChannelCount(DataValidateRule):
     """
     Verify if input data has <= 4 channels. More channels are not supported in Torchvision
 
@@ -101,7 +124,7 @@ class _ValidateChannelCount(_DataValidateRule):
                 got: {data.shape[-3]} channels")
 
 
-class _ValidateIfPositive(_ArgumentValidateRule):
+class _ValidateIfPositive(ArgumentValidateRule):
     """
     Verify if the value is positive.
 
@@ -119,7 +142,7 @@ class _ValidateIfPositive(_ArgumentValidateRule):
             raise ValueError(f"Values {name} must be positive numbers, got {values}")
 
 
-class _ValidateIfNonNegative(_ArgumentValidateRule):
+class _ValidateIfNonNegative(ArgumentValidateRule):
     """
     Verify if the value is non-negative.
 
@@ -137,7 +160,7 @@ class _ValidateIfNonNegative(_ArgumentValidateRule):
             raise ValueError(f"Values {name} must be non-negative numbers, got {values}")
 
 
-class _ValidateIfRange(_ArgumentValidateRule):
+class _ValidateIfRange(ArgumentValidateRule):
     """
     Verify if the value is a correct range: (min, max)
 
@@ -153,7 +176,7 @@ class _ValidateIfRange(_ArgumentValidateRule):
             raise ValueError(f"Values {name} should be (min, max), got {values}")
 
 
-class _ValidateSizeDescriptor(_ArgumentValidateRule):
+class _ValidateSizeDescriptor(ArgumentValidateRule):
     """
     Verify if the value can describe a size argument, which is:
     - an integer
@@ -175,7 +198,7 @@ class _ValidateSizeDescriptor(_ArgumentValidateRule):
         _ValidateIfPositive.verify(values=size, name="size")
 
 
-class _ValidateIfZeroOneRange(_ArgumentValidateRule):
+class _ValidateIfZeroOneRange(ArgumentValidateRule):
     """
     Verify if the given value is in [0.0; 1.0] range and is an integer or a float
 
@@ -207,6 +230,11 @@ class Operator(ABC):
     ``arg_rules`` - a sequence of verification rules for algorithm's arguments.
     ``input_rules`` - a sequence of verification rules for algorithm's input data.
     ``preprocess_data`` - a function to preprocess the input data.
+    ``supports_pil`` - whether the operator accepts ``PIL.Image`` input. Checked by ``Compose``
+    against the actual input, because ``input_rules`` only see graph nodes while the pipeline
+    is being built.
+    ``converts_pil_to_tensor`` - whether the operator makes the data a tensor, so the operators
+    that follow it are not checked against ``supports_pil``.
 
     Parameters
     ----------
@@ -216,9 +244,11 @@ class Operator(ABC):
         Additional keyword arguments for the operator.
     """
 
-    arg_rules: tuple[_ArgumentValidateRule, ...] = []
-    input_rules: tuple[_DataValidateRule, ...] = []
+    arg_rules: tuple[ArgumentValidateRule, ...] = tuple()
+    input_rules: tuple[DataValidateRule, ...] = tuple()
     preprocess_data = None
+    supports_pil = True
+    converts_pil_to_tensor = False
 
     @classmethod
     def verify_args(cls, **kwargs):
@@ -257,7 +287,7 @@ class Operator(ABC):
         """
         type(self).verify_data(data_input)
 
-        # Original input is transfered to GPU, before being preprocess_data.
+        # Original input is transferred to GPU, before preprocess_data is applied.
         # The preprocess_data creates an arbitrary tuple
         if self.device == "gpu":
             data_input = data_input.gpu()
@@ -314,7 +344,7 @@ def adjust_input(func):
 
         if device != _input.device.device_type:
             logging.warning(
-                f"Warning: input and operator devices do not match - copyig!"
+                "Input and operator devices do not match - copying!"
                 f" Input is {_input.device} operator is {device}"
             )
             _input = _input.cpu() if "cpu" in device else _input.gpu()
@@ -335,8 +365,8 @@ def adjust_input(func):
         if isinstance(inpt, Image.Image):
             if output.device.device_type == "gpu":
                 logging.warning(
-                    "Warning: PIL.Image expected on the output - copying output to CPU!"
-                    " torch.Tensors are recomended to be used with GPU operators."
+                    "PIL.Image expected on the output - copying output to CPU!"
+                    " torch.Tensors are recommended to be used with GPU operators."
                 )
                 output = output.cpu()
 
@@ -360,9 +390,13 @@ def adjust_input(func):
         else:
             return output
 
+    signature = inspect.signature(func)
+
+    @functools.wraps(func)
     def inner_function(inpt, *args, **kwargs):
 
-        device = kwargs["device"] if "device" in kwargs else "cpu"
+        # ``device`` may be passed either by position or by keyword
+        device = signature.bind_partial(inpt, *args, **kwargs).arguments.get("device", "cpu")
 
         _input, mode = transform_input(inpt, device)
         output = func(_input, *args, **kwargs)

@@ -15,8 +15,8 @@
 from typing import Sequence, Literal, Optional
 
 from .operator import (
-    _ArgumentValidateRule,
-    _DataValidateRule,
+    ArgumentValidateRule,
+    DataValidateRule,
     Operator,
     _ValidateIfRange,
     _ValidateIfNonNegative,
@@ -29,7 +29,7 @@ import nvidia.dali as dali
 import nvidia.dali.fn as fn
 
 
-class _ValidateBrightnessContrastSaturation(_ArgumentValidateRule):
+class _ValidateBrightnessContrastSaturation(ArgumentValidateRule):
     """
     Verify Brightness, Contrast and Saturation values
 
@@ -62,7 +62,7 @@ class _ValidateBrightnessContrastSaturation(_ArgumentValidateRule):
         _ValidateBrightnessContrastSaturation._validate_param(contrast, "contrast")
 
 
-class _ValidateHue(_ArgumentValidateRule):
+class _ValidateHue(ArgumentValidateRule):
     """
     Verify Hue
 
@@ -90,7 +90,7 @@ class _ValidateHue(_ArgumentValidateRule):
             raise ValueError(f"hue values should be between [-0.5, 0.5], but got {hue}")
 
 
-class _ValidateGrayscaleInputLayout(_DataValidateRule):
+class _ValidateGrayscaleInputLayout(DataValidateRule):
     """
     Verify if grayscale conversion is supported for the current input layout
     """
@@ -234,7 +234,7 @@ class ColorJitter(Operator):
         return data_input
 
 
-class _ValidateGrayscaleOutputChannels(_ArgumentValidateRule):
+class _ValidateGrayscaleOutputChannels(ArgumentValidateRule):
     """
     Verify the number of output channels for the Grayscale operator.
 

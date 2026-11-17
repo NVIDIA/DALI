@@ -26,13 +26,16 @@ Only the layout is affected, while the data stays untouched.
 
 The operator can be used to feed per-frame tensor arguments when processing sequences.
 For example, the following snippet shows how to apply ``gaussian_blur`` to a batch of sequences,
-so that a different ``sigma`` is used for each frame in each sequence::
+so that a different ``sigma`` is used for each frame in each sequence. The operator names are
+shown without an API prefix; use whichever API you're working with, e.g. ``fn.readers.video_resize``,
+``fn.random.uniform``, ``fn.gaussian_blur`` and ``fn.per_frame``, ``ops`` equivalents, or the
+dynamic API equivalents::
 
   @pipeline_def
   def random_per_frame_blur():
-    video, _ = fn.readers.video_resize(sequence_length=50, ...)
-    sigma = fn.random.uniform(range=[0.5, 5], shape=(50,))
-    blurred = fn.gaussian_blur(video, sigma=fn.per_frame(sigma))
+    video, _ = readers.video_resize(sequence_length=50, ...)
+    sigma = random.uniform(range=[0.5, 5], shape=(50,))
+    blurred = gaussian_blur(video, sigma=per_frame(sigma))
     return blurred
 
 Note that the outermost dimension of each tensor from a batch specified as per-frame argument

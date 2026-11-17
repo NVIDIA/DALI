@@ -15,23 +15,31 @@
 #ifndef DALI_OPERATORS_VIDEO_COLOR_SPACE_H_
 #define DALI_OPERATORS_VIDEO_COLOR_SPACE_H_
 
+#include <cuda_runtime_api.h>
 #include <stdint.h>
+#include "dali/core/api_helper.h"
 
 namespace dali {
 
 enum VideoColorSpaceConversionType {
+    // ITU-R BT.601 matrix, limited range
     VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB,
+    // ITU-R BT.601 matrix, full range
     VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_FULL_RANGE,
     VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_UPSAMPLE,
+    // ITU-R BT.709 matrix, limited range
+    VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709,
+    // ITU-R BT.709 matrix, full range
+    VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709_FULL_RANGE,
 };
 
-void VideoColorSpaceConversion(uint8_t *out, int out_pitch, const uint8_t* yuv, int yuv_pitch, int height, int width,
-                               VideoColorSpaceConversionType conversion_type, bool normalized_range,
-                               cudaStream_t stream);
+DLL_PUBLIC void ConvertVideoColorSpace(uint8_t *out, int out_pitch, const uint8_t* yuv, int yuv_pitch, int height, int width,
+                                       VideoColorSpaceConversionType conversion_type,
+                                       bool normalized_range, cudaStream_t stream);
 
-void VideoColorSpaceConversion(float *out, int out_pitch, const uint8_t* yuv, int yuv_pitch, int height, int width,
-                               VideoColorSpaceConversionType conversion_type, bool normalized_range,
-                               cudaStream_t stream);
+DLL_PUBLIC void ConvertVideoColorSpace(float *out, int out_pitch, const uint8_t* yuv, int yuv_pitch, int height, int width,
+                                       VideoColorSpaceConversionType conversion_type,
+                                       bool normalized_range, cudaStream_t stream);
 
 }  // namespace dali
 

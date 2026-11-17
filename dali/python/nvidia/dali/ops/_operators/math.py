@@ -199,7 +199,7 @@ def _has_nested_datanodes(value, visited):
         if isinstance(x, _DataNode):
             return True
         if isinstance(x, (list, tuple)):
-            if _has_nested_datanodes(value, visited):
+            if _has_nested_datanodes(x, visited):
                 return True
     return False
 
