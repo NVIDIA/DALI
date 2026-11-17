@@ -123,17 +123,6 @@ CUVIDDECODECAPS GetDecoderCaps(cudaVideoCodec codec, cudaVideoChromaFormat chrom
   return caps;
 }
 
-// The driver can report as few as 1 minimum decode surface for a JPEG sequence, which is not
-// enough: the 2nd cuvidDecodePicture fails with CUDA_ERROR_INVALID_VALUE. 2 surfaces were the
-// least that worked on the GPU this was tried on (TITAN V); this adds some margin.
-constexpr int kMinJpegDecodeSurfaces = 4;
-
-int AdjustedNumDecodeSurfaces(cudaVideoCodec codec_type, int min_num_decode_surfaces) {
-  if (codec_type == cudaVideoCodec_JPEG)
-    return std::max(min_num_decode_surfaces, kMinJpegDecodeSurfaces);
-  return min_num_decode_surfaces;
-}
-
 class NVDECCache {
  public:
     static NVDECCache &GetCache(int device_id = -1) {
@@ -347,8 +336,7 @@ class NVDECCache {
       auto codec_type = video_format->codec;
       unsigned height =  video_format->coded_height;
       unsigned width = video_format->coded_width;
-      int num_decode_surfaces = AdjustedNumDecodeSurfaces(
-          codec_type, video_format->min_num_decode_surfaces);
+      auto num_decode_surfaces = video_format->min_num_decode_surfaces;
       auto chroma_format = video_format->chroma_format;
       auto bit_depth_luma_minus8 = video_format->bit_depth_luma_minus8;
 
@@ -671,11 +659,11 @@ bool FramesDecoderGpu::IsBT709(CUVIDEOFORMAT *video_format) const {
 
 int FramesDecoderGpu::NumDecodeSurfaces(const CUVIDEOFORMAT &video_format) {
   // the minimum is what the stream's reference pictures and reordering need. The display delay
-  // keeps that many more decoded pictures in the parser
-  int num_surfaces =
-      video_format.min_num_decode_surfaces + kDisplayDelay + kSpareDecodeSurfaces;
-  // the parser and the decoder must agree on this number (see NVDECCache::GetDecoder)
-  return frame_dec_gpu_impl::AdjustedNumDecodeSurfaces(video_format.codec, num_surfaces);
+  // keeps that many more decoded pictures in the parser.
+  // The sequence callback returns this number, and the parser takes it only if it is more than 1
+  // (nvcuvid.h): otherwise it keeps its own (ulMaxNumDecodeSurfaces), more than the decoder has.
+  static_assert(kDisplayDelay + kSpareDecodeSurfaces > 1);
+  return video_format.min_num_decode_surfaces + kDisplayDelay + kSpareDecodeSurfaces;
 }
 
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
