@@ -400,23 +400,23 @@ int handle_picture_display(void *user_data, CUVIDPARSERDISPINFO *picture_display
 
 namespace {
 
-/** Whether NVDEC supports a JPEG stream in the given pixel format; warns if it does not. */
-bool IsJpegPixelFormatSupported(AVPixelFormat pix_fmt) {
+/**
+ * Why NVDEC can't decode a JPEG stream in the given pixel format, or an empty string if it can.
+ */
+std::string JpegPixelFormatError(AVPixelFormat pix_fmt) {
   const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
   if (!desc || desc->nb_components == 0) {
     // Not even known after probing the stream: it can't be checked, so don't claim support.
-    DALI_WARN("Could not determine the pixel format of a JPEG stream, so it can't be checked "
-              "against what NVDEC on this platform supports.");
-    return false;
+    return "Could not determine the pixel format of a JPEG stream, so it can't be checked against "
+           "what NVDEC on this platform supports.";
   }
   // NVDEC outputs the components of a JPEG as Y, Cb and Cr, and the color conversion treats them
   // so: RGB-coded JPEGs (e.g. gbrp), and those with 4 components (CMYK, YCCK, alpha) would come out
   // with wrong colors.
   constexpr uint64_t kNotYCbCr = AV_PIX_FMT_FLAG_RGB | AV_PIX_FMT_FLAG_ALPHA | AV_PIX_FMT_FLAG_PAL;
   if ((desc->flags & kNotYCbCr) || (desc->nb_components != 1 && desc->nb_components != 3)) {
-    DALI_WARN(make_string("JPEG with pixel format ", desc->name, " is not supported by the GPU "
-                          "variant of this operator: only YCbCr and grayscale JPEGs are."));
-    return false;
+    return make_string("JPEG with pixel format ", desc->name, " is not supported by the GPU "
+                       "variant of this operator: only YCbCr and grayscale JPEGs are.");
   }
   cudaVideoChromaFormat chroma;
   if (desc->nb_components == 1) {
@@ -429,17 +429,15 @@ bool IsJpegPixelFormatSupported(AVPixelFormat pix_fmt) {
     chroma = cudaVideoChromaFormat_420;
   } else {
     // e.g. 4:4:0 or 4:1:1: there is no NVDEC chroma format for it
-    DALI_WARN(make_string("JPEG with pixel format ", desc->name,
-                          " is not supported by NVDEC on this platform."));
-    return false;
+    return make_string("JPEG with pixel format ", desc->name,
+                       " is not supported by NVDEC on this platform.");
   }
   int bit_depth = desc->comp[0].depth;
   if (FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, chroma, bit_depth))
-    return true;
-  DALI_WARN(make_string("JPEG with pixel format ", desc->name, " (", bit_depth, "-bit, chroma ",
-                        frame_dec_gpu_impl::chroma_to_string(chroma),
-                        ") is not supported by NVDEC on this platform."));
-  return false;
+    return {};
+  return make_string("JPEG with pixel format ", desc->name, " (", bit_depth, "-bit, chroma ",
+                     frame_dec_gpu_impl::chroma_to_string(chroma),
+                     ") is not supported by NVDEC on this platform.");
 }
 
 }  // namespace
@@ -1489,34 +1487,42 @@ std::vector<AVCodecID> FramesDecoderGpu::SupportedCodecs() {
   return supported;
 }
 
-bool FramesDecoderGpu::IsCodecSupported(AVCodecID codec_id, bool warn) {
+std::string FramesDecoderGpu::UnsupportedCodecReason(AVCodecID codec_id) {
   if (std::find(kGpuCodecs.begin(), kGpuCodecs.end(), codec_id) == kGpuCodecs.end()) {
-    if (warn)
-      DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
-                            ") is not supported by the GPU variant of this operator."));
-    return false;
+    return make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
+                       ") is not supported by the GPU variant of this operator.");
   }
-
   auto decoder_caps = frame_dec_gpu_impl::GetDecoderCaps(GetCodecType(codec_id),
                                                          cudaVideoChromaFormat_420, 0);
   if (!decoder_caps.bIsSupported) {
-    if (warn)
-      DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
-                            " is not supported by NVDEC on this platform."));
-    return false;
+    return make_string("Codec ", avcodec_get_name(codec_id),
+                       " is not supported by NVDEC on this platform.");
   }
-  return true;
+  return {};
+}
+
+bool FramesDecoderGpu::IsCodecSupported(AVCodecID codec_id, bool warn) {
+  std::string reason = UnsupportedCodecReason(codec_id);
+  if (!reason.empty() && warn)
+    DALI_WARN(reason);
+  return reason.empty();
+}
+
+std::string FramesDecoderGpu::UnsupportedStreamReason(AVCodecID codec_id, AVPixelFormat pix_fmt) {
+  std::string reason = UnsupportedCodecReason(codec_id);
+  // The codec check only looks at 8-bit 4:2:0, which is what NVDEC JPEG support is always
+  // reported for. MJPEG is often 4:2:2 or 4:4:4, which not every GPU can decode: such files are
+  // rejected like an unsupported codec, rather than failing in the decoder later.
+  if (reason.empty() && codec_id == AV_CODEC_ID_MJPEG)
+    reason = JpegPixelFormatError(pix_fmt);
+  return reason;
 }
 
 bool FramesDecoderGpu::IsStreamSupported(AVCodecID codec_id, AVPixelFormat pix_fmt) {
-  if (!IsCodecSupported(codec_id))
-    return false;
-  // The codec check only looks at 8-bit 4:2:0, which is what NVDEC JPEG support is always
-  // reported for. MJPEG is often 4:2:2 or 4:4:4, which not every GPU can decode: skip such
-  // files with a warning like an unsupported codec, rather than failing in the decoder later.
-  if (codec_id == AV_CODEC_ID_MJPEG && !IsJpegPixelFormatSupported(pix_fmt))
-    return false;
-  return true;
+  std::string reason = UnsupportedStreamReason(codec_id, pix_fmt);
+  if (!reason.empty())
+    DALI_WARN(reason);
+  return reason.empty();
 }
 
 bool FramesDecoderGpu::SelectVideoStream(int stream_id) {

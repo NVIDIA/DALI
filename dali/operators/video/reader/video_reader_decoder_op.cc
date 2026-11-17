@@ -366,9 +366,10 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
    * 2. The list is walked in order, sequentially. For every entry, the frame range is resolved
    *    (from `file_list`, if given) and the samples (or, with `uniform_sample`, the frame indices
    *    of the sample) are made from the index of its file. The entries that are not valid videos,
-   *    whose codec is not supported or whose frame range is empty are skipped (with a warning,
-   *    except for the invalid ones). An error that occurred while indexing is thrown here, so the
-   *    one reported is that of the first failing file in the list, however many threads there are.
+   *    whose video stream the decoder can't decode or whose frame range is empty are skipped (with
+   *    a warning, except for the invalid ones). An error that occurred while indexing is thrown
+   *    here, so the one reported is that of the first failing file in the list, however many
+   *    threads there are.
    *
    * Finally, the samples are shuffled (if `shuffle`) and the reader is set to the start of its
    * shard.
@@ -404,18 +405,17 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         std::rethrow_exception(file_index.error);  // the first failing file, in the list order
       if (!file_index.valid)
         continue;
-      if (!file_index.index) {
-        // The codec is not supported: skipped, as with the decoder. The check is made again (its
-        // result is cached) to warn here, once per entry and in the order of the list, not from
-        // the indexing threads.
-        FramesDecoderImpl::IsCodecSupported(file_index.codec_id);
+      // A stream that the decoder can't decode is skipped, as the decoder would reject it: its
+      // codec is not supported (then it is not indexed) or, for MJPEG on the GPU, NVDEC doesn't
+      // support its pixel format on this device. That is checked here, and not by the indexing
+      // threads, because it needs CUDA (the result is cached), and so that the warnings come once
+      // per entry and in the order of the list.
+      std::string unsupported =
+          FramesDecoderImpl::UnsupportedStreamReason(file_index.codec_id, file_index.pix_fmt);
+      if (!unsupported.empty() || !file_index.index) {
+        DALI_WARN(make_string(unsupported, " Skipping ", entry.filename, "."));
         continue;
       }
-      // Whether the decoder can decode the format of the stream (for MJPEG, its chroma format and
-      // bit depth depend on the GPU), so that the files that it would reject are skipped here,
-      // and don't make the reader fail later. It needs CUDA (cached), so it is done on this thread.
-      if (!FramesDecoderImpl::IsStreamSupported(file_index.codec_id, file_index.pix_fmt))
-        continue;
       const FrameIndex &index = *file_index.index;
       indices_[entry.filename] = file_index.index;  // kept for the reader's lifetime
       int64_t num_frames = index.size();

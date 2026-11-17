@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import os
+import re
 import tempfile
 
 import numpy as np
@@ -20,7 +21,7 @@ from nose2.tools import cartesian_params, params
 from nvidia.dali import fn, pipeline_def
 
 from nose_utils import assert_raises
-from test_utils import get_dali_extra_path
+from test_utils import check_output_pattern, get_dali_extra_path
 
 VIDEO_DIR = os.path.join(get_dali_extra_path(), "db", "video")
 
@@ -211,6 +212,26 @@ def test_broken_file_with_unsupported_codec_is_skipped(num_threads):
         reference = build_reader(valid, num_threads, "cpu").reader_meta("reader")["epoch_size"]
         pipe = build_reader(valid[:2] + [broken] + valid[2:], num_threads, "cpu")
         assert pipe.reader_meta("reader")["epoch_size"] == reference
+
+
+@params("cpu", "gpu")
+def test_unsupported_file_is_skipped_with_a_warning(device):
+    """A file whose video stream the decoder can't decode is skipped, with a warning that names
+    it."""
+    with tempfile.TemporaryDirectory() as root:
+        valid = [os.path.join(VIDEO_DIR, name) for name in SOURCE_FILES[device]]
+        unsupported = os.path.join(
+            root, "unsupported" + os.path.splitext(UNSUPPORTED_FILE[device])[1]
+        )
+        if device == "gpu":
+            write_unsupported_gpu_source(UNSUPPORTED_FILE[device], unsupported)
+        else:
+            os.symlink(os.path.join(VIDEO_DIR, UNSUPPORTED_FILE[device]), unsupported)
+        reference = build_reader(valid, 1, device).reader_meta("reader")["epoch_size"]
+        with check_output_pattern(rf"is not supported by .*\. Skipping {re.escape(unsupported)}\."):
+            pipe = build_reader(valid[:2] + [unsupported] + valid[2:], 1, device)
+            epoch_size = pipe.reader_meta("reader")["epoch_size"]
+        assert epoch_size == reference
 
 
 @params("cpu", "gpu")

@@ -257,8 +257,11 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   /**
    * @brief Checks if the video stream with the given parameters can be decoded by this decoder:
    *        IsCodecSupported plus, for MJPEG, whether NVDEC on this device supports the stream's
-   *        chroma format and bit depth. It warns if it does not. It is what the stream selection
-   *        checks, so it can be used to skip the files that would be rejected by the decoder.
+   *        pixel format (YCbCr or grayscale, chroma format and bit depth). It warns if it does not.
+   *
+   * With ProbeMjpegPixelFormat called first (for MJPEG, the container usually gives no pixel
+   * format, and the stream is then reported as unsupported), it is what the stream selection
+   * checks, so it can be used to skip the files that the decoder would reject.
    */
   static bool IsStreamSupported(const AVCodecParameters &params) {
     return IsStreamSupported(params.codec_id, static_cast<AVPixelFormat>(params.format));
@@ -269,6 +272,12 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    *        unknown). Same requirements as `IsCodecSupported`.
    */
   static bool IsStreamSupported(AVCodecID codec_id, AVPixelFormat pix_fmt);
+
+  /**
+   * @brief Why IsStreamSupported is false for the stream (the text of its warning), or an empty
+   *        string if it is true. It doesn't warn.
+   */
+  static std::string UnsupportedStreamReason(AVCodecID codec_id, AVPixelFormat pix_fmt);
 
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
@@ -493,6 +502,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   void InitBitStreamFilter();
 
   static cudaVideoCodec GetCodecType(AVCodecID codec_id);
+
+  /// Why this decoder can't decode the codec (see IsCodecSupported), or an empty string if it can
+  static std::string UnsupportedCodecReason(AVCodecID codec_id);
 
   bool IsFullRange(CUVIDEOFORMAT *video_format) const;
   bool IsBT709(CUVIDEOFORMAT *video_format) const;

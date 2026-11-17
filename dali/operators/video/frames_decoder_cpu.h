@@ -73,6 +73,9 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
    */
   static bool IsCodecSupported(AVCodecID codec_id, bool warn = true);
 
+  /// Why this decoder can't decode the codec (see IsCodecSupported), or an empty string if it can
+  static std::string UnsupportedCodecReason(AVCodecID codec_id);
+
   /**
    * @brief The codecs for which `IsCodecSupported` is true: a codec is supported if and only if it
    *        is on this list, which can be used from any thread.
@@ -81,7 +84,7 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
 
   /**
    * @brief Checks if the video stream with the given parameters can be decoded by this decoder.
-   *        For the CPU variant, it only depends on the codec.
+   *        For the CPU variant, it only depends on the codec. It warns if it can't.
    */
   static bool IsStreamSupported(const AVCodecParameters &params) {
     return IsCodecSupported(params.codec_id);
@@ -90,6 +93,14 @@ class DLL_PUBLIC FramesDecoderCpu : public FramesDecoderBase {
   /// As above, from the codec and the pixel format (not used) of the stream.
   static bool IsStreamSupported(AVCodecID codec_id, AVPixelFormat /*pix_fmt*/) {
     return IsCodecSupported(codec_id);
+  }
+
+  /**
+   * @brief Why IsStreamSupported is false for the stream, or an empty string if it is true. It
+   *        doesn't warn.
+   */
+  static std::string UnsupportedStreamReason(AVCodecID codec_id, AVPixelFormat /*pix_fmt*/) {
+    return UnsupportedCodecReason(codec_id);
   }
 
  protected:
