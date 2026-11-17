@@ -880,6 +880,11 @@ The following codecs are supported by the GPU backend only:
 * H.264/AVC
 * H.265/HEVC
 
+.. note::
+  For MJPEG streams in 4:2:2 or 4:4:4, the GPU backend subsamples the chroma to 4:2:0 before the
+  color conversion. The colors of fine details and sharp edges then differ from those of the CPU
+  backend, which keeps the chroma resolution of the stream.
+
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
 * ``video``: A sequence of frames with shape ``(F, H, W, C)`` where ``F`` is the number of frames in the sequence
@@ -1013,7 +1018,8 @@ Otherwise, the number of values must match the number of channels in the video.)
     .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).
 
 YCbCr output contains the decoded samples upsampled to 4:4:4, in the color range and matrix of
-the stream (usually limited range); RGB output is full range.)",
+the stream (usually limited range); RGB output is full range. The GPU backend upsamples them from
+4:2:0 (for MJPEG, also when the stream is 4:2:2 or 4:4:4).)",
                     DALI_RGB)
     .AddParent("LoaderBase")
     .OutputNDim(0, 4)
