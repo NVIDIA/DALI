@@ -998,12 +998,13 @@ class MjpegOp(enum.Enum):
 
 @params(*MjpegOp)
 def test_mjpeg_gpu_matches_cpu(op):
-    """Every MJPEG frame decoded on the GPU must match the CPU backend's (up to the rounding
-    noise of the two different JPEG decoders and color conversions). The GPU work of a JPEG decode
-    is ordered with the legacy default stream, which the color conversion, on the operator's
-    non-blocking stream, must wait for: otherwise it can read surfaces that weren't written yet
-    and return blank frames. FramesDecoderGpuTest.MjpegDecodesMultipleFrames checks that wait
-    deterministically."""
+    """Every MJPEG frame decoded on the GPU must match the CPU backend's, up to the differences of
+    the two JPEG decoders and of the GPU's 4:2:0 chroma: on this file (a flat background with the
+    frame number drawn on it) that is 0.02 at most on average, while neighbouring frames differ by
+    0.07 at least, and a blank frame by tens. The GPU work of a JPEG decode is ordered with the
+    legacy default stream, which the color conversion, on the operator's non-blocking stream, must
+    wait for: otherwise it can read surfaces that weren't written yet and return blank frames.
+    FramesDecoderGpuTest.MjpegDecodesMultipleFrames checks that wait deterministically."""
     res = subprocess.run(
         [sys.executable, "-c", _MJPEG_PARITY_CHILD, MJPEG_AVI, op.value],
         capture_output=True,
@@ -1022,7 +1023,7 @@ def test_mjpeg_gpu_matches_cpu(op):
     ]
     assert len(expected) == 1 and expected[0] > 0, f"[{op}] no expected frame count reported"
     assert len(diffs) == expected[0], f"[{op}] compared {len(diffs)} frames, expected {expected[0]}"
-    bad = [(i, round(d, 2)) for i, d in enumerate(diffs) if d >= 1.5]
+    bad = [(i, round(d, 3)) for i, d in enumerate(diffs) if d >= 0.05]
     assert not bad, f"[{op}] frames differing from the CPU backend (index, mean abs diff): {bad}"
 
 

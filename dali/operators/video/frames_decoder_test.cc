@@ -1277,14 +1277,16 @@ TEST_F(FramesDecoderGpuTest, SameFramesAsMappingAll) {
   }
   // Every picture of these is decoded (see FramesDecoderGpu::ProcessPictureDecode): only the
   // mapping differs
-  const std::pair<std::string, AVCodecID> without_decode_skip[] = {
-      {make_string(video_dir, "/vp8/vp8.webm"), AV_CODEC_ID_VP8},
-      {make_string(video_dir, "/vp9/vp9_0.mp4"), AV_CODEC_ID_VP9}};
-  for (const auto &[path, codec_id] : without_decode_skip) {
-    if (FramesDecoderGpu::IsCodecSupported(codec_id)) {
+  for (const auto &path : {make_string(video_dir, "/vp8/vp8.webm"),
+                           make_string(video_dir, "/vp9/vp9_0.mp4"),
+                           make_string(video_dir, "/mjpeg/mjpeg.avi")}) {
+    FramesIndexer indexer(path);
+    ASSERT_TRUE(indexer.IsValid()) << path;
+    if (indexer.ProbeMjpegPixelFormat() &&
+        FramesDecoderGpu::IsStreamSupported(indexer.CodecParameters())) {
       paths.push_back(path);
     } else {
-      GTEST_LOG_(WARNING) << "Skipping " << path << ": the codec is not supported by this GPU";
+      GTEST_LOG_(WARNING) << "Skipping " << path << ": its format is not supported by this GPU";
     }
   }
   for (auto &path : paths)
@@ -2100,18 +2102,26 @@ TEST_F(FramesDecoderGpuTest, VariableFrameRateHevc) {
 // delay the last picture is displayed only at the end of the stream: reading it, sequentially or
 // after a seek, must not fail.
 TEST_F(FramesDecoderGpuTest, ReadsTheLastFrameOfCodecsWithoutDecodeLag) {
-  // GPU and CPU frames of these clips differ by 3e-5 on average, neighbouring frames by 0.07 at
-  // least and an all-zeros frame by 85: this tolerates the former and catches the others.
-  constexpr double kMaxAvgError = 0.02;
+  // GPU and CPU frames of the VP8 and VP9 clips differ by 3e-5 on average, those of the MJPEG clip
+  // (two different JPEG decoders) by 0.02 at most; neighbouring frames by 0.07 at least and an
+  // all-zeros frame by 85: the tolerances accept the former and catch the others.
+  struct Clip {
+    std::string path;
+    double max_avg_error;
+  };
   const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
-  const std::pair<std::string, AVCodecID> videos[] = {
-      {make_string(video_dir, "/vp8/vp8.webm"), AV_CODEC_ID_VP8},
-      {make_string(video_dir, "/vp9/vp9_0.mp4"), AV_CODEC_ID_VP9}};
+  const Clip videos[] = {{make_string(video_dir, "/vp8/vp8.webm"), 0.02},
+                         {make_string(video_dir, "/vp9/vp9_0.mp4"), 0.02},
+                         {make_string(video_dir, "/mjpeg/mjpeg.avi"), 0.05}};
   int num_tested = 0;
-  for (const auto &[path, codec_id] : videos) {
+  for (const auto &clip : videos) {
+    const std::string &path = clip.path;
     SCOPED_TRACE(path);
-    if (!FramesDecoderGpu::IsCodecSupported(codec_id)) {
-      GTEST_LOG_(WARNING) << "Skipping " << path << ": the codec is not supported by this GPU";
+    FramesIndexer indexer(path);
+    ASSERT_TRUE(indexer.IsValid());
+    if (!indexer.ProbeMjpegPixelFormat() ||
+        !FramesDecoderGpu::IsStreamSupported(indexer.CodecParameters())) {
+      GTEST_LOG_(WARNING) << "Skipping " << path << ": its format is not supported by this GPU";
       continue;
     }
     num_tested++;
@@ -2143,7 +2153,7 @@ TEST_F(FramesDecoderGpuTest, ReadsTheLastFrameOfCodecsWithoutDecodeLag) {
       double sum = 0;
       for (size_t j = 0; j < frame_size; j++)
         sum += std::abs(static_cast<int>(actual[j]) - static_cast<int>(expected[j]));
-      EXPECT_LT(sum / frame_size, kMaxAvgError) << "frame " << i;
+      EXPECT_LT(sum / frame_size, clip.max_avg_error) << "frame " << i;
     };
 
     for (int i = 0; i < num_frames; i++) {
@@ -2161,7 +2171,7 @@ TEST_F(FramesDecoderGpuTest, ReadsTheLastFrameOfCodecsWithoutDecodeLag) {
     }
   }
   if (num_tested == 0) {
-    GTEST_SKIP() << "Neither VP8 nor VP9 is supported by this GPU";
+    GTEST_SKIP() << "None of the clips is supported by this GPU";
   }
 }
 
@@ -3005,10 +3015,12 @@ TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
       CUDA_CALL(cudaMemcpyAsync(actual.data(), frame_device.data(), actual.size(),
                                 cudaMemcpyDeviceToHost, streams[d]));
       CUDA_CALL(cudaStreamSynchronize(streams[d]));
-      // The two backends use different JPEG decoders and color conversions, so they differ by
-      // rounding noise (below 1 on average); a blank frame is off by tens.
+      // The two backends use different JPEG decoders, and the GPU output has 4:2:0 chroma, while
+      // this file is 4:4:4. On this file (a flat background with the frame number drawn on it),
+      // their frames differ by 0.02 at most on average, neighbouring frames by 0.07 at least, and
+      // a blank frame by tens. A loss of chroma resolution is not visible here.
       double diff = AvgAbsDiff(actual, expected);
-      EXPECT_LT(diff, 1.5) << "GPU decoder " << d << ": frame " << i
+      EXPECT_LT(diff, 0.05) << "GPU decoder " << d << ": frame " << i
                            << " differs from the CPU backend's (avg abs diff " << diff << ")";
     }
   }
