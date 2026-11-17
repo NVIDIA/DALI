@@ -14,12 +14,16 @@
 
 #include <cuda_runtime_api.h>
 #include <unistd.h>
+extern "C" {
+#include <libavutil/pixdesc.h>
+}
 #include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
+#include <filesystem>
 #include <fstream>
 #include <functional>
 #include <limits>
@@ -1937,21 +1941,78 @@ TEST_F(FramesDecoderGpuTest, IndexerGivesTheIndexOfTheDecoder) {
   }
 }
 
+namespace {
+
+/**
+ * A copy of an MJPEG AVI that declares the FLV1 codec, which the GPU decoder does not support, in
+ * a temporary file that is removed with the object. The file opens, with a video stream of a known
+ * size: it is rejected because of its codec only. No file in DALI_extra has a codec that the GPU
+ * decoder never supports. Same as write_unsupported_gpu_source in test_video_reader_index.py.
+ */
+class Flv1TaggedCopy {
+ public:
+  explicit Flv1TaggedCopy(std::vector<char> avi) {
+    // the codec is declared by the stream header and the stream format chunks
+    auto header_end = avi.begin() + std::min<size_t>(avi.size(), 8192);
+    const std::string mjpg = "MJPG";
+    int count = 0;
+    auto it = avi.begin();
+    while ((it = std::search(it, header_end, mjpg.begin(), mjpg.end())) != header_end) {
+      std::copy_n("FLV1", 4, it);
+      it += 4;
+      count++;
+    }
+    DALI_ENFORCE(count == 2, "Unexpected AVI header");
+    std::string path = (std::filesystem::temp_directory_path() / "dali_flv1_XXXXXX.avi").string();
+    int fd = mkstemps(path.data(), 4);
+    DALI_ENFORCE(fd >= 0, "Could not create a temporary file");
+    close(fd);
+    path_ = path;
+    std::ofstream(path_, std::ios::binary).write(avi.data(), avi.size());
+  }
+
+  ~Flv1TaggedCopy() {
+    std::remove(path_.c_str());
+  }
+
+  const std::string &path() const {
+    return path_;
+  }
+
+ private:
+  std::string path_;
+};
+
+}  // namespace
+
 // The files that the video reader skips as invalid are the same with the indexer as with the
-// decoder: a missing file, a file without a video stream, and a codec that is not supported by the
-// GPU decoder. The indexer only reports the codec, the reader checks it with the decoder.
+// decoder: a missing file, a file without a video stream, a codec that the GPU decoder does not
+// support, and MJPEG, which it supports if NVDEC supports the pixel format of the file. The indexer
+// only reports the parameters of the stream; the reader checks them with the decoder, after probing
+// the pixel format of MJPEG streams as the decoder does.
 TEST_F(FramesDecoderGpuTest, IndexerIsValidForTheSameFilesAsTheDecoder) {
   const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  const std::string mjpeg = make_string(video_dir, "/mjpeg/mjpeg.avi");
+  Flv1TaggedCopy flv1(MemoryVideo(mjpeg));
   for (const auto &path : {make_string(video_dir, "/nonexistent.mp4"),
-                           make_string(video_dir, "/corrupted/audio_only.mp4"),
-                           make_string(video_dir, "/mjpeg/mjpeg.avi"), cfr_videos_paths_[0]}) {
+                           make_string(video_dir, "/corrupted/audio_only.mp4"), flv1.path(), mjpeg,
+                           cfr_videos_paths_[0]}) {
     SCOPED_TRACE(path);
     FramesDecoderGpu decoder(path);
     FramesIndexer indexer(path);
-    bool indexer_valid =
-        indexer.IsValid() && FramesDecoderGpu::IsStreamSupported(indexer.CodecParameters());
+    bool indexer_valid = indexer.IsValid() && indexer.ProbeMjpegPixelFormat() &&
+                         FramesDecoderGpu::IsStreamSupported(indexer.CodecParameters());
     EXPECT_EQ(indexer_valid, decoder.IsValid());
   }
+
+  // The FLV1 copy is rejected because of its codec
+  FramesIndexer flv1_indexer(flv1.path());
+  ASSERT_TRUE(flv1_indexer.IsValid());
+  EXPECT_EQ(flv1_indexer.CodecId(), AV_CODEC_ID_FLV1);
+  EXPECT_FALSE(FramesDecoderGpu(flv1.path()).IsValid());
+  // mjpeg.avi is 8-bit 4:4:4
+  EXPECT_EQ(FramesDecoderGpu(mjpeg).IsValid(),
+            FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444));
 }
 
 // The video reader picks its number of decoders from this; 0 (unknown) would make it use one
@@ -2102,6 +2163,33 @@ TEST_F(FramesDecoderGpuTest, ReadsTheLastFrameOfCodecsWithoutDecodeLag) {
   if (num_tested == 0) {
     GTEST_SKIP() << "Neither VP8 nor VP9 is supported by this GPU";
   }
+}
+
+// The indexer, like the CPU decoder, does not probe the pixel format of MJPEG streams on its own:
+// the probe opens a decoder and reads a packet, and only the GPU decoder needs its result. Probed,
+// it has the pixel format and the color range of the stream, the size declared by the container,
+// and the same index.
+TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerProbesMjpegPixelFormatOnRequest) {
+  auto path = make_string(testing::dali_extra_path(), "/db/video/mjpeg/mjpeg.avi");
+  FramesIndexer unprobed(path);
+  ASSERT_TRUE(unprobed.IsValid());
+  EXPECT_EQ(unprobed.CodecParameters().format, AV_PIX_FMT_NONE);
+
+  FramesIndexer probed(path);
+  ASSERT_TRUE(probed.IsValid());
+  ASSERT_TRUE(probed.ProbeMjpegPixelFormat());
+  auto pix_fmt = static_cast<AVPixelFormat>(probed.CodecParameters().format);
+  const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+  ASSERT_NE(desc, nullptr);
+  // 8-bit 4:4:4 (yuvj444p, which FFmpeg may report as yuv444p with the JPEG range)
+  EXPECT_EQ(desc->nb_components, 3);
+  EXPECT_EQ(desc->log2_chroma_w, 0);
+  EXPECT_EQ(desc->log2_chroma_h, 0);
+  EXPECT_EQ(desc->comp[0].depth, 8);
+  EXPECT_EQ(probed.CodecParameters().color_range, AVCOL_RANGE_JPEG);
+  EXPECT_EQ(probed.Width(), unprobed.Width());
+  EXPECT_EQ(probed.Height(), unprobed.Height());
+  ExpectIndexerGivesTheIndexOfTheDecoder(probed, unprobed);
 }
 
 TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerGivesTheIndexOfTheDecoder) {
