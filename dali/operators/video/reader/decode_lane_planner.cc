@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <stdexcept>
 #include <tuple>
 #include <utility>
 
@@ -47,7 +48,8 @@ void SampleFrames(span<const int> frame_idxs, int start, int end, int stride,
     for (int frame : frame_idxs)
       add(frame);
   } else {
-    DALI_ENFORCE(stride > 0, make_string("The stride must be positive, got ", stride, "."));
+    if (stride <= 0)
+      throw std::invalid_argument(make_string("The stride must be positive, got ", stride, "."));
     for (int frame = start; frame < end; frame += stride)
       add(frame);
   }
@@ -55,7 +57,8 @@ void SampleFrames(span<const int> frame_idxs, int start, int end, int stride,
 }
 
 FramesDecoderBase::DecodePosition DecoderPosition(FramesDecoderBase &decoder) {
-  DALI_ENFORCE(decoder.HasIndex(), "The decoder of a decode lane must have an index.");
+  if (!decoder.HasIndex())
+    throw std::invalid_argument("The decoder of a decode lane must have an index.");
   return FramesDecoderBase::PositionAt(decoder.GetIndex(), decoder.NextFrameIdx());
 }
 
@@ -117,15 +120,21 @@ DecodeWork FileWork(span<const PlannedRun> runs, const LaneStart &start, span<co
 
 // Checks what PlanLanes expects of its input
 void CheckRuns(span<const PlannedRun> runs, int num_lanes) {
-  DALI_ENFORCE(runs.empty() || num_lanes > 0, "There must be a decode lane to plan runs on.");
+  if (!runs.empty() && num_lanes <= 0)
+    throw std::invalid_argument("There must be a decode lane to plan runs on.");
   for (const auto &run : runs) {
-    DALI_ENFORCE(run.index, make_string("No frame index for the run of \"", run.filename, "\"."));
+    if (!run.index) {
+      throw std::invalid_argument(
+          make_string("No frame index for the run of \"", run.filename, "\"."));
+    }
     int num_frames = run.index->size();
     for (auto frames : run.samples) {
       for (int frame : frames) {
-        DALI_ENFORCE(frame >= 0 && frame < num_frames,
-                     make_string("Frame ", frame, " of a run of \"", run.filename,
-                                 "\" is out of the range of its index [0, ", num_frames, ")."));
+        if (frame < 0 || frame >= num_frames) {
+          throw std::out_of_range(
+              make_string("Frame ", frame, " of a run of \"", run.filename,
+                          "\" is out of the range of its index [0, ", num_frames, ")."));
+        }
       }
     }
   }

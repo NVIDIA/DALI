@@ -18,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -26,6 +27,7 @@
 #include "dali/core/boundary.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
+#include "dali/core/util.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/reader/decode_lane_planner.h"
 #include "dali/test/dali_test_config.h"
@@ -189,7 +191,7 @@ void CheckPlannedPictures(const std::vector<ReaderSample> &batch, std::vector<Re
       auto &decoder = *lane.decoder;
       int64_t before = decoder.DecodedPictures();
       if (sample.frame_idxs.empty()) {
-        ASSERT_LE((sample.end - sample.start + sample.stride - 1) / sample.stride,
+        ASSERT_LE(div_ceil(sample.end - sample.start, static_cast<uint32_t>(sample.stride)),
                   kMaxSampleFrames);
         decoder.DecodeFrames(buffer.data(), sample.start, sample.end, sample.stride,
                              boundary::BoundaryType::CLAMP);
@@ -233,7 +235,7 @@ TEST(DecodeLanePlannerTest, SampleFrames) {
             std::vector<int>({28, 29, 29, 29}));
   EXPECT_THROW(Frames({}, 7, 13, 1, BoundaryType::ISOLATED, 0, 10, 10), std::exception);
   // a stride that is not positive
-  EXPECT_THROW(Frames({}, 0, 10, 0, BoundaryType::CLAMP, 0, 10, 10), std::exception);
+  EXPECT_THROW(Frames({}, 0, 10, 0, BoundaryType::CLAMP, 0, 10, 10), std::invalid_argument);
 }
 
 TEST(DecodeLanePlannerTest, SampleFramesRegionOutsideOfTheFile) {
@@ -297,17 +299,17 @@ TEST(DecodeLanePlannerTest, InvalidInput) {
   {  // a run without an index
     Batch batch;
     batch.Add("a", nullptr, 0, 20, 39);
-    EXPECT_THROW(Plan(batch, {{}}), std::exception);
+    EXPECT_THROW(Plan(batch, {{}}), std::invalid_argument);
   }
   {  // a frame outside of the index
     Batch batch;
     batch.Add("a", &index, 0, 45, 50);
-    EXPECT_THROW(Plan(batch, {{}}), std::exception);
+    EXPECT_THROW(Plan(batch, {{}}), std::out_of_range);
   }
   {  // runs, but no lanes
     Batch batch;
     batch.Add("a", &index, 0, 0, 9);
-    EXPECT_THROW(Plan(batch, {}), std::exception);
+    EXPECT_THROW(Plan(batch, {}), std::invalid_argument);
   }
   // no runs, no lanes
   EXPECT_TRUE(Plan(Batch(), {}).empty());
