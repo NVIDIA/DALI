@@ -33,12 +33,11 @@ tutorial.
 
 ## Building with CMake
 
+All the commands below are run from the `naive_histogram` directory:
+
 ```bash
-cd naive_histogram
-mkdir build
-cd build
-cmake ..
-make -j
+cmake -S . -B build
+cmake --build build -j
 ```
 
 This produces `build/libnaivehistogram.so`, which can be loaded with
@@ -65,7 +64,6 @@ machine), or set the `CUDAARCHS` environment variable.
 2. Run the provided example (your output should look like below):
 
    ```bash
-   cd naive_histogram
    python test_naive_histogram.py
    [[11355 10555 10499 10724 10687 11213 11388 11474 11715 11407 11291 11093
      10757 10481 10547 11177 10081 10353 10380 10691 10947 10851 10872 10582]
@@ -99,7 +97,6 @@ The packaging consists of:
 To create the source distribution:
 
 ```bash
-cd naive_histogram
 pip install build
 python -m build --sdist
 ```
