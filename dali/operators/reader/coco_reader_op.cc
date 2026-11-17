@@ -231,6 +231,7 @@ void COCOReader::RunImpl(SampleWorkspace &ws) {
 
   image_output.Resize({image_size}, DALI_UINT8);
   image_output.SetSourceInfo(image_label.image.GetSourceInfo());
+  image_output.SetCacheKey(image_label.image.GetMeta().GetCacheKey());
   std::memcpy(image_output.mutable_data<uint8_t>(), image_label.image.raw_data(), image_size);
 
   auto &loader_impl = LoaderImpl();
