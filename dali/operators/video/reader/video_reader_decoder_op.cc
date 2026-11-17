@@ -53,7 +53,9 @@ namespace dali {
 struct VideoFileIndex {
   bool valid = false;          // false if the file is not a valid video (it is skipped)
   AVCodecID codec_id = AV_CODEC_ID_NONE;  // of the video stream, if valid
-  AVPixelFormat pix_fmt = AV_PIX_FMT_NONE;  // of the video stream, if valid (may be unknown)
+  // of the video stream, if valid and the codec is supported (unknown if not probed, see
+  // IndexVideoFile)
+  AVPixelFormat pix_fmt = AV_PIX_FMT_NONE;
   std::exception_ptr error;    // set if indexing the file failed with an exception
   // set if valid and the codec is supported (otherwise, the file is skipped), and there's no error
   std::shared_ptr<const FrameIndex> index;
@@ -67,10 +69,13 @@ struct VideoFileIndex {
  * The index is taken from FrameIndexCache, or built and cached there. It is not built for the
  * files whose codec is not in `supported_codecs` (made by the decoder's `SupportedCodecs`), which
  * are skipped, as with the decoder. It does not warn about them: the caller does, in the order of
- * the file list. It does not touch CUDA, so it can run on any thread.
+ * the file list. With `probe_pixel_format` (for the GPU decoder), the pixel format of MJPEG
+ * streams is probed, as the decoder does (see FramesDecoderBase::ProbeMjpegPixelFormat), and a
+ * file whose probe fails is not valid. It does not touch CUDA, so it can run on any thread.
  */
 static VideoFileIndex IndexVideoFile(const std::string &filename, DALIImageType image_type,
-                                     span<const AVCodecID> supported_codecs) {
+                                     span<const AVCodecID> supported_codecs,
+                                     bool probe_pixel_format) {
   VideoFileIndex result;
   try {
     // the version of the file that the indexer opens (see FrameIndexCache::GetOrBuild)
@@ -84,12 +89,16 @@ static VideoFileIndex IndexVideoFile(const std::string &filename, DALIImageType 
     }
     result.valid = true;
     result.codec_id = indexer.CodecId();
-    result.pix_fmt = static_cast<AVPixelFormat>(indexer.CodecParameters().format);
     if (std::find(supported_codecs.begin(), supported_codecs.end(), result.codec_id) ==
         supported_codecs.end()) {
       LOG_LINE << "Unsupported codec in video file: " << filename << std::endl;
       return result;
     }
+    if (probe_pixel_format && !indexer.ProbeMjpegPixelFormat()) {
+      result.valid = false;  // as the decoder, whose stream selection fails then
+      return result;
+    }
+    result.pix_fmt = static_cast<AVPixelFormat>(indexer.CodecParameters().format);
     result.index = FrameIndexCache::instance().GetOrBuild(filename, stamp, [&]() {
       LOG_LINE << "Building index for " << filename << std::endl;
       indexer.BuildIndex();
@@ -315,12 +324,16 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     // needs a current CUDA context; this thread has the device of the reader, the threads of the
     // pool have none. Then the indexing does not touch CUDA.
     const std::vector<AVCodecID> supported_codecs = FramesDecoderImpl::SupportedCodecs();
+    // Only the GPU decoder needs the pixel format of MJPEG streams, to tell whether NVDEC can
+    // decode them.
+    constexpr bool probe_pixel_format = std::is_same_v<FramesDecoderImpl, FramesDecoderGpu>;
 
     std::atomic<size_t> first_error{filenames.size()};  // the lowest failing slot so far
     auto index_file = [&](size_t i) {
       if (i > first_error.load(std::memory_order_relaxed))
         return;  // a file before this one failed: the second phase does not get to this one
-      results[i] = IndexVideoFile(filenames[i], image_type_, make_cspan(supported_codecs));
+      results[i] = IndexVideoFile(filenames[i], image_type_, make_cspan(supported_codecs),
+                                  probe_pixel_format);
       if (results[i].error) {
         size_t prev = first_error.load(std::memory_order_relaxed);
         while (i < prev && !first_error.compare_exchange_weak(prev, i, std::memory_order_relaxed)) {

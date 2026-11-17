@@ -1517,7 +1517,9 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
 
   assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
   assert(codec_params_);
-  if (!IsStreamSupported(*codec_params_)) {
+  // For MJPEG, NVDEC's support depends on the pixel format, and the color conversion on the color
+  // range: the container often has neither
+  if (!ProbeMjpegPixelFormat() || !IsStreamSupported(*codec_params_)) {
     return false;
   }
 
