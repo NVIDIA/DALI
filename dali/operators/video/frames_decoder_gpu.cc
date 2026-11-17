@@ -409,8 +409,17 @@ bool IsJpegPixelFormatSupported(AVPixelFormat pix_fmt) {
               "against what NVDEC on this platform supports.");
     return false;
   }
+  // NVDEC outputs the components of a JPEG as Y, Cb and Cr, and the color conversion treats them
+  // so: RGB-coded JPEGs (e.g. gbrp), and those with 4 components (CMYK, YCCK, alpha) would come out
+  // with wrong colors.
+  constexpr uint64_t kNotYCbCr = AV_PIX_FMT_FLAG_RGB | AV_PIX_FMT_FLAG_ALPHA | AV_PIX_FMT_FLAG_PAL;
+  if ((desc->flags & kNotYCbCr) || (desc->nb_components != 1 && desc->nb_components != 3)) {
+    DALI_WARN(make_string("JPEG with pixel format ", desc->name, " is not supported by the GPU "
+                          "variant of this operator: only YCbCr and grayscale JPEGs are."));
+    return false;
+  }
   cudaVideoChromaFormat chroma;
-  if (desc->nb_components < 3) {
+  if (desc->nb_components == 1) {
     chroma = cudaVideoChromaFormat_Monochrome;
   } else if (desc->log2_chroma_w == 0 && desc->log2_chroma_h == 0) {
     chroma = cudaVideoChromaFormat_444;
@@ -1503,7 +1512,7 @@ bool FramesDecoderGpu::IsStreamSupported(AVCodecID codec_id, AVPixelFormat pix_f
   if (!IsCodecSupported(codec_id))
     return false;
   // The codec check only looks at 8-bit 4:2:0, which is what NVDEC JPEG support is always
-  // reported for. MJPEG is usually 4:2:2 or 4:4:4, which not every GPU can decode: skip such
+  // reported for. MJPEG is often 4:2:2 or 4:4:4, which not every GPU can decode: skip such
   // files with a warning like an unsupported codec, rather than failing in the decoder later.
   if (codec_id == AV_CODEC_ID_MJPEG && !IsJpegPixelFormatSupported(pix_fmt))
     return false;
