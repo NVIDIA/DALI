@@ -390,7 +390,7 @@ int handle_picture_display(void *user_data, CUVIDPARSERDISPINFO *picture_display
 
 }  // namespace frame_dec_gpu_impl
 
-void FramesDecoderGpu::InitBitStreamFilter() {
+void FramesDecoderGpu::InitBitStreamFilter(AVUniquePtr<AVBSFContext> &bsfc) {
   const AVBitStreamFilter *bsf = nullptr;
   const char* filtername = nullptr;
   switch (codec_params_->codec_id) {
@@ -429,19 +429,19 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   if (filtername != nullptr) {
     auto bsf = av_bsf_get_by_name(filtername);
     DALI_ENFORCE(bsf, "Error finding bit stream filter.");
-    DALI_ENFORCE(av_bsf_alloc(bsf, &bsfc_) >= 0,
+    DALI_ENFORCE(av_bsf_alloc(bsf, &bsfc) >= 0,
                  "Unable to allocate bit stream filter");
   } else {
-    DALI_ENFORCE(av_bsf_get_null_filter(&bsfc_) >= 0,
+    DALI_ENFORCE(av_bsf_get_null_filter(&bsfc) >= 0,
                  "Error creating pass-through filter.");
   }
 
   DALI_ENFORCE(
-    avcodec_parameters_copy(bsfc_->par_in,
+    avcodec_parameters_copy(bsfc->par_in,
                             ctx_->streams[stream_id_]->codecpar) >= 0,
     "Unable to copy bit stream filter parameters");
   DALI_ENFORCE(
-    av_bsf_init(bsfc_) >= 0,
+    av_bsf_init(bsfc) >= 0,
     "Unable to initialize bit stream filter");
 }
 
@@ -495,8 +495,25 @@ int FramesDecoderGpu::NumDecodeSurfaces(const CUVIDEOFORMAT &video_format) {
   return video_format.min_num_decode_surfaces + kDisplayDelay + kSpareDecodeSurfaces;
 }
 
+// The codecs for which the size of the output is taken from the NVDEC parser.
+static bool IsProbedCodec(AVCodecID codec_id) {
+  return codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC;
+}
+
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   if (!nvdecode_state_->decoder) {
+    int area_width = video_format->display_area.right - video_format->display_area.left;
+    int area_height = video_format->display_area.bottom - video_format->display_area.top;
+    // Other codecs keep the size from the container, as they did before the probe was added.
+    if (IsProbedCodec(codec_params_->codec_id) &&
+        (area_width != Width() || area_height != Height())) {
+      throw std::runtime_error(make_string(
+          "The size of the pictures decoded by NVDEC (", area_width, "x", area_height,
+          ") differs from the size determined when the file \"", Filename(), "\" was opened (",
+          Width(), "x", Height(), "). The crop of the stream may differ from the size declared by "
+          "the container, or the size could not be determined. Note that the left and top crop "
+          "of the stream is not supported."));
+    }
     if (image_type_ == DALI_RGB) {
       bool is_full_range = IsFullRange(video_format);
       if (IsBT709(video_format)) {
@@ -516,11 +533,142 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   }
 }
 
+namespace {
+
+void SetSequenceHeader(CUVIDEOFORMATEX &parser_extinfo, const AVCodecParameters *codec_params) {
+  if (codec_params->extradata_size > 0) {
+    auto hdr_size = std::min(sizeof(parser_extinfo.raw_seqhdr_data),
+                             static_cast<std::size_t>(codec_params->extradata_size));
+    parser_extinfo.format.seqhdr_data_length = hdr_size;
+    memcpy(parser_extinfo.raw_seqhdr_data, codec_params->extradata, hdr_size);
+  }
+}
+
+int StoreVideoFormat(void *user_data, CUVIDEOFORMAT *video_format) {
+  *static_cast<CUVIDEOFORMAT *>(user_data) = *video_format;
+  return 1;
+}
+
+int IgnorePicture(void *, CUVIDPICPARAMS *) {
+  return 1;
+}
+
+int IgnoreDisplay(void *, CUVIDPARSERDISPINFO *) {
+  return 1;
+}
+
+}  // namespace
+
+bool FramesDecoderGpu::ReadSelectedStreamPacket(AVPacket *packet) {
+  while (av_read_frame(ctx_, packet) >= 0) {
+    if (packet->stream_index == stream_id_)
+      return true;
+    av_packet_unref(packet);
+  }
+  return false;
+}
+
+namespace {
+
+bool SamePacket(const AVPacket *a, const AVPacket *b) {
+  return a->stream_index == b->stream_index && a->pts == b->pts && a->dts == b->dts &&
+         a->pos == b->pos && a->size == b->size && memcmp(a->data, b->data, a->size) == 0;
+}
+
+}  // namespace
+
+bool FramesDecoderGpu::RewindToFirstPacket(const AVPacket *first) {
+  // A seek can succeed and still land after the first packet (e.g. when the first packets have
+  // negative timestamps). The restart is checked by reading the first packet again. The second
+  // seek is the same call, issued from the same state as the first, so it lands in the same place.
+  AVUniquePtr<AVPacket> again(av_packet_alloc());
+  DALI_ENFORCE(again, make_string("Could not allocate av packet for \"", Filename(), "\""));
+  return av_seek_frame(ctx_, stream_id_, 0, AVSEEK_FLAG_BACKWARD) >= 0 &&
+         ReadSelectedStreamPacket(again) && SamePacket(first, again) &&
+         av_seek_frame(ctx_, stream_id_, 0, AVSEEK_FLAG_BACKWARD) >= 0;
+}
+
+void FramesDecoderGpu::ProbeDisplaySize() {
+  if (!IsProbedCodec(codec_params_->codec_id))
+    return;
+
+  AVUniquePtr<AVBSFContext> bsfc;
+  InitBitStreamFilter(bsfc);
+  AVUniquePtr<AVPacket> first(av_packet_alloc());
+  AVUniquePtr<AVPacket> unfiltered(av_packet_alloc());
+  AVUniquePtr<AVPacket> filtered(av_packet_alloc());
+  DALI_ENFORCE(first && unfiltered && filtered,
+               make_string("Could not allocate av packet for \"", Filename(), "\""));
+
+  // The parser reports the format only after it gets the first picture.
+  bool got_packet = ReadSelectedStreamPacket(first);
+  if (got_packet) {
+    got_packet = av_packet_ref(unfiltered, first) >= 0 &&
+                 av_bsf_send_packet(bsfc, unfiltered) >= 0 &&
+                 av_bsf_receive_packet(bsfc, filtered) >= 0;
+    if (!got_packet)
+      LOG_LINE << "Display size probe: bit stream filter failed for " << Filename() << std::endl;
+  } else {
+    LOG_LINE << "Display size probe: no packet in the selected stream of " << Filename()
+             << std::endl;
+  }
+  if (!RewindToFirstPacket(first)) {
+    LOG_LINE << "Display size probe: could not rewind to the first packet, reopening "
+             << Filename() << std::endl;
+    FramesDecoderBase::Reset();
+  }
+  if (!got_packet)
+    return;
+
+  CUVIDEOFORMAT format = {};
+  CUVIDPARSERPARAMS parser_info = {};
+  CUVIDEOFORMATEX parser_extinfo = {};
+  parser_info.CodecType = GetCodecType(codec_params_->codec_id);
+  parser_info.ulMaxNumDecodeSurfaces = 1;
+  parser_info.pUserData = &format;
+  parser_info.pfnSequenceCallback = StoreVideoFormat;
+  parser_info.pfnDecodePicture = IgnorePicture;
+  parser_info.pfnDisplayPicture = IgnoreDisplay;
+  parser_info.pExtVideoInfo = &parser_extinfo;
+  SetSequenceHeader(parser_extinfo, ctx_->streams[stream_id_]->codecpar);
+  frame_dec_gpu_impl::CUvideoparserHandle parser(parser_info);
+
+  CUVIDSOURCEDATAPACKET packet = {};
+  packet.payload = filtered->data;
+  packet.payload_size = filtered->size;
+  // The results of the calls are ignored on purpose: a failure leaves the format empty, which
+  // keeps the size from the container.
+  cuvidParseVideoData(parser, &packet);
+  // Without the flush the parser often does not report the format of a single packet.
+  packet = {};
+  packet.flags = CUVID_PKT_ENDOFSTREAM;
+  cuvidParseVideoData(parser, &packet);
+
+  int width = format.display_area.right - format.display_area.left;
+  int height = format.display_area.bottom - format.display_area.top;
+  if (width <= 0 || height <= 0) {
+    LOG_LINE << "Display size probe: NVDEC reported no format for " << Filename() << std::endl;
+    return;
+  }
+  if (width != Width() || height != Height()) {
+    LOG_LINE << "Display size probe: size of " << Filename() << " changed from " << Width() << "x"
+             << Height() << " (container) to " << width << "x" << height << " (NVDEC)"
+             << std::endl;
+  }
+  if (width > Width() || height > Height()) {
+    DALI_WARN_ONCE(
+        "NVDEC reports a larger picture size than the one declared by the container of a video "
+        "file. This can happen when the stream has a left or top crop, which is not supported. "
+        "The size reported by NVDEC is used.");
+  }
+  SetDisplaySize(width, height);
+}
+
 void FramesDecoderGpu::InitGpuParser() {
   nvdecode_state_ = std::make_unique<NvDecodeState>();
   labels_from_parser_ = HasDecodeOrderTimestamps();
 
-  InitBitStreamFilter();
+  InitBitStreamFilter(bsfc_);
 
   filtered_packet_.reset(av_packet_alloc());
   DALI_ENFORCE(filtered_packet_,
@@ -544,17 +692,9 @@ void FramesDecoderGpu::InitGpuParser() {
   parser_info.pfnDecodePicture = frame_dec_gpu_impl::process_picture_decode;
   parser_info.pfnDisplayPicture = frame_dec_gpu_impl::handle_picture_display;
 
-  auto extradata = ctx_->streams[stream_id_]->codecpar->extradata;
-  auto extradata_size = ctx_->streams[stream_id_]->codecpar->extradata_size;
-
   memset(&parser_extinfo, 0, sizeof(parser_extinfo));
   parser_info.pExtVideoInfo = &parser_extinfo;
-  if (extradata_size > 0) {
-    auto hdr_size = std::min(sizeof(parser_extinfo.raw_seqhdr_data),
-                             static_cast<std::size_t>(extradata_size));
-    parser_extinfo.format.seqhdr_data_length = hdr_size;
-    memcpy(parser_extinfo.raw_seqhdr_data, extradata, hdr_size);
-  }
+  SetSequenceHeader(parser_extinfo, ctx_->streams[stream_id_]->codecpar);
 
   nvdecode_state_->parser = frame_dec_gpu_impl::CUvideoparserHandle(parser_info);
 
@@ -569,6 +709,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
   if (is_valid_) {
+    ProbeDisplaySize();
     InitGpuParser();
   }
 }
@@ -580,6 +721,7 @@ FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_s
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
   if (is_valid_) {
+    ProbeDisplaySize();
     InitGpuParser();
   }
 }
@@ -592,6 +734,7 @@ FramesDecoderGpu::FramesDecoderGpu(std::unique_ptr<InputStream> input_stream,
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
   if (is_valid_) {
+    ProbeDisplaySize();
     InitGpuParser();
   }
 }
