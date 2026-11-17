@@ -115,8 +115,9 @@ Both efforts are community-driven, and the DALI versions they provide may not be
 From Source
 -----------
 
-To build DALI yourself, follow :doc:`compilation`. This is the only way to get DALI on Jetson
-(see :ref:`jetson build`).
+To build DALI yourself, follow :doc:`compilation`. Jetson Xavier and Orin have no pip wheel: build
+from source (see :ref:`jetson build`) or install the conda-forge package with ``arm-variant=*=tegra``.
+Thor uses the aarch64 SBSA wheel.
 
 Older Versions
 --------------
