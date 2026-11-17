@@ -2111,6 +2111,38 @@ double AvgAbsDiff(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) 
 
 }  // namespace
 
+namespace {
+
+/**
+ * Reads all the frames of the video with both backends, which must fail with an error whose
+ * message contains `message`. A CUDA error is a std::runtime_error too, hence the message.
+ */
+void ExpectFrameSizeMismatch(const std::vector<char> &video, const std::string &message) {
+  auto read_all = [](FramesDecoderBase &decoder, uint8_t *frame) -> std::string {
+    try {
+      while (decoder.ReadNextFrame(frame)) {
+      }
+    } catch (const std::exception &e) {
+      return e.what();
+    }
+    return "no error";
+  };
+  FramesDecoderCpu cpu_decoder(video.data(), video.size());
+  ASSERT_TRUE(cpu_decoder.IsValid());
+  std::vector<uint8_t> frame(cpu_decoder.FrameSize());
+  std::string error = read_all(cpu_decoder, frame.data());
+  EXPECT_NE(error.find(message), std::string::npos) << "CPU: " << error;
+
+  FramesDecoderGpu gpu_decoder(video.data(), video.size());
+  ASSERT_TRUE(gpu_decoder.IsValid());
+  DeviceBuffer<uint8_t> frame_device;
+  frame_device.resize(gpu_decoder.FrameSize());
+  error = read_all(gpu_decoder, frame_device.data());
+  EXPECT_NE(error.find(message), std::string::npos) << "GPU: " << error;
+}
+
+}  // namespace
+
 TEST_F(FramesDecoderGpuTest, MjpegRejectsFramesOfOtherSizeThanDeclared) {
   if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
     GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
@@ -2128,16 +2160,33 @@ TEST_F(FramesDecoderGpuTest, MjpegRejectsFramesOfOtherSizeThanDeclared) {
   size[0] = 640;
   size[1] = 360;
 
-  FramesDecoderCpu cpu_decoder(memory_video.data(), memory_video.size());
-  ASSERT_TRUE(cpu_decoder.IsValid());
-  std::vector<uint8_t> frame(cpu_decoder.FrameSize());
-  EXPECT_THROW(cpu_decoder.ReadNextFrame(frame.data()), std::runtime_error);
+  ExpectFrameSizeMismatch(memory_video, "Decoded frame dimensions (1280x720)");
+}
 
-  FramesDecoderGpu gpu_decoder(memory_video.data(), memory_video.size());
-  ASSERT_TRUE(gpu_decoder.IsValid());
-  DeviceBuffer<uint8_t> frame_device;
-  frame_device.resize(gpu_decoder.FrameSize());
-  EXPECT_THROW(gpu_decoder.ReadNextFrame(frame_device.data()), std::runtime_error);
+// The frame size of an MJPEG stream can change partway through. Both backends check every frame
+// against the size of the video, and reject one of another size, instead of decoding it to an
+// output of the wrong size.
+TEST_F(FramesDecoderGpuTest, MjpegRejectsFrameSizeChange) {
+  if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
+    GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
+  }
+  auto memory_video = MemoryVideo(
+      make_string(testing::dali_extra_path(), "/db/video/mjpeg/mjpeg.avi"));
+  // The frame height, in the SOF0 segment of every frame, goes from 720 to 352 at the 6th frame
+  const char sof0[] = {'\xff', '\xc0', '\x00', '\x11', '\x08'};
+  int num_frames = 0;
+  for (auto it = memory_video.begin();
+       (it = std::search(it, memory_video.end(), std::begin(sof0), std::end(sof0))) !=
+       memory_video.end();
+       it += sizeof(sof0)) {
+    ASSERT_EQ((static_cast<uint8_t>(it[5]) << 8) | static_cast<uint8_t>(it[6]), 720);
+    if (num_frames++ >= 5) {
+      it[5] = static_cast<char>(352 >> 8);
+      it[6] = static_cast<char>(352 & 0xff);
+    }
+  }
+  ASSERT_GT(num_frames, 10);
+  ExpectFrameSizeMismatch(memory_video, "Decoded frame dimensions (1280x352)");
 }
 
 // NVDEC outputs a JPEG as YCbCr, so the JPEGs coded as RGB or with 4 components (CMYK, YCCK,
