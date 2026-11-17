@@ -724,10 +724,6 @@ void FramesDecoderGpu::InitGpuParser() {
 
   auto codec_type = GetCodecType(codec_params_->codec_id);
 
-  if (codec_type == cudaVideoCodec_JPEG) {
-    legacy_stream_event_ = CUDAEvent::CreateWithFlags(cudaEventDisableTiming);
-  }
-
   // Create nv parser
   CUVIDPARSERPARAMS parser_info;
   CUVIDEOFORMATEX parser_extinfo;
@@ -796,6 +792,26 @@ FramesDecoderGpu::FramesDecoderGpu(std::unique_ptr<InputStream> input_stream,
   }
 }
 
+void FramesDecoderGpu::RecordJpegDecoded(int surface_idx) {
+  if (surface_idx >= static_cast<int>(jpeg_decoded_events_.size()))
+    jpeg_decoded_events_.resize(surface_idx + 1);
+  CUDAEvent &event = jpeg_decoded_events_[surface_idx];
+  if (!event)
+    event = CUDAEvent::CreateWithFlags(cudaEventDisableTiming);
+  // Recorded right after cuvidDecodePicture, it completes once the work queued so far on the
+  // legacy default stream (and on the blocking streams) is done, that of this picture included.
+  CUDA_CALL(cudaEventRecord(event, cudaStreamLegacy));
+}
+
+void FramesDecoderGpu::WaitForJpegDecoded(int surface_idx) {
+  // Every JPEG picture is decoded, and only decoded pictures are mapped
+  DALI_ENFORCE(surface_idx < static_cast<int>(jpeg_decoded_events_.size()) &&
+                   jpeg_decoded_events_[surface_idx],
+               make_string("Internal error: picture ", surface_idx, " of \"", Filename(),
+                           "\" is mapped, but it was not decoded."));
+  CUDA_CALL(cudaStreamWaitEvent(stream_, jpeg_decoded_events_[surface_idx], 0));
+}
+
 int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   // Sending empty packet will call this callback.
   // If we want to flush the decoder, we do not need to do anything here
@@ -825,11 +841,14 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   bool decode = picture_params->ref_pic_flag || picture_params->field_pic_flag ||
                 codec_params_->codec_id != AV_CODEC_ID_H264 || labels_from_parser_ ||
                 ShouldDecodePicture(pts);
+  int idx = picture_params->CurrPicIdx;
   if (decode) {
     CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
     nvdecode_state_->last_decoded = picture_params->CurrPicIdx;
     nvdecode_state_->last_mapped = false;
     decoded_pictures_++;
+    if (codec_params_->codec_id == AV_CODEC_ID_MJPEG)
+      RecordJpegDecoded(idx);
   } else {
     not_decoded_pictures_++;
   }
@@ -837,7 +856,6 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   // The pts of the picture is kept with the surface, for the display callback: the timestamps that
   // the parser passes to that callback are not reliable when it drops pictures, e.g. the leading
   // pictures of an HEVC CRA picture after a seek.
-  int idx = picture_params->CurrPicIdx;
   if (idx >= static_cast<int>(surface_pts_.size())) {
     surface_pts_.resize(idx + 1, AV_NOPTS_VALUE);
     surface_to_display_.resize(idx + 1, false);
@@ -957,15 +975,8 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   CUdeviceptr frame = {};
   unsigned int pitch = 0;
 
-  // NVDEC decodes JPEG pictures in stream order with the legacy default stream, and neither
-  // cuvidMapVideoFrame nor cuvidGetDecodeStatus (which already reports success) waits for that
-  // work: with stream_ being a non-blocking stream, the conversion kernel below could read the
-  // surface before NVDEC wrote it, returning blank frames (mostly the first ~20 pictures of a
-  // freshly created decoder). Make stream_ wait for the legacy default stream, on the GPU.
-  if (legacy_stream_event_) {
-    CUDA_CALL(cudaEventRecord(legacy_stream_event_, cudaStreamLegacy));
-    CUDA_CALL(cudaStreamWaitEvent(stream_, legacy_stream_event_, 0));
-  }
+  if (codec_params_->codec_id == AV_CODEC_ID_MJPEG)
+    WaitForJpegDecoded(picture_display_info->picture_index);
 
   CUDA_CALL(cuvidMapVideoFrame(
     nvdecode_state_->decoder,

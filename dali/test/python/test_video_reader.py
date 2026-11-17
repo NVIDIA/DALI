@@ -939,9 +939,8 @@ def test_ycbcr_cpu_matches_gpu(source):
 MJPEG_AVI = os.path.join(DALI_EXTRA_PATH, "db", "video", "mjpeg", "mjpeg.avi")
 
 # Decodes MJPEG_AVI with the GPU (mixed) and CPU variants of experimental.readers.video or
-# decoders.video and prints the mean abs difference of every frame. Runs in a fresh process: the
-# GPU decoder used to return blank frames mostly from freshly created NVDEC decoders, and
-# NVDEC decoders are pooled within a process.
+# decoders.video and prints the mean abs difference of every frame. Runs in a fresh process, so
+# that the NVDEC decoders are created for it (they are pooled within a process).
 _MJPEG_PARITY_CHILD = r"""
 import enum
 import sys
@@ -1000,10 +999,11 @@ class MjpegOp(enum.Enum):
 @params(*MjpegOp)
 def test_mjpeg_gpu_matches_cpu(op):
     """Every MJPEG frame decoded on the GPU must match the CPU backend's (up to the rounding
-    noise of the two different JPEG decoders and color conversions). NVDEC writes JPEG pictures
-    in stream order with the legacy default stream, so the color conversion, which runs on the
-    operator's non-blocking stream, used to read surfaces that weren't written yet: the first
-    ~20 frames of a freshly created NVDEC decoder came back blank."""
+    noise of the two different JPEG decoders and color conversions). The GPU work of a JPEG decode
+    is ordered with the legacy default stream, which the color conversion, on the operator's
+    non-blocking stream, must wait for: otherwise it can read surfaces that weren't written yet
+    and return blank frames. FramesDecoderGpuTest.MjpegDecodesMultipleFrames checks that wait
+    deterministically."""
     res = subprocess.run(
         [sys.executable, "-c", _MJPEG_PARITY_CHILD, MJPEG_AVI, op.value],
         capture_output=True,

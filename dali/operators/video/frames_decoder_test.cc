@@ -15,6 +15,7 @@
 #include <cuda_runtime_api.h>
 #include <unistd.h>
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -30,6 +31,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -2652,6 +2654,40 @@ int KeyframeNalType(AVCodecID codec, const std::vector<uint8_t> &data, size_t si
   return detail::HasKeyframeNal(packet, codec, length_size, &type) ? type : -1;
 }
 
+/**
+ * Keeps the legacy default stream busy with GPU work, queued from another thread (as a training
+ * loop on a framework's default stream would) for as long as it exists.
+ */
+class LegacyStreamLoad {
+ public:
+  LegacyStreamLoad() {
+    buffer_.resize(256 << 20);
+    CUDA_CALL(cudaGetDevice(&device_id_));
+    thread_ = std::thread([this] {
+      CUDA_CALL(cudaSetDevice(device_id_));
+      while (!stop_) {
+        for (int i = 0; i < 8; i++)
+          CUDA_CALL(cudaMemsetAsync(buffer_.data(), i, buffer_.size(), cudaStreamLegacy));
+        started_ = true;
+        CUDA_CALL(cudaStreamSynchronize(cudaStreamLegacy));
+      }
+    });
+    while (!started_)
+      std::this_thread::yield();
+  }
+
+  ~LegacyStreamLoad() {
+    stop_ = true;
+    thread_.join();
+  }
+
+ private:
+  DeviceBuffer<uint8_t> buffer_;
+  int device_id_ = 0;
+  std::atomic<bool> started_{false}, stop_{false};
+  std::thread thread_;
+};
+
 double AvgAbsDiff(const std::vector<uint8_t> &a, const std::vector<uint8_t> &b) {
   int64_t sum = 0;
   for (size_t i = 0; i < a.size(); ++i) {
@@ -2824,12 +2860,12 @@ TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
   // DALI-4918: for MJPEG the driver can report a minimum of 1 decode surface, with which decoding
   // the 2nd frame used to fail with CUDA_ERROR_INVALID_VALUE.
   //
-  // Every frame is also compared against the CPU backend: NVDEC writes JPEG pictures in stream
-  // order with the legacy default stream, so a color conversion on a non-blocking stream used to
-  // read surfaces that weren't written yet and return blank frames (mostly the first ~20 frames
-  // of a freshly created NVDEC decoder). Hence the non-blocking streams, and several decoders
-  // alive at once: each one holds its NVDEC decoder, so the others can't reuse it from
-  // NVDECCache and get freshly created ones.
+  // Every frame is also compared against the CPU backend. The GPU work of a JPEG decode is ordered
+  // with the legacy default stream, which the color conversion, on a non-blocking stream, must wait
+  // for: otherwise it reads surfaces that are not written yet and returns blank frames. Another
+  // thread keeps the legacy default stream busy meanwhile, which delays the decoding, so that a
+  // missing wait shows up as blank frames every time (the first frames of the decoders), not only
+  // when the timing happens to be unlucky.
 
   // The test file is 8-bit 4:4:4 (yuvj444p), which not every NVDEC generation can decode.
   if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
@@ -2842,6 +2878,7 @@ TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
   int num_frames = cpu_decoder.NumFrames();
   ASSERT_GT(num_frames, 1);
 
+  LegacyStreamLoad legacy_stream_load;
   constexpr int kNumGpuDecoders = 3;
   std::vector<CUDAStream> streams;
   std::vector<std::unique_ptr<FramesDecoderGpu>> gpu_decoders;
