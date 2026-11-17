@@ -16,7 +16,7 @@ The example shows:
 * how to package the plugin as a Python source distribution (sdist).
 
 For a step-by-step introduction to writing custom operators, see the
-[Create a Custom Operator in C++](https://docs.nvidia.com/deeplearning/dali/user-guide/docs/examples/custom_operations/custom_operator/create_a_custom_operator.html)
+[Create a Custom Operator in C++](https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/examples/custom_operations/custom_operator/create_a_custom_operator.html)
 tutorial.
 
 > **Important:** A plugin can only be loaded by the exact DALI version that it was built against.
@@ -25,7 +25,7 @@ tutorial.
 
 ## Requirements
 
-* [DALI](https://docs.nvidia.com/deeplearning/dali/user-guide/docs/installation.html)
+* [DALI](https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/installation.html)
 * CUDA Toolkit matching the CUDA version of the installed DALI flavor
   (for example CUDA 13.x for `nvidia-dali-cuda130`)
 * C++20 compiler
@@ -135,3 +135,8 @@ cached when installing the plugin for the previous DALI version:
 ```bash
 pip install --no-build-isolation --no-cache-dir --force-reinstall dist/dali_naive_histogram-0.1.0.tar.gz
 ```
+
+## Troubleshooting
+
+See the [Troubleshooting](https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/examples/custom_operations/custom_operator/create_a_custom_operator.html#Troubleshooting)
+section of the custom operator tutorial.
