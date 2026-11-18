@@ -51,8 +51,8 @@ std::vector<VideoFileMeta> GetVideoFiles(const std::string& file_root,
     string line;
     string video_file;
     int label;
-    float start;
-    float end;
+    double start;
+    double end;
     int line_num = 0;
     while (std::getline(s, line)) {
       line_num++;
