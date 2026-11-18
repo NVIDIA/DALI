@@ -926,3 +926,121 @@ def test_mpeg_program_stream_is_skipped():
     p.build()
     assert p.reader_meta("r")["epoch_size"] == 180, "expected only the 180 frames of the avi file"
     p.run()
+
+
+@cartesian_params(devices)
+def test_empty_labels_raise(device):
+    # Unlike legacy readers.video, where labels=[] means 0-based indices: an empty list is more
+    # likely a mistake, and the error says what to pass instead
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        video, label = fn.experimental.readers.video(
+            device=device, filenames=[VIDEO_0], labels=[], sequence_length=3
+        )
+        return video, label
+
+    with assert_raises(ValueError, glob="*``labels`` must not be an empty list*"):
+        p = pipe()
+        p.build()
+
+
+@cartesian_params(devices)
+def test_labels_not_passed_means_no_labels_output(device):
+    # Regression guard for the other side of the distinction: no `labels` -> no labels output.
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        outs = fn.experimental.readers.video(device=device, filenames=[VIDEO_0], sequence_length=3)
+        assert isinstance(outs, DataNode), f"Expected only the video output, got {len(outs)}"
+        return outs
+
+    p = pipe()
+    p.build()
+    p.run()
+
+
+_empty_source_cases = [
+    # (the arguments, the argument that the error names)
+    (dict(filenames=[VIDEO_0], file_root=""), "file_root"),
+    (dict(filenames=[VIDEO_0], file_list=""), "file_list"),
+    (dict(file_root=MULTIPLE_RESOLUTION_ROOT, filenames=[]), "filenames"),
+    (dict(file_list=""), "file_list"),
+    (dict(filenames=[]), "filenames"),
+    (dict(file_root=""), "file_root"),
+    # all three passed empty, as a wrapper that forwards them unset would: file_list is named
+    (dict(filenames=[], file_root="", file_list=""), "file_list"),
+]
+
+
+@cartesian_params(devices, range(len(_empty_source_cases)))
+def test_empty_sources_raise(device, case):
+    # Unlike legacy readers.video, which ignores them: an explicitly passed empty source is an
+    # error, also next to another source, and the error says to omit it instead
+    kwargs, name = _empty_source_cases[case]
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(device=device, sequence_length=3, **kwargs)
+
+    with assert_raises(ValueError, glob=f"*``{name}`` must not be*omit it (or pass None)*"):
+        p = pipe()
+        p.build()
+
+
+@cartesian_params(devices)
+def test_invalid_sources_fail_at_the_reader_call(device):
+    # The arguments are checked when the outputs are declared: code that expects only the video
+    # output gets the error about the empty source, and not one about getting a list of outputs
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        video = fn.experimental.readers.video(
+            device=device, filenames=[VIDEO_0], file_root="", sequence_length=3
+        )
+        return video.gpu()
+
+    with assert_raises(ValueError, glob="*``file_root`` must not be empty*"):
+        p = pipe()
+        p.build()
+
+
+@cartesian_params(devices)
+def test_no_source_raises(device):
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(device=device, sequence_length=3)
+
+    with assert_raises(ValueError, glob="*Exactly one of*Got 0*"):
+        p = pipe()
+        p.build()
+
+
+@cartesian_params(devices)
+def test_none_sources_are_not_provided(device):
+    # None is how a wrapper says that a source is not used
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        outs = fn.experimental.readers.video(
+            device=device, filenames=[VIDEO_0], file_root=None, file_list=None, sequence_length=3
+        )
+        assert isinstance(outs, DataNode), f"Expected only the video output, got {len(outs)}"
+        return outs
+
+    p = pipe()
+    p.build()
+    (video,) = p.run()
+    assert video.shape()[0][0] == 3
+
+
+@cartesian_params(devices)
+def test_two_non_empty_sources_raise(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 30"])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        # Both filenames and file_list are provided: the call fails when the outputs are declared
+        return fn.experimental.readers.video(
+            device=device, filenames=[VIDEO_0], file_list=list_file, sequence_length=3
+        )
+
+    with assert_raises(ValueError, glob="*Exactly one of*Got 2*"):
+        p = pipe()
+        p.build()

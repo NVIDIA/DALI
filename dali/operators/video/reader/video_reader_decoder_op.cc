@@ -18,6 +18,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
@@ -192,6 +193,51 @@ inline std::string make_string(FileListOptions options) {
          (options.include_end ? "include_end" : "exclude_end");
 }
 
+/**
+ * @brief Checks the source arguments and `labels`: exactly one of `file_list`, `file_root` and
+ *        `filenames`, none of them empty, and one label per file.
+ *
+ * Called by the output function too, so that an invalid call fails at the reader call.
+ */
+static void ValidateSourceArgs(const OpSpec &spec) {
+  if (spec.HasArgument("file_list") && spec.GetArgument<std::string>("file_list").empty()) {
+    throw std::invalid_argument(
+        "``file_list`` must not be empty: omit it (or pass None) if it is not used.");
+  }
+  if (spec.HasArgument("file_root") && spec.GetArgument<std::string>("file_root").empty()) {
+    throw std::invalid_argument(
+        "``file_root`` must not be empty: omit it (or pass None) if it is not used.");
+  }
+  if (spec.HasArgument("filenames") &&
+      spec.GetRepeatedArgument<std::string>("filenames").empty()) {
+    throw std::invalid_argument(
+        "``filenames`` must not be an empty list: omit it (or pass None) if it is not used.");
+  }
+  int num_sources = spec.HasArgument("file_list") + spec.HasArgument("file_root") +
+                    spec.HasArgument("filenames");
+  if (num_sources != 1) {
+    throw std::invalid_argument(
+        make_string("Exactly one of the following arguments must be provided: ``file_list``, "
+                    "``file_root``, ``filenames``. Got ", num_sources, "."));
+  }
+  // TryGetRepeatedArgument returns true for an explicitly passed empty list too
+  std::vector<int> labels;
+  if (!spec.TryGetRepeatedArgument(labels, "labels"))
+    return;
+  if (labels.empty()) {
+    throw std::invalid_argument(
+        "``labels`` must not be an empty list: pass one label per file in ``filenames`` (e.g. "
+        "``labels=list(range(len(filenames)))`` for 0-based indices), or omit it for no labels "
+        "output.");
+  }
+  size_t num_files = spec.GetRepeatedArgument<std::string>("filenames").size();
+  if (labels.size() != num_files) {
+    throw std::invalid_argument(
+        make_string("Number of provided files and labels should match. Provided ", num_files,
+                    " files and ", labels.size(), " labels."));
+  }
+}
+
 template <typename Backend, typename FramesDecoderImpl, typename Sample = VideoSample<Backend>>
 class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
  public:
@@ -207,17 +253,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         boundary_type_(GetBoundaryType(spec)),
         uniform_sample_(spec.GetArgument<bool>("uniform_sample")),
         num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))) {
-    if ((spec.HasArgument("file_list") + spec.HasArgument("file_root") + spec.HasArgument("filenames")) != 1) {
-      DALI_FAIL("Only one of the following arguments can be provided: ``file_list``, ``file_root``, ``filenames``");
-    }
+    ValidateSourceArgs(spec);
     bool has_labels = spec.TryGetRepeatedArgument(labels_, "labels");
-    if (has_labels) {
-      DALI_ENFORCE(
-          labels_.size() == filenames_.size(),
-          make_string(
-              "Number of provided files and labels should match. Provided ",
-              filenames_.size(), " files and ", labels_.size(), " labels."));
-    }
 
     video_files_info_ = GetVideoFiles(file_root_, filenames_, has_labels, labels_, file_list_);
     DALI_ENFORCE(!video_files_info_.empty(), "No files were read.");
@@ -532,6 +569,14 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
   CUDAStreamLease cuda_stream_;
 };
 
+// The labels output is produced for `filenames` with `labels`, and for `file_list` and
+// `file_root`.
+static bool HasLabelsOutput(const OpSpec &spec) {
+  ValidateSourceArgs(spec);
+  return spec.HasArgument("labels") || spec.HasArgument("file_list") ||
+         spec.HasArgument("file_root");
+}
+
 template <typename Backend>
 class VideoReaderDecoder
     : public DataReader<Backend, VideoSample<Backend>, VideoSample<Backend>, true> {
@@ -556,9 +601,7 @@ class VideoReaderDecoder
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
 
-    has_labels_ = spec.HasArgument("labels") ||
-                  !spec.GetArgument<std::string>("file_list").empty() ||
-                  !spec.GetArgument<std::string>("file_root").empty();
+    has_labels_ = HasLabelsOutput(spec);
 
     auto fill_values = spec.GetRepeatedArgument<int>("fill_value");
     fill_value_.clear();
@@ -878,8 +921,7 @@ The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 )code")
     .NumInput(0)
     .OutputFn([](const OpSpec &spec) {
-      bool has_labels = spec.HasArgument("labels") || spec.HasArgument("file_list") ||
-                        spec.HasArgument("file_root");
+      bool has_labels = HasLabelsOutput(spec);
       bool has_frame_num =
           ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num")) !=
           FrameNumPolicy::None;
@@ -933,7 +975,7 @@ Default: ``timestamps``.)code",
         R"code(If true, include the end frame in the range. Default: true)code",
         true)
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
-`filenames` argument. If not provided, no labels will be yielded.)",
+`filenames` argument, one per file. If not provided, no labels will be yielded.)",
                                  nullptr)
     .AddArg("sequence_length", R"code(Frames to load per sequence.)code", DALI_INT32)
     .AddOptionalArg("enable_frame_num",
