@@ -16,6 +16,7 @@
 #include <atomic>
 #include <exception>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <string>
@@ -248,12 +249,28 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       file_list_opts_.include_end = spec.GetArgument<bool>("file_list_include_end");
     }
 
-    if (step_ <= 0) {
-      step_ = stride_ * sequence_len_;
+    // Both feed the default step (stride_ * sequence_len_); zero would make the sample loop in
+    // PrepareMetadataImpl never advance.
+    DALI_ENFORCE(sequence_len_ >= 1,
+                 make_string("sequence_length must be at least 1, got ", sequence_len_, "."));
+    if (!uniform_sample_) {
+      DALI_ENFORCE(stride_ > 0,
+                   make_string("stride must be greater than 0, got ", stride_, "."));
+      // Frame indices (and the sample's start_/end_) are int: make sure the sequence extent
+      // (stride_ * sequence_len_, which is also the default step) fits, otherwise e.g. the
+      // default step would wrap to 0 or a negative value and the sample loop in
+      // PrepareMetadataImpl would never terminate.
+      int64_t full_seq_stride = static_cast<int64_t>(stride_) * sequence_len_;
+      DALI_ENFORCE(full_seq_stride <= std::numeric_limits<int>::max(),
+                   make_string("stride * sequence_length must not exceed ",
+                               std::numeric_limits<int>::max(), ", got ", stride_, " * ",
+                               sequence_len_, " = ", full_seq_stride, "."));
+      // `step` <= 0 (including the default, -1) means "use stride * sequence_length".
+      if (step_ <= 0) {
+        step_ = static_cast<int>(full_seq_stride);
+      }
     }
     if (uniform_sample_) {
-      DALI_ENFORCE(sequence_len_ >= 1,
-                   "sequence_length must be at least 1 when uniform_sample=True.");
       if (spec.HasArgument("stride")) {
         DALI_WARN("uniform_sample=True: the `stride` argument is ignored.");
       }
@@ -425,12 +442,16 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
           default:
             DALI_FAIL("Invalid file_list_format");
         }
-        if (file_list_opts_.include_end) {
-          entry.end_frame = std::min<int>(entry.end_frame, num_frames);
-        }
         LOG_LINE << "Frame range after conversion: [" << entry.start_frame << ", "
                  << entry.end_frame << "]" << std::endl;
       }
+
+      // The padding (see FramesDecoderBase::HandleBoundary) reflects and clamps within
+      // [start_frame, end_frame), so the range has to be a subset of the frames of the file.
+      // Entries like "-60 10" (a start before the first frame) or "45 60" (an end past the last
+      // one) would otherwise map the padded indices to frames outside of the range.
+      entry.start_frame = std::max<int64_t>(entry.start_frame, 0);
+      entry.end_frame = std::min<int64_t>(entry.end_frame, num_frames);
 
       if (entry.start_frame >= entry.end_frame) {
         DALI_WARN(make_string("Empty frame range [", entry.start_frame, ", ", entry.end_frame,
@@ -454,20 +475,39 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
                  << " with " << sequence_len_ << " frames" << std::endl;
         samples_.emplace_back(std::move(s));
       } else {
-        int start = entry.start_frame;
-        int full_seq_stride = stride_ * sequence_len_;
-        for (; start + full_seq_stride <= entry.end_frame; start += step_) {
+        // Computed in int64: start + step_ / start + full_seq_stride can exceed INT_MAX even
+        // though each term fits in int (the constructor guarantees stride_ * sequence_len_ and
+        // step_ do).
+        int64_t full_seq_stride = static_cast<int64_t>(stride_) * sequence_len_;
+        auto add_sample = [&](int64_t start) {
+          int64_t end = start + full_seq_stride;
+          DALI_ENFORCE(end <= std::numeric_limits<int>::max(),
+                       make_string("Sequence starting at frame ", start, " of \"", entry.filename,
+                                   "\" would end at frame ", end, ", which exceeds the supported "
+                                   "frame index range. Reduce stride or sequence_length."));
+          samples_.emplace_back(&entry, static_cast<int>(start), static_cast<int>(end), stride_);
+        };
+        // A sequence only needs its last frame to exist: it spans
+        // (sequence_length - 1) * stride + 1 frames, not stride * sequence_length (as in the legacy
+        // reader). The end of the sample (see add_sample) can be up to stride - 1 frames past the
+        // last frame of the range, which the frames decoder does not read.
+        int64_t seq_span = static_cast<int64_t>(sequence_len_ - 1) * stride_ + 1;
+        int64_t start = entry.start_frame;
+        for (; start + seq_span <= entry.end_frame; start += step_) {
           LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
                    << ", stride=" << stride_ << std::endl;
-          samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
+          add_sample(start);
         }
 
-        // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last
-        // sequence
-        if (boundary_type_ != boundary::BoundaryType::ISOLATED && start < entry.end_frame) {
-          LOG_LINE << "Adding padded tail sample starting at frame " << start
-                   << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
-          samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
+        // With padding, the sequences that do not fit are padded: there is a sample at every step
+        // that remains in the range, as in the legacy reader, with fewer and fewer frames of the
+        // range in each.
+        if (boundary_type_ != boundary::BoundaryType::ISOLATED) {
+          for (; start < entry.end_frame; start += step_) {
+            LOG_LINE << "Adding padded sample starting at frame " << start
+                     << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
+            add_sample(start);
+          }
         }
       }
     }
@@ -743,7 +783,8 @@ class VideoReaderDecoder
                    make_string("Invalid decoder for filename ", filename));
 
       int64_t num_frames = sample->frame_idxs_.empty()
-          ? (sample->end_ - sample->start_ + sample->stride_ - 1) / sample->stride_
+          ? (static_cast<int64_t>(sample->end_) - sample->start_ + sample->stride_ - 1) /
+                sample->stride_
           : static_cast<int64_t>(sample->frame_idxs_.size());
       sample->data_.Resize(
           {num_frames, decoder_->Height(), decoder_->Width(), decoder_->Channels()}, DALI_UINT8);
@@ -805,10 +846,10 @@ class VideoReaderDecoder
                                make_span(sample->timestamps_));
       } else if (roi_start != 0 || roi_end != decoder_->NumFrames()) {
         frame_idxs_.clear();
-        for (int frame_idx = sample->start_; frame_idx < sample->end_;
+        for (int64_t frame_idx = sample->start_; frame_idx < sample->end_;
              frame_idx += sample->stride_) {
           frame_idxs_.push_back(decoder_->HandleBoundary(
-              boundary_type_, frame_idx, roi_start, roi_end));
+              boundary_type_, static_cast<int>(frame_idx), roi_start, roi_end));
         }
         decoder_->DecodeFrames(sample->data_.template mutable_data<uint8_t>(),
                                make_cspan(frame_idxs_), boundary_type_, constant_frame,
@@ -933,7 +974,8 @@ Default: ``timestamps``.)code",
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
 `filenames` argument. If not provided, no labels will be yielded.)",
                                  nullptr)
-    .AddArg("sequence_length", R"code(Frames to load per sequence.)code", DALI_INT32)
+    .AddArg("sequence_length", R"code(Frames to load per sequence. Must be at least 1.)code",
+            DALI_INT32)
     .AddOptionalArg("enable_frame_num",
                     R"code(Determines what frame number information is returned as an additional output.
 
@@ -951,7 +993,10 @@ as an additional output.)code",
 
 When the value is less than or equal to 0, `step` is set to `stride * sequence_length`.)code",
                     -1)
-    .AddOptionalArg("stride", R"code(Distance between consecutive frames in the sequence.)code", 1u,
+    .AddOptionalArg("stride", R"code(Distance between consecutive frames in the sequence.
+
+Must be at least 1, and ``stride * sequence_length`` must not exceed ``2**31 - 1``. Both
+conditions are not checked when ``uniform_sample`` is True, which ignores the stride.)code", 1u,
                     false)
     .AddOptionalArg("uniform_sample",
         R"code(If set to True, uniformly samples ``sequence_length`` frames from the full video
@@ -978,6 +1023,11 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
 * ``'edge'`` or ``'repeat'``: Repeat the last valid frame: ABC -> ABCCCC
 * ``'reflect_1001'`` or ``'symmetric'``: Reflect padding, including the last element: ABC -> ABCCBA
 * ``'reflect_101'`` or ``'reflect'``: Reflect padding, not including the last element: ABC -> ABCBA
+
+A sequence only needs its last frame to exist, so a sequence of ``sequence_length`` frames with the
+given ``stride`` fits in ``(sequence_length - 1) * stride + 1`` frames. With padding, a sample starts
+at every ``step`` position of the video (or of its ``file_list`` range), so the last ones hold
+fewer frames of the video than ``sequence_length``, as with the legacy ``fn.readers.video``.
 
 Not relevant when using ``frames`` argument.)code",
         "none", true)
