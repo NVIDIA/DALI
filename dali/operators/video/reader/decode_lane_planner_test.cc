@@ -27,7 +27,6 @@
 #include "dali/core/boundary.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
-#include "dali/core/util.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/reader/decode_lane_planner.h"
 #include "dali/test/dali_test_config.h"
@@ -62,13 +61,11 @@ struct Batch {
   // Adds a run of samples, each the given frames
   void Add(std::string_view file, const FrameIndex *index, int batch_idx,
            const std::vector<std::vector<int>> &samples) {
-    PlannedRun run{file, index, batch_idx, -1, {}};
+    PlannedRun run{file, index, batch_idx, {}};
     for (auto &sample : samples) {
       frames.push_back(sample);
       std::sort(frames.back().begin(), frames.back().end());
       run.samples.push_back(make_cspan(frames.back()));
-      for (int frame : sample)
-        run.first = run.first < 0 ? frame : std::min(run.first, frame);
     }
     runs.push_back(run);
   }
@@ -96,10 +93,19 @@ std::vector<LanePlan> Plan(const Batch &batch, const std::vector<LaneStart> &lan
  */
 std::vector<int> ReferenceOrder(const std::vector<PlannedRun> &runs_, const LaneStart &start,
                                 std::vector<int> runs) {
+  // the smallest frame of a run; -1 if none
+  auto first = [&](int r) {
+    int frame = -1;
+    for (auto sample : runs_[r].samples) {
+      for (int f : sample)
+        frame = frame < 0 ? f : std::min(frame, f);
+    }
+    return frame;
+  };
   auto continues = [&](int r) {
     const auto &run = runs_[r];
     return !start.filename.empty() && run.filename == start.filename &&
-           CanReachWithoutSeek(*run.index, start.pos.next_frame, run.first);
+           CanReachWithoutSeek(*run.index, start.pos.next_frame, first(r));
   };
   std::map<std::string_view, int> file_order;
   for (int r : runs) {
@@ -112,8 +118,8 @@ std::vector<int> ReferenceOrder(const std::vector<PlannedRun> &runs_, const Lane
     held->second = -1;
   std::sort(runs.begin(), runs.end(), [&](int a, int b) {
     const auto &ra = runs_[a], &rb = runs_[b];
-    return std::make_tuple(file_order[ra.filename], ra.filename, ra.first) <
-           std::make_tuple(file_order[rb.filename], rb.filename, rb.first);
+    return std::make_tuple(file_order[ra.filename], ra.filename, first(a)) <
+           std::make_tuple(file_order[rb.filename], rb.filename, first(b));
   });
   auto it = std::find_if(runs.begin(), runs.end(), continues);
   if (it != runs.end())
@@ -130,14 +136,25 @@ std::vector<int> Frames(const std::vector<int> &frame_idxs, int start, int end, 
   return std::vector<int>(frames.begin(), frames.end());
 }
 
+std::vector<int> Region(const std::vector<int> &frame_idxs, int start, int end, int stride,
+                        boundary::BoundaryType boundary_type, int roi_start, int roi_end) {
+  SmallVector<int, 32> frames = {-100};  // cleared
+  RegionFrames(make_cspan(frame_idxs), start, end, stride, boundary_type, roi_start, roi_end,
+               frames);
+  return std::vector<int>(frames.begin(), frames.end());
+}
+
 /**
  * @brief A sample of the reader: the frames from `start` to `end` by `stride`, or `frame_idxs`,
- * padded by clamping to the file.
+ * padded to the region [roi_start, roi_end) of the file (by default, the whole file).
  */
 struct ReaderSample {
   std::string path;
   int start, end, stride;
   std::vector<int> frame_idxs = {};
+  boundary::BoundaryType boundary_type = boundary::BoundaryType::CLAMP;
+  int roi_start = 0;
+  int roi_end = -1;  // -1: the end of the file
 };
 
 constexpr int kMaxSampleFrames = 16;
@@ -151,9 +168,10 @@ struct ReaderLane {
 };
 
 /**
- * @brief Plans a batch, one run per sample, then decodes it, lane by lane, as the reader does, and
- * checks that the lanes decode the pictures planned. (The reader can also join samples into one
- * run, when a decoder reaches one from the other without seeking.)
+ * @brief Plans a batch, one run per sample, then decodes it, lane by lane, as the reader does (the
+ * frames of RegionFrames, through DecodeFrames), and checks that the lanes decode the pictures
+ * planned. (The reader can also join samples into one run, when a decoder reaches one from the
+ * other without seeking.)
  */
 void CheckPlannedPictures(const std::vector<ReaderSample> &batch, std::vector<ReaderLane> &lanes,
                           const std::map<std::string, FrameIndex> &indices,
@@ -163,11 +181,12 @@ void CheckPlannedPictures(const std::vector<ReaderSample> &batch, std::vector<Re
   for (int i = 0; i < static_cast<int>(batch.size()); i++) {
     auto &sample = batch[i];
     auto &index = indices.at(sample.path);
+    int roi_end = sample.roi_end < 0 ? index.size() : sample.roi_end;
     frames.emplace_back();
     SampleFrames(make_cspan(sample.frame_idxs), sample.start, sample.end, sample.stride,
-                 boundary::BoundaryType::CLAMP, 0, index.size(), index.size(), frames.back());
+                 sample.boundary_type, sample.roi_start, roi_end, index.size(), frames.back());
     ASSERT_FALSE(frames.back().empty());
-    runs.push_back({sample.path, &index, i, frames.back().front(), {make_cspan(frames.back())}});
+    runs.push_back({sample.path, &index, i, {make_cspan(frames.back())}});
   }
   std::vector<LaneStart> starts(lanes.size());
   for (size_t l = 0; l < lanes.size(); l++) {
@@ -178,28 +197,27 @@ void CheckPlannedPictures(const std::vector<ReaderSample> &batch, std::vector<Re
   PlanLanes(make_cspan(runs), make_cspan(starts), kOpenCost, plans);
 
   size_t planned_runs = 0;
+  SmallVector<int, 32> region;
   for (size_t l = 0; l < lanes.size(); l++) {
     auto &lane = lanes[l];
     int64_t decoded = 0;
     for (int r : plans[l].runs) {
       auto &sample = batch[r];
+      auto &index = indices.at(sample.path);
       if (!lane.decoder || lane.filename != sample.path) {
         lane.decoder = std::make_unique<FramesDecoderCpu>(sample.path);
-        lane.decoder->SetIndex(indices.at(sample.path));
+        lane.decoder->SetIndex(index);
         lane.filename = sample.path;
       }
       auto &decoder = *lane.decoder;
       int64_t before = decoder.DecodedPictures();
-      if (sample.frame_idxs.empty()) {
-        ASSERT_LE(div_ceil(sample.end - sample.start, static_cast<uint32_t>(sample.stride)),
-                  kMaxSampleFrames);
-        decoder.DecodeFrames(buffer.data(), sample.start, sample.end, sample.stride,
-                             boundary::BoundaryType::CLAMP);
-      } else {
-        ASSERT_LE(sample.frame_idxs.size(), static_cast<size_t>(kMaxSampleFrames));
-        decoder.DecodeFrames(buffer.data(), make_cspan(sample.frame_idxs),
-                             boundary::BoundaryType::CLAMP);
-      }
+      int roi_end = sample.roi_end < 0 ? index.size() : sample.roi_end;
+      RegionFrames(make_cspan(sample.frame_idxs), sample.start, sample.end, sample.stride,
+                   sample.boundary_type, sample.roi_start, roi_end, region);
+      ASSERT_LE(region.size(), static_cast<size_t>(kMaxSampleFrames));
+      std::vector<uint8_t> constant_frame(decoder.FrameSize());
+      decoder.DecodeFrames(buffer.data(), make_cspan(region), sample.boundary_type,
+                           constant_frame.data());
       decoded += decoder.DecodedPictures() - before;
     }
     EXPECT_EQ(decoded, plans[l].pictures) << what << ", lane " << l;
@@ -238,10 +256,27 @@ TEST(DecodeLanePlannerTest, SampleFrames) {
   EXPECT_THROW(Frames({}, 0, 10, 0, BoundaryType::CLAMP, 0, 10, 10), std::invalid_argument);
 }
 
+TEST(DecodeLanePlannerTest, RegionFrames) {
+  using boundary::BoundaryType;
+  // the given frames, in their order, duplicates kept
+  EXPECT_EQ(Region({7, 3, 9, 3}, 0, 0, 1, BoundaryType::CLAMP, 0, 10),
+            std::vector<int>({7, 3, 9, 3}));
+  // a range, with a stride, padded to the region, in the sample's order; -1 for a constant frame
+  EXPECT_EQ(Region({}, 18, 30, 3, BoundaryType::CLAMP, 20, 26), std::vector<int>({20, 21, 24, 25}));
+  EXPECT_EQ(Region({}, 18, 30, 3, BoundaryType::CONSTANT, 20, 26),
+            std::vector<int>({-1, 21, 24, -1}));
+  EXPECT_EQ(Region({}, 20, 30, 3, BoundaryType::REFLECT_101, 20, 26),
+            std::vector<int>({20, 23, 24, 21}));
+  // what SampleFrames sorts, after padding to the file
+  EXPECT_EQ(Frames({}, 18, 30, 3, BoundaryType::CONSTANT, 20, 26, 100), std::vector<int>({21, 24}));
+  EXPECT_THROW(Region({}, 18, 30, 3, BoundaryType::ISOLATED, 20, 26), std::exception);
+  EXPECT_THROW(Region({}, 0, 10, -1, BoundaryType::CLAMP, 0, 10), std::invalid_argument);
+}
+
 TEST(DecodeLanePlannerTest, SampleFramesRegionOutsideOfTheFile) {
   using boundary::BoundaryType;
-  // A region [5, 14) of a file of 10 frames (e.g. a file list whose end is past the end of the
-  // file): frames 10 to 13 are in the region, and DecodeFrames pads them to the file
+  // SampleFrames does not need the region to be within the file. A region [5, 14) of a file of 10
+  // frames: frames 10 to 13 are in the region, and DecodeFrames pads them to the file
   EXPECT_EQ(Frames({}, 8, 14, 1, BoundaryType::CLAMP, 5, 14, 10),
             std::vector<int>({8, 9, 9, 9, 9, 9}));
   EXPECT_EQ(Frames({}, 8, 14, 1, BoundaryType::REFLECT_101, 5, 14, 10),
@@ -262,6 +297,10 @@ TEST(DecodeLanePlannerTest, CanReachWithoutSeek) {
   EXPECT_FALSE(CanReachWithoutSeek(index, 5, 31));  // the next keyframe
   EXPECT_FALSE(CanReachWithoutSeek(index, 5, 4));   // backward
   EXPECT_FALSE(CanReachWithoutSeek(index, -1, 0));  // after the end
+  EXPECT_TRUE(CanReachWithoutSeek(index, 25, 31));  // past a keyframe, but a short leap
+  // a short leap, but outside of the index
+  EXPECT_FALSE(CanReachWithoutSeek(index, 95, 103));
+  EXPECT_FALSE(CanReachWithoutSeek(index, 100, 105));
 }
 
 TEST(DecodeLanePlannerTest, LongestFirstToEarliestFinish) {
@@ -455,6 +494,14 @@ TEST(DecodeLanePlannerTest, PlannedPicturesAreDecoded) {
                                                   {single_gop, 16, 32, 1},
                                                   {single_gop, 34, 50, 1}},
                                                  lanes, indices, buffer, what + "2"));
+    // regions of the files (a file list), padded past their end
+    ASSERT_NO_FATAL_FAILURE(CheckPlannedPictures(
+        {{gops, 12, 28, 1, {}, boundary::BoundaryType::REFLECT_101, 12, 20},
+         {gops, 38, 50, 1, {}, boundary::BoundaryType::CLAMP, 35, 45},
+         {gops, 50, 60, 1, {}, boundary::BoundaryType::CONSTANT, 50, 55},
+         {single_gop, 32, 48, 2, {}, boundary::BoundaryType::REFLECT_1001, 32, 40},
+         {single_gop, 0, 0, 1, {3, 6, 9}, boundary::BoundaryType::CLAMP, 2, 12}},
+        lanes, indices, buffer, what + "3"));
   }
 }
 

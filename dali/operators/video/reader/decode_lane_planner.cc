@@ -23,26 +23,19 @@
 namespace dali {
 
 bool CanReachWithoutSeek(const FrameIndex &index, int next, int frame) {
-  if (next < 0 || frame < next)
-    return false;
-  if (frame - next <= FramesDecoderBase::kMinimumSeekLeap)
-    return true;
-  // the decision of SeekFrame and AddDecodeWork
   int size = index.size();
-  return next < size && frame < size && FramesDecoderBase::SeekTarget(index, next, frame) < 0;
+  if (next < 0 || next >= size || frame < next || frame >= size)
+    return false;
+  // the decision of SeekFrame and AddDecodeWork, the short leap forward included
+  return FramesDecoderBase::SeekTarget(index, next, frame) < 0;
 }
 
-void SampleFrames(span<const int> frame_idxs, int start, int end, int stride,
+void RegionFrames(span<const int> frame_idxs, int start, int end, int stride,
                   boundary::BoundaryType boundary_type, int roi_start, int roi_end,
-                  int num_frames, SmallVector<int, 32> &frames) {
+                  SmallVector<int, 32> &frames) {
   frames.clear();
   auto add = [&](int frame) {
-    // padded to the region of the file, as the reader does, then to the file, as DecodeFrames does
-    // (a constant frame, -1 after the first, stays constant after the second)
-    int idx = FramesDecoderBase::HandleBoundary(boundary_type, frame, roi_start, roi_end);
-    idx = FramesDecoderBase::HandleBoundary(boundary_type, idx, 0, num_frames);
-    if (idx >= 0)  // not a constant frame
-      frames.push_back(idx);
+    frames.push_back(FramesDecoderBase::HandleBoundary(boundary_type, frame, roi_start, roi_end));
   };
   if (!frame_idxs.empty()) {
     for (int frame : frame_idxs)
@@ -53,6 +46,20 @@ void SampleFrames(span<const int> frame_idxs, int start, int end, int stride,
     for (int frame = start; frame < end; frame += stride)
       add(frame);
   }
+}
+
+void SampleFrames(span<const int> frame_idxs, int start, int end, int stride,
+                  boundary::BoundaryType boundary_type, int roi_start, int roi_end,
+                  int num_frames, SmallVector<int, 32> &frames) {
+  RegionFrames(frame_idxs, start, end, stride, boundary_type, roi_start, roi_end, frames);
+  // padded to the file, as DecodeFrames does (a constant frame, -1, stays constant)
+  int n = 0;
+  for (int frame : frames) {
+    int idx = FramesDecoderBase::HandleBoundary(boundary_type, frame, 0, num_frames);
+    if (idx >= 0)  // not a constant frame
+      frames[n++] = idx;
+  }
+  frames.resize(n);
   std::sort(frames.begin(), frames.end());
 }
 
@@ -72,23 +79,33 @@ bool Holds(const LaneStart &start, std::string_view filename) {
   return !start.filename.empty() && start.filename == filename;
 }
 
-// Whether the decoder of a lane continues to the run without seeking
-bool Continues(const PlannedRun &run, const LaneStart &start) {
-  return Holds(start, run.filename) &&
-         CanReachWithoutSeek(*run.index, start.pos.next_frame, run.first);
+// The first frame a run decodes: the smallest of its samples' first frames; -1 if none
+int FirstFrame(const PlannedRun &run) {
+  int first = -1;
+  for (auto frames : run.samples) {
+    if (!frames.empty() && (first < 0 || frames.front() < first))
+      first = frames.front();
+  }
+  return first;
+}
+
+// Whether the decoder of a lane continues to the run, whose first frame is `first`, without
+// seeking
+bool Continues(const PlannedRun &run, int first, const LaneStart &start) {
+  return Holds(start, run.filename) && CanReachWithoutSeek(*run.index, start.pos.next_frame, first);
 }
 
 /**
  * @brief Orders the runs of one file on a lane as the lane decodes them: by first frame (then run
  * number), the run that continues from the lane's decoder first.
  */
-void OrderFileRuns(span<const PlannedRun> runs, const LaneStart &start,
+void OrderFileRuns(span<const PlannedRun> runs, span<const int> first, const LaneStart &start,
                    SmallVector<int, 4> &order) {
   std::sort(order.begin(), order.end(), [&](int a, int b) {
-    return std::make_pair(runs[a].first, a) < std::make_pair(runs[b].first, b);
+    return std::make_pair(first[a], a) < std::make_pair(first[b], b);
   });
   auto it = std::find_if(order.begin(), order.end(),
-                         [&](int r) { return Continues(runs[r], start); });
+                         [&](int r) { return Continues(runs[r], first[r], start); });
   if (it != order.end())
     std::rotate(order.begin(), it, it + 1);
 }
@@ -171,16 +188,18 @@ void PlanLanes(span<const PlannedRun> runs, span<const LaneStart> lanes, int64_t
   // sum of the work of its files, each simulated in the order the lane decodes its runs.
   std::vector<SmallVector<FileGroup, 4>> groups(num_lanes);
 
-  // the work of each run on a newly opened decoder; the longest first
+  // the first frame of each run, and its work on a newly opened decoder; the longest first
+  std::vector<int> first(num_runs);
   std::vector<DecodeWork> fresh_work(num_runs);
   std::vector<int64_t> fresh(num_runs);
   std::vector<int> order(num_runs);
   for (int r = 0; r < num_runs; r++) {
+    first[r] = FirstFrame(runs[r]);
     fresh_work[r] = FileWork(runs, LaneStart{}, make_cspan(&r, 1));
     fresh[r] = Cost(fresh_work[r], open_cost);
     order[r] = r;
     LOG_LINE << "PlanLanes: run " << r << " of " << runs[r].filename << " from frame "
-             << runs[r].first << ": " << fresh[r] << std::endl;
+             << first[r] << ": " << fresh[r] << std::endl;
   }
   std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return fresh[a] > fresh[b]; });
 
@@ -203,7 +222,7 @@ void PlanLanes(span<const PlannedRun> runs, span<const LaneStart> lanes, int64_t
         if (group)
           candidate = group->runs;
         candidate.push_back(r);
-        OrderFileRuns(runs, lanes[l], candidate);
+        OrderFileRuns(runs, make_cspan(first), lanes[l], candidate);
         work = FileWork(runs, lanes[l], make_cspan(candidate));
         delta = Cost(work, open_cost) - (group ? Cost(group->work, open_cost) : 0);
       }

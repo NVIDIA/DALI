@@ -37,7 +37,6 @@ struct PlannedRun {
   std::string_view filename;
   const FrameIndex *index;  // the index of the file; not null
   int batch_idx;            // the smallest position of its samples in the batch
-  int first;                // the first frame decoded; -1 if none
   // The frames that each sample decodes, in the order its decoder seeks to them (see
   // SampleFrames): in [0, index->size()), sorted, duplicates kept, no constant padding
   SmallVector<span<const int>, 4> samples;
@@ -60,6 +59,7 @@ struct LaneStart {
  */
 struct LanePlan {
   std::vector<int> runs;  // indices into the planned runs
+  // The estimated work, in pictures (see PlanLanes); it treats all pictures as equally costly
   int64_t load = 0;
   // The part of `load` that is pictures decoded (not openings or resets): an estimate of
   // FramesDecoderBase::DecodedPictures, exact when the lanes' decoders are where LaneStart says
@@ -67,12 +67,26 @@ struct LanePlan {
 };
 
 /**
+ * @brief The frames of a sample, in the sample's order, padded as FramesDecoderBase::HandleBoundary
+ * pads them to the region of the file [roi_start, roi_end): the frames the reader passes to
+ * FramesDecoderBase::DecodeFrames, and the sample's frame indices. A constant frame is -1.
+ *
+ * @param frame_idxs     the frames of the sample; if empty, from `start` to `end` (exclusive) by
+ *                       `stride`, which must be positive
+ * @param boundary_type  the padding of the frames outside of the region
+ * @param frames         the frames (cleared first)
+ */
+DLL_PUBLIC void RegionFrames(span<const int> frame_idxs, int start, int end, int stride,
+                             boundary::BoundaryType boundary_type, int roi_start, int roi_end,
+                             SmallVector<int, 32> &frames);
+
+/**
  * @brief The frames a sample decodes, in the order its decoder seeks to them: in the range of the
  * file, sorted, duplicates kept, no constant padding.
  *
- * As the reader does, the frames are padded to the region of the file [roi_start, roi_end), and
- * then, as FramesDecoderBase::DecodeFrames does, to the file [0, num_frames). The region can
- * extend outside of the file (e.g. a file list whose end is past the end of the file).
+ * These are the frames of RegionFrames, padded to the file [0, num_frames) as
+ * FramesDecoderBase::DecodeFrames does, without the constant frames, and sorted. The second
+ * padding changes nothing when the region is within the file.
  *
  * @param frame_idxs     the frames of the sample; if empty, from `start` to `end` (exclusive) by
  *                       `stride`, which must be positive
@@ -105,7 +119,8 @@ DLL_PUBLIC bool CanReachWithoutSeek(const FrameIndex &index, int next, int frame
  *
  * The work is counted in pictures decoded (see FramesDecoderBase::AddDecodeWork), simulated from
  * the files' indices in that order: B-frames, hidden lead-ins, seeks and resets, plus `open_cost`
- * per opening or reset.
+ * per opening or reset. Every picture counts the same, whatever its size, so the lanes' work is
+ * balanced in time only as far as the files' pictures take about as long to decode.
  *
  * @param runs       the runs of the batch; each with an index, and its frames within it
  * @param lanes      where the lanes' decoders are; at least one lane if there are runs
