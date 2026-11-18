@@ -74,14 +74,14 @@ struct LanePlan {
  * pads them to the region of the file [roi_start, roi_end): the frames the reader passes to
  * FramesDecoderBase::DecodeFrames, and the sample's frame indices. A constant frame is -1.
  *
+ * @param frames         the frames (cleared first)
  * @param frame_idxs     the frames of the sample; if empty, from `start` to `end` (exclusive) by
  *                       `stride`, which must be positive
  * @param boundary_type  the padding of the frames outside of the region
- * @param frames         the frames (cleared first)
  */
-DLL_PUBLIC void RegionFrames(span<const int> frame_idxs, int start, int end, int stride,
-                             boundary::BoundaryType boundary_type, int roi_start, int roi_end,
-                             SmallVector<int, 32> &frames);
+DLL_PUBLIC void RegionFrames(SmallVector<int, 32> &frames, span<const int> frame_idxs, int start,
+                             int end, int stride, boundary::BoundaryType boundary_type,
+                             int roi_start, int roi_end);
 
 /**
  * @brief The frames a sample decodes, in the order its decoder seeks to them: in the range of the
@@ -91,21 +91,21 @@ DLL_PUBLIC void RegionFrames(span<const int> frame_idxs, int start, int end, int
  * FramesDecoderBase::DecodeFrames does, without the constant frames, and sorted. The second
  * padding changes nothing when the region is within the file.
  *
+ * @param frames         the frames (cleared first)
  * @param frame_idxs     the frames of the sample; if empty, from `start` to `end` (exclusive) by
  *                       `stride`, which must be positive
  * @param boundary_type  the padding of the frames outside of the region, or of the file
  * @param num_frames     the number of frames of the file
- * @param frames         the frames (cleared first)
  */
-DLL_PUBLIC void SampleFrames(span<const int> frame_idxs, int start, int end, int stride,
-                             boundary::BoundaryType boundary_type, int roi_start, int roi_end,
-                             int num_frames, SmallVector<int, 32> &frames);
+DLL_PUBLIC void SampleFrames(SmallVector<int, 32> &frames, span<const int> frame_idxs, int start,
+                             int end, int stride, boundary::BoundaryType boundary_type,
+                             int roi_start, int roi_end, int num_frames);
 
 /**
  * @brief Where a decoder is, for LaneStart (see FramesDecoderBase::PositionAt). The decoder must
  * have an index.
  */
-DLL_PUBLIC FramesDecoderBase::DecodePosition DecoderPosition(FramesDecoderBase &decoder);
+DLL_PUBLIC FramesDecoderBase::DecodePosition DecoderPosition(const FramesDecoderBase &decoder);
 
 /**
  * @brief Whether a decoder of a file with this index, whose next frame is `next`, decodes through
@@ -115,6 +115,7 @@ DLL_PUBLIC bool CanReachWithoutSeek(const FrameIndex &index, int next, int frame
 
 /**
  * @brief Assigns the runs to lanes: longest first, each to the lane that would finish it first.
+ * On a tie, it prefers a lane whose decoder no run left in the batch needs, then the lowest lane.
  *
  * A lane decodes the runs of one file together, by first frame: first the file its decoder holds
  * (starting with the run that continues where the decoder is), then the others in batch order,
@@ -129,13 +130,13 @@ DLL_PUBLIC bool CanReachWithoutSeek(const FrameIndex &index, int next, int frame
  * long video, read in order) is decoded by one lane, however long it is, while the other lanes
  * have nothing to do.
  *
+ * @param plans      the plan of every lane (resized to the number of lanes)
  * @param runs       the runs of the batch; each with an index, and its frames within it
  * @param lanes      where the lanes' decoders are; at least one lane if there are runs
  * @param open_cost  the work of opening a decoder, in pictures
- * @param plans      the plan of every lane (resized to the number of lanes)
  */
-DLL_PUBLIC void PlanLanes(span<const PlannedRun> runs, span<const LaneStart> lanes,
-                          int64_t open_cost, std::vector<LanePlan> &plans);
+DLL_PUBLIC void PlanLanes(std::vector<LanePlan> &plans, span<const PlannedRun> runs,
+                          span<const LaneStart> lanes, int64_t open_cost);
 
 }  // namespace dali
 

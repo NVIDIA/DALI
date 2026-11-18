@@ -83,15 +83,15 @@ struct Batch {
 
 std::vector<LanePlan> Plan(const Batch &batch, const std::vector<LaneStart> &lanes) {
   std::vector<LanePlan> plans;
-  PlanLanes(make_cspan(batch.runs), make_cspan(lanes), kOpenCost, plans);
+  PlanLanes(plans, make_cspan(batch.runs), make_cspan(lanes), kOpenCost);
   EXPECT_EQ(plans.size(), lanes.size());
   return plans;
 }
 
 /**
- * @brief The order in which the reader decoded a lane's runs before the planner was moved out of
- * it: the files by their first sample in the batch, the decoder's file first, the runs of a file
- * by first frame, and the run that continues where the decoder is moved to the front.
+ * @brief An independent statement of the order PlanLanes documents for a lane's runs: the files by
+ * their first sample in the batch, the decoder's file first, the runs of a file by first frame,
+ * and the run that continues where the decoder is moved to the front.
  */
 std::vector<int> ReferenceOrder(const std::vector<PlannedRun> &runs_, const LaneStart &start,
                                 std::vector<int> runs) {
@@ -133,16 +133,16 @@ std::vector<int> Frames(const std::vector<int> &frame_idxs, int start, int end, 
                         boundary::BoundaryType boundary_type, int roi_start, int roi_end,
                         int num_frames) {
   SmallVector<int, 32> frames = {-100};  // cleared
-  SampleFrames(make_cspan(frame_idxs), start, end, stride, boundary_type, roi_start, roi_end,
-               num_frames, frames);
+  SampleFrames(frames, make_cspan(frame_idxs), start, end, stride, boundary_type, roi_start,
+               roi_end, num_frames);
   return std::vector<int>(frames.begin(), frames.end());
 }
 
 std::vector<int> Region(const std::vector<int> &frame_idxs, int start, int end, int stride,
                         boundary::BoundaryType boundary_type, int roi_start, int roi_end) {
   SmallVector<int, 32> frames = {-100};  // cleared
-  RegionFrames(make_cspan(frame_idxs), start, end, stride, boundary_type, roi_start, roi_end,
-               frames);
+  RegionFrames(frames, make_cspan(frame_idxs), start, end, stride, boundary_type, roi_start,
+               roi_end);
   return std::vector<int>(frames.begin(), frames.end());
 }
 
@@ -185,8 +185,8 @@ void CheckPlannedPictures(const std::vector<ReaderSample> &batch, std::vector<Re
     auto &index = indices.at(sample.path);
     int roi_end = sample.roi_end < 0 ? index.size() : sample.roi_end;
     frames.emplace_back();
-    SampleFrames(make_cspan(sample.frame_idxs), sample.start, sample.end, sample.stride,
-                 sample.boundary_type, sample.roi_start, roi_end, index.size(), frames.back());
+    SampleFrames(frames.back(), make_cspan(sample.frame_idxs), sample.start, sample.end,
+                 sample.stride, sample.boundary_type, sample.roi_start, roi_end, index.size());
     ASSERT_FALSE(frames.back().empty());
     runs.push_back({sample.path, &index, i, {make_cspan(frames.back())}});
   }
@@ -196,7 +196,7 @@ void CheckPlannedPictures(const std::vector<ReaderSample> &batch, std::vector<Re
       starts[l] = {lanes[l].filename, DecoderPosition(*lanes[l].decoder)};
   }
   std::vector<LanePlan> plans;
-  PlanLanes(make_cspan(runs), make_cspan(starts), kOpenCost, plans);
+  PlanLanes(plans, make_cspan(runs), make_cspan(starts), kOpenCost);
 
   size_t planned_runs = 0;
   SmallVector<int, 32> region;
@@ -218,8 +218,8 @@ void CheckPlannedPictures(const std::vector<ReaderSample> &batch, std::vector<Re
       int64_t before = decoder.DecodedPictures();
       int64_t reopens_before = decoder.Reopens();
       int roi_end = sample.roi_end < 0 ? index.size() : sample.roi_end;
-      RegionFrames(make_cspan(sample.frame_idxs), sample.start, sample.end, sample.stride,
-                   sample.boundary_type, sample.roi_start, roi_end, region);
+      RegionFrames(region, make_cspan(sample.frame_idxs), sample.start, sample.end, sample.stride,
+                   sample.boundary_type, sample.roi_start, roi_end);
       ASSERT_LE(region.size(), static_cast<size_t>(kMaxSampleFrames));
       std::vector<uint8_t> constant_frame(decoder.FrameSize());
       decoder.DecodeFrames(buffer.data(), make_cspan(region), sample.boundary_type,
@@ -403,6 +403,45 @@ TEST(DecodeLanePlannerTest, HeldFileContinues) {
   plans = Plan(batch, {{"b", {0, -1}}, Held("a", index, 45)});
   EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
   EXPECT_EQ(plans[1].load, 20 + 20);
+}
+
+TEST(DecodeLanePlannerTest, TieKeepsTheHeldDecoder) {
+  // b costs the same on both lanes; it goes to the lane without a decoder, so that a continues on
+  // lane 0's decoder instead of reopening its file
+  auto index = MakeIndex(1000, 250);
+  Batch batch;
+  batch.Add("b", &index, 0, 0, 47);
+  batch.Add("a", &index, 1, 500, 515);
+  auto plans = Plan(batch, {Held("a", index, 500), {}});
+  EXPECT_EQ(plans[0].runs, std::vector<int>({1}));
+  EXPECT_EQ(plans[0].load, 16);  // no opening, no preroll
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
+  EXPECT_EQ(plans[1].load, kOpenCost + 48);
+  // without a run of a left in the batch, the tie goes to the lowest lane
+  Batch only_b;
+  only_b.Add("b", &index, 0, 0, 47);
+  plans = Plan(only_b, {Held("a", index, 500), {}});
+  EXPECT_EQ(plans[0].runs, std::vector<int>({0}));
+  EXPECT_TRUE(plans[1].runs.empty());
+}
+
+TEST(DecodeLanePlannerTest, RunWithoutFrames) {
+  // A sample whose frames are all constant padding decodes no frame, but the reader still opens
+  // its file: an opening on a lane without the file, nothing on a lane that has it
+  auto index = MakeIndex(10, 10);
+  auto no_frames = Frames({}, 10, 13, 1, boundary::BoundaryType::CONSTANT, 0, 10, 10);
+  ASSERT_TRUE(no_frames.empty());
+  Batch batch;
+  batch.Add("a", &index, 0, std::vector<std::vector<int>>{no_frames});
+  auto plans = Plan(batch, {{}});
+  EXPECT_EQ(plans[0].runs, std::vector<int>({0}));
+  EXPECT_EQ(plans[0].load, kOpenCost);
+  EXPECT_EQ(plans[0].pictures, 0);
+  plans = Plan(batch, {{}, Held("a", index, 5)});
+  EXPECT_TRUE(plans[0].runs.empty());
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
+  EXPECT_EQ(plans[1].load, 0);
+  EXPECT_EQ(plans[1].pictures, 0);
 }
 
 TEST(DecodeLanePlannerTest, InvalidInput) {

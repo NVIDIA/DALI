@@ -30,9 +30,8 @@ bool CanReachWithoutSeek(const FrameIndex &index, int next, int frame) {
   return FramesDecoderBase::SeekTarget(index, next, frame) < 0;
 }
 
-void RegionFrames(span<const int> frame_idxs, int start, int end, int stride,
-                  boundary::BoundaryType boundary_type, int roi_start, int roi_end,
-                  SmallVector<int, 32> &frames) {
+void RegionFrames(SmallVector<int, 32> &frames, span<const int> frame_idxs, int start, int end,
+                  int stride, boundary::BoundaryType boundary_type, int roi_start, int roi_end) {
   frames.clear();
   auto add = [&](int frame) {
     frames.push_back(FramesDecoderBase::HandleBoundary(boundary_type, frame, roi_start, roi_end));
@@ -48,10 +47,10 @@ void RegionFrames(span<const int> frame_idxs, int start, int end, int stride,
   }
 }
 
-void SampleFrames(span<const int> frame_idxs, int start, int end, int stride,
-                  boundary::BoundaryType boundary_type, int roi_start, int roi_end,
-                  int num_frames, SmallVector<int, 32> &frames) {
-  RegionFrames(frame_idxs, start, end, stride, boundary_type, roi_start, roi_end, frames);
+void SampleFrames(SmallVector<int, 32> &frames, span<const int> frame_idxs, int start, int end,
+                  int stride, boundary::BoundaryType boundary_type, int roi_start, int roi_end,
+                  int num_frames) {
+  RegionFrames(frames, frame_idxs, start, end, stride, boundary_type, roi_start, roi_end);
   // padded to the file, as DecodeFrames does (a constant frame, -1, stays constant)
   int n = 0;
   for (int frame : frames) {
@@ -63,7 +62,7 @@ void SampleFrames(span<const int> frame_idxs, int start, int end, int stride,
   std::sort(frames.begin(), frames.end());
 }
 
-FramesDecoderBase::DecodePosition DecoderPosition(FramesDecoderBase &decoder) {
+FramesDecoderBase::DecodePosition DecoderPosition(const FramesDecoderBase &decoder) {
   if (!decoder.HasIndex())
     throw std::invalid_argument("The decoder of a decode lane must have an index.");
   return FramesDecoderBase::PositionAt(decoder.GetIndex(), decoder.NextFrameIdx());
@@ -176,8 +175,8 @@ FileGroup *FindGroup(SmallVector<FileGroup, 4> &groups, std::string_view filenam
 
 }  // namespace
 
-void PlanLanes(span<const PlannedRun> runs, span<const LaneStart> lanes, int64_t open_cost,
-               std::vector<LanePlan> &plans) {
+void PlanLanes(std::vector<LanePlan> &plans, span<const PlannedRun> runs,
+               span<const LaneStart> lanes, int64_t open_cost) {
   int num_lanes = lanes.size();
   int num_runs = runs.size();
   CheckRuns(runs, num_lanes);
@@ -203,11 +202,19 @@ void PlanLanes(span<const PlannedRun> runs, span<const LaneStart> lanes, int64_t
   }
   std::stable_sort(order.begin(), order.end(), [&](int a, int b) { return fresh[a] > fresh[b]; });
 
+  // the runs not yet assigned of the file that each lane's decoder holds
+  std::vector<int> pending(num_lanes);
+  for (int l = 0; l < num_lanes; l++) {
+    for (const auto &run : runs)
+      pending[l] += Holds(lanes[l], run.filename);
+  }
+
   SmallVector<int, 4> candidate, best_runs;
   for (int r : order) {
     const auto &run = runs[r];
     int best = 0;
     int64_t best_end = std::numeric_limits<int64_t>::max();
+    bool best_spare = false;
     DecodeWork best_work;
     for (int l = 0; l < num_lanes; l++) {
       FileGroup *group = FindGroup(groups[l], run.filename);
@@ -226,12 +233,20 @@ void PlanLanes(span<const PlannedRun> runs, span<const LaneStart> lanes, int64_t
         work = FileWork(runs, lanes[l], make_cspan(candidate));
         delta = Cost(work, open_cost) - (group ? Cost(group->work, open_cost) : 0);
       }
-      if (plans[l].load + delta < best_end) {
+      int64_t end = plans[l].load + delta;
+      // on a tie, not a lane whose decoder a run left in the batch may continue on
+      bool spare = pending[l] == 0 || Holds(lanes[l], run.filename);
+      if (end < best_end || (end == best_end && spare && !best_spare)) {
         best = l;
-        best_end = plans[l].load + delta;
+        best_end = end;
+        best_spare = spare;
         best_work = work;
         best_runs = candidate;
       }
+    }
+    for (int l = 0; l < num_lanes; l++) {
+      if (Holds(lanes[l], run.filename))
+        pending[l]--;
     }
     FileGroup *group = FindGroup(groups[best], run.filename);
     if (!group) {
