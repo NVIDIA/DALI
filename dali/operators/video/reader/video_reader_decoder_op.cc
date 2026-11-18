@@ -195,44 +195,46 @@ inline std::string make_string(FileListOptions options) {
 
 /**
  * @brief Checks the source arguments and `labels`: exactly one of `file_list`, `file_root` and
- *        `filenames`, none of them passed empty, and no `labels=[]`.
+ *        `filenames`, none of them empty, and one label per file.
  *
- * An explicitly passed empty source or `labels=[]` is rejected: it is more likely a mistake than a
- * way to say "not provided", which is what omitting the argument (or passing None) says. Legacy
- * readers.video ignores empty sources and takes `labels=[]` as 0-based indices.
- *
- * Called by the output function too (see HasLabelsOutput), so that an invalid call fails where the
- * reader is called, with this message, and not later on a number of outputs that the caller does
- * not expect.
+ * Called by the output function too, so that an invalid call fails at the reader call.
  */
 static void ValidateSourceArgs(const OpSpec &spec) {
   if (spec.HasArgument("file_list") && spec.GetArgument<std::string>("file_list").empty()) {
-    throw std::runtime_error(
+    throw std::invalid_argument(
         "``file_list`` must not be empty: omit it (or pass None) if it is not used.");
   }
   if (spec.HasArgument("file_root") && spec.GetArgument<std::string>("file_root").empty()) {
-    throw std::runtime_error(
+    throw std::invalid_argument(
         "``file_root`` must not be empty: omit it (or pass None) if it is not used.");
   }
   if (spec.HasArgument("filenames") &&
       spec.GetRepeatedArgument<std::string>("filenames").empty()) {
-    throw std::runtime_error(
+    throw std::invalid_argument(
         "``filenames`` must not be an empty list: omit it (or pass None) if it is not used.");
   }
   int num_sources = spec.HasArgument("file_list") + spec.HasArgument("file_root") +
                     spec.HasArgument("filenames");
   if (num_sources != 1) {
-    throw std::runtime_error(
+    throw std::invalid_argument(
         make_string("Exactly one of the following arguments must be provided: ``file_list``, "
                     "``file_root``, ``filenames``. Got ", num_sources, "."));
   }
   // TryGetRepeatedArgument returns true for an explicitly passed empty list too
   std::vector<int> labels;
-  if (spec.TryGetRepeatedArgument(labels, "labels") && labels.empty()) {
-    throw std::runtime_error(
+  if (!spec.TryGetRepeatedArgument(labels, "labels"))
+    return;
+  if (labels.empty()) {
+    throw std::invalid_argument(
         "``labels`` must not be an empty list: pass one label per file in ``filenames`` (e.g. "
         "``labels=list(range(len(filenames)))`` for 0-based indices), or omit it for no labels "
         "output.");
+  }
+  size_t num_files = spec.GetRepeatedArgument<std::string>("filenames").size();
+  if (labels.size() != num_files) {
+    throw std::invalid_argument(
+        make_string("Number of provided files and labels should match. Provided ", num_files,
+                    " files and ", labels.size(), " labels."));
   }
 }
 
@@ -253,13 +255,6 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))) {
     ValidateSourceArgs(spec);
     bool has_labels = spec.TryGetRepeatedArgument(labels_, "labels");
-    if (has_labels) {
-      DALI_ENFORCE(
-          labels_.size() == filenames_.size(),
-          make_string(
-              "Number of provided files and labels should match. Provided ",
-              filenames_.size(), " files and ", labels_.size(), " labels."));
-    }
 
     video_files_info_ = GetVideoFiles(file_root_, filenames_, has_labels, labels_, file_list_);
     DALI_ENFORCE(!video_files_info_.empty(), "No files were read.");
@@ -575,8 +570,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
 };
 
 // The labels output is produced for `filenames` with `labels`, and for `file_list` and
-// `file_root`. ValidateSourceArgs, called first, rejects an explicitly passed empty source or
-// `labels=[]`, so being passed is the same as being passed with a value here.
+// `file_root`.
 static bool HasLabelsOutput(const OpSpec &spec) {
   ValidateSourceArgs(spec);
   return spec.HasArgument("labels") || spec.HasArgument("file_list") ||

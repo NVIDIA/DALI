@@ -939,7 +939,7 @@ def test_empty_labels_raise(device):
         )
         return video, label
 
-    with assert_raises(RuntimeError, glob="*``labels`` must not be an empty list*"):
+    with assert_raises(ValueError, glob="*``labels`` must not be an empty list*"):
         p = pipe()
         p.build()
 
@@ -981,7 +981,7 @@ def test_empty_sources_raise(device, case):
     def pipe():
         return fn.experimental.readers.video(device=device, sequence_length=3, **kwargs)
 
-    with assert_raises(RuntimeError, glob=f"*``{name}`` must not be*omit it (or pass None)*"):
+    with assert_raises(ValueError, glob=f"*``{name}`` must not be*omit it (or pass None)*"):
         p = pipe()
         p.build()
 
@@ -997,7 +997,7 @@ def test_invalid_sources_fail_at_the_reader_call(device):
         )
         return video.gpu()
 
-    with assert_raises(RuntimeError, glob="*``file_root`` must not be empty*"):
+    with assert_raises(ValueError, glob="*``file_root`` must not be empty*"):
         p = pipe()
         p.build()
 
@@ -1008,7 +1008,7 @@ def test_no_source_raises(device):
     def pipe():
         return fn.experimental.readers.video(device=device, sequence_length=3)
 
-    with assert_raises(RuntimeError, glob="*Exactly one of*Got 0*"):
+    with assert_raises(ValueError, glob="*Exactly one of*Got 0*"):
         p = pipe()
         p.build()
 
@@ -1041,6 +1041,6 @@ def test_two_non_empty_sources_raise(device):
             device=device, filenames=[VIDEO_0], file_list=list_file, sequence_length=3
         )
 
-    with assert_raises(RuntimeError, glob="*Exactly one of*Got 2*"):
+    with assert_raises(ValueError, glob="*Exactly one of*Got 2*"):
         p = pipe()
         p.build()
