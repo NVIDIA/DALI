@@ -829,9 +829,9 @@ class VideoReaderDecoder
   // file) costs about as much as decoding a few pictures
   static constexpr int64_t kOpenCost = 16;
 
-  // GPU: decode lanes per NVDEC engine. More sessions than engines keep an engine busy while a
-  // lane does its host work between pictures; many more only add memory.
-  static constexpr int kLanesPerEngine = 2;
+  // GPU: decode lanes per NVDEC engine. Lanes beyond the number of engines only compete for them,
+  // and each one adds a decoder's surfaces to the memory used.
+  static constexpr int kLanesPerEngine = 1;
 
   /**
    * @brief Number of decode lanes: num_threads, but no more than the batch size and, on the GPU,
@@ -1188,7 +1188,7 @@ The following codecs are supported by the GPU backend only:
 * H.265/HEVC
 
 The samples of a batch are decoded in parallel, by up to ``num_threads`` decoders (on the GPU, at
-most two per NVDEC engine of the device). Consecutive samples of one file that can be decoded
+most one per NVDEC engine of the device). Consecutive samples of one file that can be decoded
 without seeking are decoded by the same decoder, one after another. Every decoder has its own
 frame buffers, so the memory used grows with the number of decoders.
 
