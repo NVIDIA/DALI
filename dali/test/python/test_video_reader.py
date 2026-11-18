@@ -1019,7 +1019,7 @@ def test_two_non_empty_sources_raise(device):
     @pipeline_def(batch_size=1, num_threads=2, device_id=0)
     def pipe():
         # Both filenames and file_list are provided, which should raise an error.
-        # The output function sees file_list is non-empty, so it declares 2 outputs.
+        # The output function sees file_list is passed, so it declares 2 outputs.
         # We unpack both to avoid Python validation errors, letting the C++ error occur.
         video, label = fn.experimental.readers.video(
             device=device, filenames=[VIDEO_0], file_list=list_file, sequence_length=3
