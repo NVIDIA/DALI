@@ -23,7 +23,7 @@ For CUDA installation, refer to the [NVIDIA CUDA installation guide](https://doc
 
 ### Installing NVIDIA DALI
 
-To install NVIDIA DALI refer to the [Installation - NVIDIA DALI](https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/installation.html#nvidia-dali).
+To install NVIDIA DALI refer to the [Installation - NVIDIA DALI](https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/installation.html).
 
 ## Content Structure
 

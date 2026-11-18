@@ -666,6 +666,9 @@ TYPED_TEST(CApiTest, UseCopyKernel) {
   TensorList<TypeParam> input_wrapper;
   if (std::is_same_v<TypeParam, CPUBackend>) {
     input_wrapper.set_pinned(true);
+  } else {
+    // The input is uploaded on cuda_stream - the pipeline must consume it in the same order.
+    input_wrapper.set_order(cuda_stream);
   }
 
   auto pipe_ptr = GetTestPipeline<TypeParam>(false, this->output_device_);
