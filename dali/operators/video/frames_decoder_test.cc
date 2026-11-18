@@ -1217,6 +1217,37 @@ TEST_F(FramesDecoderGpuTest, PicturesNotReadAreNotMapped) {
   check("from frame 30", {30, 31});
 }
 
+// An AVI with B-frames has timestamps in decoding order, so the decoder labels the pictures with
+// the timestamps that the parser hands out. Unless the stream may have frames without pictures,
+// no frame repeats a buffered one, so the pictures that are not read are not mapped either.
+TEST_F(FramesDecoderGpuTest, AviPicturesNotReadAreNotMapped) {
+  // H.264 with B-frames, every packet a picture
+  auto path = make_string(testing::dali_extra_path(), "/db/video/containers/avi/cfr.avi");
+  FramesDecoderGpu indexed(path);
+  indexed.BuildIndex();
+  auto &index = indexed.GetIndex();
+  ASSERT_TRUE(index.decode_order_timestamps) << path;
+  ASSERT_FALSE(index.may_have_frames_without_pictures) << path;
+  std::set<int> all_frames;
+  for (int i = 0; i < 40; i++)
+    all_frames.insert(i);
+  auto sequential = SequentialFrameHashes(path, index, all_frames);
+  auto check = [&](const std::string &what, const std::vector<int> &frame_ids) {
+    auto run = CheckSameFramesAsMappingAll(path, index, what, [&](FramesDecoderGpu &d) {
+      return DecodeAndHash(d, frame_ids);
+    });
+    std::vector<size_t> expected;
+    for (int frame : frame_ids)
+      expected.push_back(sequential[frame]);
+    EXPECT_EQ(run.result.frames, expected) << what << ": not the frames that a sequential read "
+                                           << "gives";
+    EXPECT_LE(run.result.mapped, static_cast<int64_t>(frame_ids.size()) + kMaxMappedAhead)
+        << what;
+  };
+  check("stride 3", Strided(0, 40, 3));
+  check("from frame 30", {30, 31});
+}
+
 TEST_F(FramesDecoderGpuTest, SameFramesAsMappingAll) {
   auto video_dir = make_string(testing::dali_extra_path(), "/db/video");
   // H.264 without a lead-in: 13 I- and P-frames, then B-frames, of which the non-reference ones
