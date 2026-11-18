@@ -19,6 +19,7 @@ extern "C" {
 }
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <exception>
@@ -38,6 +39,7 @@ extern "C" {
 #include <utility>
 #include <vector>
 
+#include "dali/core/call_at_exit.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/cuda_stream.h"
 #include "dali/core/dev_buffer.h"
@@ -238,6 +240,11 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
     ASSERT_NE(decoder.nvdecode_state_, nullptr);
     decoder.nvdecode_state_->last_decoded = picture_index;
     decoder.nvdecode_state_->last_mapped = false;
+  }
+
+  // Whether the last picture that the decoder sent to NVDEC was mapped (see NvDecodeState)
+  static bool LastPictureMapped(const FramesDecoderGpu &decoder) {
+    return decoder.nvdecode_state_ && decoder.nvdecode_state_->last_mapped;
   }
 
   // The NVDEC decoder cache of the current device, for the tests of the path that it takes
@@ -2489,6 +2496,62 @@ TEST_F(FramesDecoderGpuTest, MjpegDecodesMultipleFrames) {
                             << " differs from the CPU backend's (avg abs diff " << diff << ")";
     }
   }
+}
+
+// A decoder whose last JPEG picture was decoded but not mapped (the parser holds one picture for
+// the display delay, so this is the case after most partial reads) must not give its NVDEC decoder
+// back to the cache before that decode is done: the next user may reconfigure or destroy it right
+// away. The GPU work of a JPEG decode is ordered with the legacy default stream, and the map that
+// the destructor does for the other codecs does not wait for it. Here the legacy default stream
+// is held by a host function until another thread opens it, a second later: the destructor must
+// not return before that.
+TEST_F(FramesDecoderGpuTest, MjpegDecoderGoesBackToCacheWithItsLastDecodeDone) {
+  if (!FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, cudaVideoChromaFormat_444)) {
+    GTEST_SKIP() << "NVDEC does not support 8-bit 4:4:4 JPEG on this GPU";
+  }
+  auto path = make_string(testing::dali_extra_path(), "/db/video/mjpeg/mjpeg.avi");
+  auto stream = CUDAStream::Create(true);  // non-blocking: it does not wait for the legacy stream
+  auto decoder = std::make_unique<FramesDecoderGpu>(path, stream, DALI_RGB);
+  ASSERT_TRUE(decoder->IsValid());
+  decoder->BuildIndex();
+  ASSERT_GT(decoder->NumFrames(), 3);
+  ASSERT_TRUE(decoder->ReadNextFrame(FrameData()));
+  CUDA_CALL(cudaDeviceSynchronize());
+
+  std::atomic<bool> gate_open{false};
+  CUDA_CALL(cudaLaunchHostFunc(cudaStreamLegacy, [](void *open) {
+    while (!static_cast<std::atomic<bool> *>(open)->load())
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+  }, &gate_open));
+  std::thread opener([&] {
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    gate_open = true;
+  });
+  // Also if something below throws: the host function reads gate_open until it is opened
+  auto open_gate = AtScopeExit([&] {
+    gate_open = true;
+    if (opener.joinable())
+      opener.join();
+    CUDA_DTOR_CALL(cudaDeviceSynchronize());
+  });
+
+  // Skipping frame 1 decodes the next picture, behind the gate, and does not map it
+  bool skipped = decoder->ReadNextFrame(nullptr);
+  bool decode_waited_on_host = gate_open;
+  bool last_mapped = LastPictureMapped(*decoder);
+  decoder.reset();
+  bool released_after_decode = gate_open;
+
+  opener.join();
+  CUDA_CALL(cudaDeviceSynchronize());
+  ASSERT_TRUE(skipped);
+  if (decode_waited_on_host) {
+    GTEST_SKIP() << "Submitting a JPEG picture waited for the legacy default stream on this "
+                 << "platform: the decode was done before the decoder was destroyed";
+  }
+  ASSERT_FALSE(last_mapped) << "the test needs a last picture that was decoded but not mapped";
+  EXPECT_TRUE(released_after_decode)
+      << "the NVDEC decoder went back to the cache before its last JPEG decode was done";
 }
 
 }  // namespace dali

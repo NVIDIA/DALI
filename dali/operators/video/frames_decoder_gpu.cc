@@ -798,24 +798,33 @@ FramesDecoderGpu::FramesDecoderGpu(std::unique_ptr<InputStream> input_stream,
   }
 }
 
-void FramesDecoderGpu::RecordJpegDecoded(int surface_idx) {
-  if (surface_idx >= static_cast<int>(jpeg_decoded_events_.size()))
-    jpeg_decoded_events_.resize(surface_idx + 1);
-  CUDAEvent &event = jpeg_decoded_events_[surface_idx];
+void FramesDecoderGpu::CreateJpegEvent(int surface_idx) {
+  auto &events = nvdecode_state_->jpeg_decoded_events;
+  if (surface_idx >= static_cast<int>(events.size()))
+    events.resize(surface_idx + 1);
+  CUDAEvent &event = events[surface_idx];
   if (!event)
     event = CUDAEvent::CreateWithFlags(cudaEventDisableTiming);
+}
+
+void FramesDecoderGpu::RecordJpegDecoded(int surface_idx) {
+  CUDAEvent &event = nvdecode_state_->jpeg_decoded_events[surface_idx];
   // Recorded right after cuvidDecodePicture, it completes once the work queued so far on the
   // legacy default stream (and on the blocking streams) is done, that of this picture included.
-  CUDA_CALL(cudaEventRecord(event, cudaStreamLegacy));
+  cudaError_t err = cudaEventRecord(event, cudaStreamLegacy);
+  if (err != cudaSuccess) {
+    event.reset();  // not an earlier record: nothing tells when this decode is done
+    CUDA_CALL(err);
+  }
 }
 
 void FramesDecoderGpu::WaitForJpegDecoded(int surface_idx) {
   // Every JPEG picture is decoded, and only decoded pictures are mapped
-  DALI_ENFORCE(surface_idx < static_cast<int>(jpeg_decoded_events_.size()) &&
-                   jpeg_decoded_events_[surface_idx],
+  auto &events = nvdecode_state_->jpeg_decoded_events;
+  DALI_ENFORCE(surface_idx < static_cast<int>(events.size()) && events[surface_idx],
                make_string("Internal error: picture ", surface_idx, " of \"", Filename(),
                            "\" is mapped, but it was not decoded."));
-  CUDA_CALL(cudaStreamWaitEvent(stream_, jpeg_decoded_events_[surface_idx], 0));
+  CUDA_CALL(cudaStreamWaitEvent(stream_, events[surface_idx], 0));
 }
 
 int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
@@ -849,11 +858,14 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
                 ShouldDecodePicture(pts);
   int idx = picture_params->CurrPicIdx;
   if (decode) {
+    bool jpeg = codec_params_->codec_id == AV_CODEC_ID_MJPEG;
+    if (jpeg)
+      CreateJpegEvent(idx);  // before the decode, which can't be waited for without it
     CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
     nvdecode_state_->last_decoded = picture_params->CurrPicIdx;
     nvdecode_state_->last_mapped = false;
     decoded_pictures_++;
-    if (codec_params_->codec_id == AV_CODEC_ID_MJPEG)
+    if (jpeg)
       RecordJpegDecoded(idx);
   } else {
     not_decoded_pictures_++;
@@ -1581,6 +1593,27 @@ void FramesDecoderGpu::RepeatLastFrame(void *data) {
 
 NvDecodeState::~NvDecodeState() {
   if (decoder && last_decoded >= 0 && !last_mapped) {
+    // A JPEG decode is ordered with the legacy default stream, and the map does not wait for it:
+    // the stream waits for the event recorded right after the last picture was submitted. The JPEG
+    // decodes are all on that one stream, so the last one is enough. Only the work queued there
+    // before that decode is waited for, not what was queued since (e.g. by a training loop).
+    // A JPEG decoder (one with events) whose last picture has no event can't be waited for.
+    if (!jpeg_decoded_events.empty()) {
+      bool has_event = last_decoded < static_cast<int>(jpeg_decoded_events.size()) &&
+                       jpeg_decoded_events[last_decoded];
+      cudaError_t err = has_event
+                            ? cudaStreamWaitEvent(stream, jpeg_decoded_events[last_decoded], 0)
+                            : cudaErrorInvalidResourceHandle;
+      if (err != cudaSuccess) {
+        cudaGetLastError();  // clear the error
+        if (err != cudaErrorCudartUnloading) {
+          DALI_WARN(make_string("Could not wait for the last picture of an NVDEC decoder (",
+                                cudaGetErrorName(err), "); destroying it."));
+        }
+        decoder.Discard();
+        return;
+      }
+    }
     CUdeviceptr frame = 0;
     unsigned int pitch = 0;
     CUVIDPROCPARAMS params = {};
