@@ -14,6 +14,7 @@
 
 #include "dali/operators/video/frames_decoder_base.h"
 #include <algorithm>
+#include <cstring>
 #include <iomanip>
 #include <memory>
 #include <stdexcept>
@@ -255,6 +256,16 @@ std::string FramesDecoderBase::GetAllStreamInfo() const {
 }
 
 bool FramesDecoderBase::SelectVideoStream(int stream_id) {
+  // The packets of MPEG program streams do not have the timestamps that the index and the seeks
+  // need (they are only stamped on some of them, and a seek does not land on keyframes), so the
+  // files are rejected with a message that says why, rather than as having no video stream.
+  if (ctx_->iformat && std::strcmp(ctx_->iformat->name, "mpeg") == 0) {
+    DALI_WARN(make_string(
+        Filename(), ": MPEG-PS (MPEG program stream, .mpg, .vob) is not supported: many of its "
+        "packets have no timestamp, and seeks do not land on keyframes. Remux it, for example to "
+        "MP4 or MKV: `ffmpeg -i in.mpg -c copy out.mp4`."));
+    return false;
+  }
   if (stream_id < 0) {
     LOG_LINE << "Finding video stream" << std::endl;
     stream_id = av_find_best_stream(ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);

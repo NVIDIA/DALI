@@ -29,6 +29,7 @@ import sys
 import tempfile
 import unittest
 import uuid
+from nose_utils import assert_raises
 from test_utils import get_dali_extra_path
 from nose2.tools import cartesian_params, params
 
@@ -991,3 +992,30 @@ def test_mjpeg_gpu_matches_cpu(op):
     assert len(diffs) == expected[0], f"[{op}] compared {len(diffs)} frames, expected {expected[0]}"
     bad = [(i, round(d, 3)) for i, d in enumerate(diffs) if d >= 0.05]
     assert not bad, f"[{op}] frames differing from the CPU backend (index, mean abs diff): {bad}"
+
+
+def test_mpeg_program_stream_is_skipped():
+    """MPEG program streams are not supported: the reader skips them (with a warning that names
+    the container). A file list that mixes one with a supported file only has the latter."""
+    mpeg_ps_file = os.path.join(DALI_EXTRA_PATH, "db", "video", "containers", "mpeg", "cfr.mpeg")
+    avi_file = os.path.join(DALI_EXTRA_PATH, "db", "video", "containers", "avi", "cfr.avi")
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def alone_pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=[mpeg_ps_file], sequence_length=1
+        )
+
+    with assert_raises(RuntimeError, glob="*number of input samples: 0*"):
+        alone_pipe().build()
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def mixed_pipe():
+        return fn.experimental.readers.video(
+            device="gpu", filenames=[mpeg_ps_file, avi_file], sequence_length=1, name="r"
+        )
+
+    p = mixed_pipe()
+    p.build()
+    assert p.reader_meta("r")["epoch_size"] == 180, "expected only the 180 frames of the avi file"
+    p.run()
