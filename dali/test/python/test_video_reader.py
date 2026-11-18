@@ -965,6 +965,9 @@ _empty_source_cases = [
     (dict(file_root=MULTIPLE_RESOLUTION_ROOT, filenames=[]), "filenames"),
     (dict(file_list=""), "file_list"),
     (dict(filenames=[]), "filenames"),
+    (dict(file_root=""), "file_root"),
+    # all three passed empty, as a wrapper that forwards them unset would: file_list is named
+    (dict(filenames=[], file_root="", file_list=""), "file_list"),
 ]
 
 
@@ -976,10 +979,25 @@ def test_empty_sources_raise(device, case):
 
     @pipeline_def(batch_size=1, num_threads=2, device_id=0)
     def pipe():
-        outs = fn.experimental.readers.video(device=device, sequence_length=3, **kwargs)
-        return tuple(outs) if isinstance(outs, (list, tuple)) else outs
+        return fn.experimental.readers.video(device=device, sequence_length=3, **kwargs)
 
     with assert_raises(RuntimeError, glob=f"*``{name}`` must not be*omit it (or pass None)*"):
+        p = pipe()
+        p.build()
+
+
+@cartesian_params(devices)
+def test_invalid_sources_fail_at_the_reader_call(device):
+    # The arguments are checked when the outputs are declared: code that expects only the video
+    # output gets the error about the empty source, and not one about getting a list of outputs
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        video = fn.experimental.readers.video(
+            device=device, filenames=[VIDEO_0], file_root="", sequence_length=3
+        )
+        return video.gpu()
+
+    with assert_raises(RuntimeError, glob="*``file_root`` must not be empty*"):
         p = pipe()
         p.build()
 
@@ -1018,14 +1036,11 @@ def test_two_non_empty_sources_raise(device):
 
     @pipeline_def(batch_size=1, num_threads=2, device_id=0)
     def pipe():
-        # Both filenames and file_list are provided, which should raise an error.
-        # The output function sees file_list is passed, so it declares 2 outputs.
-        # We unpack both to avoid Python validation errors, letting the C++ error occur.
-        video, label = fn.experimental.readers.video(
+        # Both filenames and file_list are provided: the call fails when the outputs are declared
+        return fn.experimental.readers.video(
             device=device, filenames=[VIDEO_0], file_list=list_file, sequence_length=3
         )
-        return video, label
 
-    with assert_raises(RuntimeError, glob="*Exactly one of*"):
+    with assert_raises(RuntimeError, glob="*Exactly one of*Got 2*"):
         p = pipe()
-        p.build()  # Error occurs in the loader constructor, triggered by build()
+        p.build()
