@@ -139,13 +139,25 @@ struct NvDecodeState {
   uint8_t *decoded_frame_yuv = nullptr;
 
   // The surface of the last picture that was sent to the decoder, and whether it was mapped (the
-  // map waits for the decode of the picture)
+  // map waits for the decode of the picture; for JPEG, as the map doesn't, the stream first waits
+  // for the event of the picture)
   int last_decoded = -1;
   bool last_mapped = true;
 
   // The stream that the pictures of the decoder are mapped on: a copy of FramesDecoderGpu::stream_,
   // which is destroyed before this is
   cudaStream_t stream = 0;
+
+  // JPEG only, one per decode surface (CUVIDPICPARAMS::CurrPicIdx). The GPU work of a JPEG decode
+  // is ordered with the legacy default stream, and neither cuvidMapVideoFrame nor
+  // cuvidGetDecodeStatus waits for it (as observed; the API doesn't say). The stream is
+  // non-blocking, so without a wait the color conversion can read a surface before it is written,
+  // and return a blank frame, e.g. when other work keeps the legacy default stream busy. Each event
+  // is recorded on the legacy default stream right after its picture is submitted for decoding,
+  // and the stream waits for it before the picture is mapped. Recorded then, and not when the
+  // picture is mapped, the stream doesn't also wait for the work queued on the legacy default
+  // stream in between. Kept here so that the destructor can wait for the last one.
+  std::vector<CUDAEvent> jpeg_decoded_events;
 
   /**
    * @brief Waits for the pictures that were sent to the decoder, before it goes back to the cache.
@@ -155,7 +167,9 @@ struct NvDecodeState {
    * reconfigured for another stream right after, and the driver does not wait for the queue then:
    * cuvidReconfigureDecoder returns while pictures of the previous stream are in progress.
    * NVDEC decodes the pictures of a decoder in the order that they were sent, and the map of a
-   * picture waits for its decode, so mapping the last one is enough.
+   * picture waits for its decode, so mapping the last one is enough. Except for JPEG, whose map
+   * does not wait for the decode: the stream first waits for the event of the last picture (see
+   * jpeg_decoded_events).
    *
    * The map also post-processes the picture into an output surface, on `stream`, and neither the
    * map nor the unmap waits for that: the stream is synchronized before the unmap, as it is when a
@@ -518,16 +532,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   cudaStream_t stream_ = 0;
 
-  // JPEG only, one per decode surface (CUVIDPICPARAMS::CurrPicIdx). The GPU work of a JPEG decode
-  // is ordered with the legacy default stream, and neither cuvidMapVideoFrame nor
-  // cuvidGetDecodeStatus waits for it (as observed; the API doesn't say). stream_ is non-blocking,
-  // so without a wait the color conversion can read a surface before it is written, and return a
-  // blank frame, e.g. when other work keeps the legacy default stream busy. Each event is recorded
-  // on the legacy default stream right after its picture is submitted for decoding, and stream_
-  // waits for it before the picture is mapped. Recorded then, and not when the picture is mapped,
-  // stream_ doesn't also wait for the work queued on the legacy default stream in between.
-  std::vector<CUDAEvent> jpeg_decoded_events_;
-
+  /// Creates the event of the surface whose JPEG picture is about to be submitted for decoding,
+  /// unless it exists (see NvDecodeState::jpeg_decoded_events)
+  void CreateJpegEvent(int surface_idx);
   /// Records the event of the surface whose JPEG picture was just submitted for decoding
   void RecordJpegDecoded(int surface_idx);
   /// Makes stream_ wait for the decoding of the JPEG picture of the surface, before it is mapped
