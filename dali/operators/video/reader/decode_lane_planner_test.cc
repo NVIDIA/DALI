@@ -17,6 +17,7 @@
 #include <deque>
 #include <map>
 #include <memory>
+#include <numeric>
 #include <random>
 #include <stdexcept>
 #include <string>
@@ -27,6 +28,7 @@
 #include "dali/core/boundary.h"
 #include "dali/core/format.h"
 #include "dali/core/small_vector.h"
+#include "dali/core/util.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
 #include "dali/operators/video/reader/decode_lane_planner.h"
 #include "dali/test/dali_test_config.h"
@@ -200,7 +202,9 @@ void CheckPlannedPictures(const std::vector<ReaderSample> &batch, std::vector<Re
   SmallVector<int, 32> region;
   for (size_t l = 0; l < lanes.size(); l++) {
     auto &lane = lanes[l];
-    int64_t decoded = 0;
+    // the pictures decoded, and the openings: new decoders, and the reopens of DecodeFrames (e.g.
+    // to decode the last frame again)
+    int64_t decoded = 0, openings = 0;
     for (int r : plans[l].runs) {
       auto &sample = batch[r];
       auto &index = indices.at(sample.path);
@@ -208,9 +212,11 @@ void CheckPlannedPictures(const std::vector<ReaderSample> &batch, std::vector<Re
         lane.decoder = std::make_unique<FramesDecoderCpu>(sample.path);
         lane.decoder->SetIndex(index);
         lane.filename = sample.path;
+        openings++;
       }
       auto &decoder = *lane.decoder;
       int64_t before = decoder.DecodedPictures();
+      int64_t reopens_before = decoder.Reopens();
       int roi_end = sample.roi_end < 0 ? index.size() : sample.roi_end;
       RegionFrames(make_cspan(sample.frame_idxs), sample.start, sample.end, sample.stride,
                    sample.boundary_type, sample.roi_start, roi_end, region);
@@ -219,10 +225,10 @@ void CheckPlannedPictures(const std::vector<ReaderSample> &batch, std::vector<Re
       decoder.DecodeFrames(buffer.data(), make_cspan(region), sample.boundary_type,
                            constant_frame.data());
       decoded += decoder.DecodedPictures() - before;
+      openings += decoder.Reopens() - reopens_before;
     }
     EXPECT_EQ(decoded, plans[l].pictures) << what << ", lane " << l;
-    EXPECT_GE(plans[l].load - plans[l].pictures, 0) << what << ", lane " << l;
-    EXPECT_EQ((plans[l].load - plans[l].pictures) % kOpenCost, 0) << what << ", lane " << l;
+    EXPECT_EQ(plans[l].load - plans[l].pictures, openings * kOpenCost) << what << ", lane " << l;
     planned_runs += plans[l].runs.size();
   }
   EXPECT_EQ(planned_runs, runs.size()) << what;
@@ -316,6 +322,72 @@ TEST(DecodeLanePlannerTest, LongestFirstToEarliestFinish) {
   EXPECT_EQ(plans[0].load, 30 + kOpenCost);
   EXPECT_EQ(plans[1].runs, std::vector<int>({0, 2}));
   EXPECT_EQ(plans[1].load, 20 + 10 + 2 * kOpenCost);
+}
+
+// A batch of many runs over several files: every run is planned once, and the most loaded lane
+// is within the bound of longest-first, earliest-finish assignment: the average load of the lanes
+// plus the work of the longest run.
+TEST(DecodeLanePlannerTest, BalancesALargeBatch) {
+  constexpr int kNumFiles = 12, kNumRuns = 64;
+  std::vector<FrameIndex> indices;
+  std::vector<std::string> files;
+  for (int f = 0; f < kNumFiles; f++) {
+    indices.push_back(MakeIndex(1000, 50));
+    files.push_back(make_string("file", f));
+  }
+  std::mt19937 rng(1234);
+  Batch batch;
+  for (int r = 0; r < kNumRuns; r++) {
+    int f = rng() % kNumFiles;
+    int length = 8 + rng() % 57;  // 8 to 64 frames
+    int first = rng() % (1000 - length);
+    batch.Add(files[f], &indices[f], r, first, first + length - 1);
+  }
+  // the work of each run alone, on a newly opened decoder
+  int64_t longest = 0;
+  for (int r = 0; r < kNumRuns; r++) {
+    Batch one;
+    one.runs.push_back(batch.runs[r]);
+    longest = std::max(longest, Plan(one, {{}})[0].load);
+  }
+  for (int num_lanes : {4, 8}) {
+    SCOPED_TRACE(make_string(num_lanes, " lanes"));
+    auto plans = Plan(batch, std::vector<LaneStart>(num_lanes));
+    std::vector<int> planned;
+    int64_t total = 0, max_load = 0;
+    for (auto &plan : plans) {
+      planned.insert(planned.end(), plan.runs.begin(), plan.runs.end());
+      total += plan.load;
+      max_load = std::max(max_load, plan.load);
+      EXPECT_GT(plan.load, 0) << "a lane without work, with more runs than lanes";
+    }
+    std::sort(planned.begin(), planned.end());
+    std::vector<int> all(kNumRuns);
+    std::iota(all.begin(), all.end(), 0);
+    EXPECT_EQ(planned, all);
+    EXPECT_LE(max_load, div_ceil(total, num_lanes) + longest);
+  }
+}
+
+// A run is never split between lanes: consecutive samples of one long video, read in order, are
+// one run, which one lane decodes while the other lanes have nothing to do. Here 32 samples of 16
+// frames with a keyframe every 250 frames: split at the keyframes, two lanes would take about 250
+// and 278 pictures, but one lane takes all 512.
+TEST(DecodeLanePlannerTest, OneLongRunUsesOneLane) {
+  auto index = MakeIndex(1000, 250);
+  std::vector<std::vector<int>> samples;
+  for (int s = 0; s < 32; s++) {
+    samples.emplace_back();
+    for (int frame = 16 * s; frame < 16 * (s + 1); frame++)
+      samples.back().push_back(frame);
+  }
+  Batch batch;
+  batch.Add("a", &index, 0, samples);
+  auto plans = Plan(batch, std::vector<LaneStart>(4));
+  EXPECT_EQ(plans[0].runs, std::vector<int>({0}));
+  EXPECT_EQ(plans[0].load, 512 + kOpenCost);
+  for (int l = 1; l < 4; l++)
+    EXPECT_TRUE(plans[l].runs.empty()) << "lane " << l;
 }
 
 TEST(DecodeLanePlannerTest, HeldFileContinues) {

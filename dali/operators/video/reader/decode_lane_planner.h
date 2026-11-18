@@ -61,8 +61,11 @@ struct LanePlan {
   std::vector<int> runs;  // indices into the planned runs
   // The estimated work, in pictures (see PlanLanes); it treats all pictures as equally costly
   int64_t load = 0;
-  // The part of `load` that is pictures decoded (not openings or resets): an estimate of
-  // FramesDecoderBase::DecodedPictures, exact when the lanes' decoders are where LaneStart says
+  // The part of `load` that is pictures (not openings or resets): an estimate of the pictures the
+  // decoder goes through (see FramesDecoderBase::DecodeWork). It is exactly the CPU decoder's
+  // DecodedPictures when the lanes' decoders are where LaneStart says; the GPU decoder leaves out
+  // the H.264 non-reference pictures it skips, and counts a VP9 superframe or a field pair as more
+  // than one picture.
   int64_t pictures = 0;
 };
 
@@ -121,6 +124,10 @@ DLL_PUBLIC bool CanReachWithoutSeek(const FrameIndex &index, int next, int frame
  * the files' indices in that order: B-frames, hidden lead-ins, seeks and resets, plus `open_cost`
  * per opening or reset. Every picture counts the same, whatever its size, so the lanes' work is
  * balanced in time only as far as the files' pictures take about as long to decode.
+ *
+ * A run is never split between lanes. So a batch that is one run (e.g. consecutive samples of one
+ * long video, read in order) is decoded by one lane, however long it is, while the other lanes
+ * have nothing to do.
  *
  * @param runs       the runs of the batch; each with an index, and its frames within it
  * @param lanes      where the lanes' decoders are; at least one lane if there are runs
