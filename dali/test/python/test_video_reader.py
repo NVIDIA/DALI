@@ -25,6 +25,7 @@ import itertools
 import multiprocessing
 import random
 import shutil
+import struct
 import tempfile
 import unittest
 import uuid
@@ -1193,6 +1194,42 @@ def test_file_list_timestamps_end_at_vfr_duration_is_kept(device, rounding):
         _experimental_reader(device), list_file, file_list_rounding=rounding
     )
     assert selection == (50, list(range(50))), f"{rounding}: {selection[0]} frames"
+
+
+def _with_edit_list_duration(path, duration):
+    """Writes a copy of an MP4 file whose first edit list entry (of the first track) lasts
+    `duration` (in the movie's timescale), and returns its path."""
+    data = bytearray(open(path, "rb").read())
+
+    def find(begin, end, name):
+        while begin + 8 <= end:
+            size, box = struct.unpack(">I4s", data[begin : begin + 8])
+            if box == name:
+                return begin, begin + size
+            begin += size
+        raise AssertionError(f"No {name} box in {path}")
+
+    box = (0, len(data))
+    for name in (b"moov", b"trak", b"edts", b"elst"):
+        box = find(box[0] + (8 if name != b"moov" else 0), box[1], name)
+    assert data[box[0] + 8] == 0, "Only version 0 edit lists are supported"
+    struct.pack_into(">I", data, box[0] + 16, duration)  # the first entry's segment duration
+    out = os.path.join(_file_list_dir, f"edit_list_{uuid.uuid4().hex}.mp4")
+    with open(out, "wb") as f:
+        f.write(data)
+    return out
+
+
+@cartesian_params(devices, all_file_list_roundings)
+def test_file_list_timestamps_end_at_edited_duration_is_kept(device, rounding):
+    # The edit list ends the stream at 9.98 s, inside the last frame (9.9583 s to 10.0 s by its
+    # packet): a range ending at the edited end keeps the last frame, also when rounded down
+    video = _with_edit_list_duration(VIDEO_0, 9980)  # movie timescale 1/1000
+    list_file = _write_file_list([f"{video} 0 1.0 9.98"])
+    selection = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_rounding=rounding
+    )
+    assert selection == (216, list(range(24, 240))), f"{rounding}: {selection[0]} frames"
 
 
 @cartesian_params(devices, [("start_down_end_up", 50), ("all_up", 50), ("all_down", 49)])

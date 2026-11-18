@@ -18,6 +18,7 @@
 #include <iomanip>
 #include <memory>
 #include <stdexcept>
+#include <string_view>
 #include <utility>
 #include <vector>
 #include "dali/core/error_handling.h"
@@ -832,6 +833,17 @@ void FramesDecoderBase::BuildIndex() {
             [](const IndexEntry &a, const IndexEntry &b) {
               return a.pts != b.pts ? a.pts < b.pts : a.decode_idx < b.decode_idx;
             });
+
+  // An MP4/MOV edit list can end the stream inside its last frame, before the end of the last
+  // packet. The demuxer gives the edited end as the stream's duration (the edits from 0, empty
+  // ones included), which then caps the end.
+  const AVStream *stream = ctx_->streams[stream_id_];
+  bool mov = ctx_->iformat && std::string_view(ctx_->iformat->name).find("mov") == 0;
+  if (mov && index_.end_pts != AV_NOPTS_VALUE && stream->duration != AV_NOPTS_VALUE) {
+    int64_t edited_end = stream->duration;
+    if (edited_end > index_.index.back().pts && edited_end < index_.end_pts)
+      index_.end_pts = edited_end;
+  }
 
   // After sorting, we need to update last_keyframe_id references
   std::vector<int> keyframe_positions;
