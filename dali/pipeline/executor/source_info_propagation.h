@@ -1,4 +1,4 @@
-// Copyright (c) 2022, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2022-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,14 +24,18 @@ class Workspace;
 void DLL_PUBLIC ClearOutputSourceInfo(Workspace &ws);
 
 /**
- * @brief Propagates the SourceInfo from input(s) to the outputs
+ * @brief Propagates the source info and decoded image cache key from input(s) to the outputs
  *
- * This function propagates the SourceInfo metadata from the source tensors to the destination
+ * This function propagates the source info and cache key metadata from the source tensors to the destination
  * tensors under the following conditions:
  * - there's at least one input and at least one output
  * - none of the outputs has a SourceInfo already set
  * - all the input and output batch sizes are equal
  * - the source info for all inputs must be equal or empty (see below)
+ * - the cache keys for all inputs must be equal or empty
+ *
+ * The cache key follows the source info so a reader and decoder agree on cached samples
+ * even when an intermediate operator relies on automatic metadata propagation.
  *
  * Consistent source info
  *      inp0:    inp1:    inp2:

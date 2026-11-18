@@ -70,6 +70,8 @@ struct DecInstance {
   int display_left = 0;
   int display_top = 0;
   unsigned num_decode_surfaces = 0;
+  // What the decoder was created for, so what it can be reconfigured for
+  unsigned max_num_decode_surfaces = 0;
   unsigned max_height = 0;
   unsigned max_width = 0;
   unsigned int bit_depth_luma_minus8 = 0;
@@ -91,6 +93,14 @@ class NVDECLease {
     }
 
     void Return();
+
+    /**
+     * @brief Destroys the decoder and removes it from the cache, instead of returning it there.
+     *
+     * For a decoder whose state is not known, e.g. when it is not known whether the pictures that
+     * were sent to it are done: it must not be given to another stream.
+     */
+    void Discard();
 
     NVDECLease(NVDECLease &&other) {
       *this = std::move(other);
@@ -118,16 +128,6 @@ class NVDECLease {
     DecInstance *decoder = nullptr;
 };
 
-/**
- * @brief Returns how many NVDEC decoders were created so far for a device, i.e. how many times
- *        the decoder cache could not provide a matching one.
- *
- * The count includes decoders that were evicted from the cache since.
- *
- * @param device_id CUDA device ordinal or -1 for the current device.
- */
-DLL_PUBLIC size_t NVDECDecodersCreated(int device_id = -1);
-
 }  // namespace frame_dec_gpu_impl
 
 struct NvDecodeState {
@@ -137,6 +137,31 @@ struct NvDecodeState {
   CUVIDSOURCEDATAPACKET packet = { 0 };
 
   uint8_t *decoded_frame_yuv = nullptr;
+
+  // The surface of the last picture that was sent to the decoder, and whether it was mapped (the
+  // map waits for the decode of the picture)
+  int last_decoded = -1;
+  bool last_mapped = true;
+
+  // The stream that the pictures of the decoder are mapped on: a copy of FramesDecoderGpu::stream_,
+  // which is destroyed before this is
+  cudaStream_t stream = 0;
+
+  /**
+   * @brief Waits for the pictures that were sent to the decoder, before it goes back to the cache.
+   *
+   * A picture that is decoded but never mapped (the parser holds some for the display delay, and
+   * skipped reads and seeks leave others) can still be queued on NVDEC. The decoder may be
+   * reconfigured for another stream right after, and the driver does not wait for the queue then:
+   * cuvidReconfigureDecoder returns while pictures of the previous stream are in progress.
+   * NVDEC decodes the pictures of a decoder in the order that they were sent, and the map of a
+   * picture waits for its decode, so mapping the last one is enough.
+   *
+   * The map also post-processes the picture into an output surface, on `stream`, and neither the
+   * map nor the unmap waits for that: the stream is synchronized before the unmap, as it is when a
+   * picture is displayed. If the map or the wait fails, the decoder is destroyed instead.
+   */
+  ~NvDecodeState();
 };
 
 /**
@@ -405,6 +430,37 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   bool ShouldDecodePicture(int64_t pts) const;
 
  private:
+  friend class FramesDecoderGpuTest;
+
+  // For the tests (FramesDecoderGpuTest): the counters show which path the NVDEC decoder cache
+  // took, and NVDECDestroyUnusedDecoders lets a test start from an empty cache.
+
+  /**
+   * @brief Returns how many NVDEC decoders were created (cuvidCreateDecoder) so far for a device.
+   *
+   * The count includes decoders that were evicted from the cache since. A cached decoder that was
+   * reconfigured for a stream instead is not counted here, but by NVDECDecodersReconfigured().
+   *
+   * @param device_id CUDA device ordinal or -1 for the current device.
+   */
+  static size_t NVDECDecodersCreated(int device_id = -1);
+
+  /**
+   * @brief Returns how many times a cached NVDEC decoder was reconfigured for a stream of another
+   *        format (size, number of decode surfaces) so far for a device, instead of creating one.
+   *
+   * @param device_id CUDA device ordinal or -1 for the current device.
+   */
+  static size_t NVDECDecodersReconfigured(int device_id = -1);
+
+  /**
+   * @brief Destroys the cached NVDEC decoders that are not in use, e.g. to start from an empty
+   *        cache.
+   *
+   * @param device_id CUDA device ordinal or -1 for the current device.
+   */
+  static void NVDECDestroyUnusedDecoders(int device_id = -1);
+
   /**
    * @brief Sends a packet to the NVDEC parser. Exceptions thrown by the parser callbacks are
    *        rethrown here, once the parser has returned.
