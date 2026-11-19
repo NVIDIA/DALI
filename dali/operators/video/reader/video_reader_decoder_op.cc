@@ -985,8 +985,8 @@ Default: ``timestamps``.)code",
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
 `filenames` argument, one per file. If not provided, no labels will be yielded.
 
-This argument is valid only together with `filenames`. ``file_root`` and ``file_list`` provide
-their own labels, so combining either of them with ``labels`` is an error.)",
+This argument is valid only together with `filenames`. `file_root` and `file_list` provide
+their own labels, so combining either of them with `labels` is an error.)",
                                  nullptr)
     .AddArg("sequence_length", R"code(Frames to load per sequence.)code", DALI_INT32)
     .AddOptionalArg("enable_frame_num",
