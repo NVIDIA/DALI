@@ -245,7 +245,7 @@ class FramesDecoderGpuTest : public FramesDecoderTestBase {
   }
 
   // Whether the last picture that the decoder sent to NVDEC was mapped (see NvDecodeState)
-  static bool LastPictureMapped(const FramesDecoderGpu &decoder) {
+  static bool IsLastPictureMapped(const FramesDecoderGpu &decoder) {
     return decoder.nvdecode_state_ && decoder.nvdecode_state_->last_mapped;
   }
 
@@ -1955,8 +1955,8 @@ namespace {
 class TempVideoFile {
  public:
   explicit TempVideoFile(const std::vector<char> &contents, const std::string &extension) {
-    std::string path =
-        (std::filesystem::temp_directory_path() / ("dali_video_XXXXXX" + extension)).string();
+    std::string path = (std::filesystem::temp_directory_path() /
+                        make_string("dali_video_XXXXXX", extension)).string();
     int fd = mkstemps(path.data(), extension.size());
     DALI_ENFORCE(fd >= 0, "Could not create a temporary file");
     close(fd);
@@ -3141,7 +3141,7 @@ TEST_F(FramesDecoderGpuTest, MjpegDecoderGoesBackToCacheWithItsLastDecodeDone) {
   // Skipping frame 1 decodes the next picture, behind the gate, and does not map it
   bool skipped = decoder->ReadNextFrame(nullptr);
   bool decode_waited_on_host = gate_open;
-  bool last_mapped = LastPictureMapped(*decoder);
+  bool last_mapped = IsLastPictureMapped(*decoder);
   decoder.reset();
   bool released_after_decode = gate_open;
 
