@@ -1032,7 +1032,7 @@ def test_reflect_padding_with_range_beyond_the_video(device, pad_mode, case):
 
 
 def _first_sample_frame_nums(device, entry, **kwargs):
-    """The frame numbers of the first sample of a reader over the file_list entry (frames) of
+    """The frame indices of the first sample of a reader over the file_list entry (frames) of
     CFR_VP9_60FPS_FILE (50 frames) and the epoch size."""
     list_file = _write_file_list([f"{CFR_VP9_60FPS_FILE} 0 {entry}"])
 
@@ -1058,7 +1058,7 @@ def _first_sample_frame_nums(device, entry, **kwargs):
 @cartesian_params(
     devices,
     [
-        # (file_list entry, pad_mode, stride, expected frame numbers of the first sample)
+        # (file_list entry, pad_mode, stride, expected frame indices of the first sample)
         ("45 60", "edge", 6, [45, 49, 49, 49]),  # end past the last frame
         ("45 60", "constant", 6, [45, -1, -1, -1]),
         ("-60 10", "edge", 5, [0, 5, 9, 9]),  # start before the first frame (after wrapping)
@@ -1099,7 +1099,7 @@ def test_uniform_sample_with_range_before_the_video(device):
 
 def _file_list_reader_pipeline(device, entries, **kwargs):
     """A pipeline with the reader over file_list `entries` (label, start, end in frames) of
-    CFR_VP9_60FPS_FILE (50 frames), which returns the frame numbers of the sequences."""
+    CFR_VP9_60FPS_FILE (50 frames), which returns the frame indices of the sequences."""
     list_file = _write_file_list([f"{CFR_VP9_60FPS_FILE} {entry}" for entry in entries])
 
     @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
