@@ -1199,7 +1199,8 @@ def test_file_list_timestamps_end_at_vfr_duration_is_kept(device, rounding):
 def _with_edit_list_duration(path, duration):
     """Writes a copy of an MP4 file whose first edit list entry (of the first track) lasts
     `duration` (in the movie's timescale), and returns its path."""
-    data = bytearray(open(path, "rb").read())
+    with open(path, "rb") as f:
+        data = bytearray(f.read())
 
     def find(begin, end, name):
         while begin + 8 <= end:
