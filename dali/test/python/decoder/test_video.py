@@ -2222,10 +2222,12 @@ def test_reader_reports_first_error_of_batch(device, num_lanes, reader_depth):
         for filename, delete in zip(files, deleted, strict=True):
             if delete:
                 os.remove(filename)
-        p.run()  # batch 0
         expected = f"Invalid decoder for filename {re.escape(files[5])}"
+        # The reader prefetches batch 1 while batch 0 is consumed, and can fail on it before the
+        # consumer wakes up. Then the error is raised by the first run, not the second.
         with assert_raises(RuntimeError, regex=expected):
-            p.run()
+            p.run()  # batch 0
+            p.run()  # batch 1
         del p  # destroyed right after the error, while lanes may still be decoding batch 2
 
 

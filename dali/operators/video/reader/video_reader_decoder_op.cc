@@ -870,7 +870,7 @@ class VideoReaderDecoder
   }
 
   void Prefetch() override {
-    DomainTimeRange tr("[DALI][VideoReaderDecoder] Prefetch #" + to_string(curr_batch_producer_),
+    DomainTimeRange tr(make_string("[DALI][VideoReaderDecoder] Prefetch #", curr_batch_producer_),
                        DomainTimeRange::kRed);
     auto &slot = prefetched_batch_queue_[curr_batch_producer_];
     slot.clear();  // first: a consumed batch's samples go back to the loader
