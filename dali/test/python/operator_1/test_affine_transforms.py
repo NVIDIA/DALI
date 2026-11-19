@@ -47,7 +47,11 @@ def check_results_sample(T1, mat_ref, T0=None, reverse=False, atol=1e-6):
 def check_results(T1, batch_size, mat_ref, T0=None, reverse=False, atol=1e-6):
     for idx in range(batch_size):
         check_results_sample(
-            T1.at(idx), mat_ref, T0.at(idx) if T0 is not None else None, reverse, atol
+            T1[idx],
+            mat_ref,
+            T0[idx] if T0 is not None else None,
+            reverse,
+            atol,
         )
 
 
@@ -240,10 +244,10 @@ def check_transform_rotation_op(
         out_angle = outs[out_idx]
         out_idx = out_idx + 1
     for idx in range(batch_size):
-        T0 = out_T0.at(idx) if has_input else None
-        angle = out_angle.at(idx) if random_angle else angle
+        T0 = out_T0[idx] if has_input else None
+        angle = out_angle[idx].as_array() if random_angle else angle
         ref_mat = rotate_affine_mat(angle=angle, axis=axis, center=center)
-        check_results_sample(outs[0].at(idx), ref_mat, T0, reverse_order, atol=2e-6)
+        check_results_sample(outs[0][idx], ref_mat, T0, reverse_order, atol=2e-6)
 
 
 def test_transform_rotation_op(batch_size=3, num_threads=4, device_id=0):
@@ -390,14 +394,14 @@ def check_transform_shear_op_runtime_args(
             shear = None
             center = None
             if use_angles:
-                angles = shear_param.at(idx)
+                angles = shear_param[idx].as_array()
             else:
-                shear = shear_param.at(idx)
+                shear = shear_param[idx].as_array()
             if use_center:
-                center = center_param.at(idx)
+                center = center_param[idx].as_array()
             ref_mat = shear_affine_mat(shear=shear, angles=angles, center=center)
-            inp = T0.at(idx) if T0 is not None else None
-            check_results_sample(outs[0].at(idx), ref_mat, inp, reverse_order, atol=1e-6)
+            inp = T0[idx] if T0 is not None else None
+            check_results_sample(outs[0][idx], ref_mat, inp, reverse_order, atol=1e-6)
 
 
 def test_transform_shear_op(batch_size=3, num_threads=4, device_id=0):
@@ -540,7 +544,7 @@ def check_transform_crop_op(
             )
             to_start, to_end = np.minimum(to_start, to_end), np.maximum(to_start, to_end)
         for idx in range(batch_size):
-            MT = T1.at(idx)
+            MT = T1[idx].as_array()
             M, T = MT[:ndim, :ndim], MT[:, ndim]
             assert np.allclose(np.dot(M, from_start) + T, to_start, atol=1e-6)
             assert np.allclose(np.dot(M, from_end) + T, to_end, atol=1e-6)
@@ -605,7 +609,7 @@ def check_combine_transforms(
         assert num_mats >= 2
         mats = [np.identity(ndim + 1) for _ in range(num_mats)]
         for in_idx in range(len(mats)):
-            mats[in_idx][:ndim, :] = outs[1 + in_idx].at(idx)
+            mats[in_idx][:ndim, :] = outs[1 + in_idx][idx]
 
         # by default we want to access them in opposite order
         if not reverse_order:
@@ -614,7 +618,7 @@ def check_combine_transforms(
         for mat in mats:
             ref_mat = np.dot(mat, ref_mat)
 
-        assert np.allclose(outs[0].at(idx), ref_mat[:ndim, :], atol=1e-6)
+        assert np.allclose(outs[0][idx], ref_mat[:ndim, :], atol=1e-6)
 
 
 def test_combine_transforms(batch_size=3, num_threads=4, device_id=0):
@@ -645,8 +649,8 @@ def test_combine_transforms_correct_order():
         pipe.set_outputs(T.combine(t1, t2), t12, T.combine(t1, t2, reverse_order=True), t21)
     outs = pipe.run()
     for idx in range(batch_size):
-        assert np.allclose(outs[0].at(idx), outs[1].at(idx), atol=1e-6)
-        assert np.allclose(outs[2].at(idx), outs[3].at(idx), atol=1e-6)
+        assert np.allclose(outs[0][idx], outs[1][idx], atol=1e-6)
+        assert np.allclose(outs[2][idx], outs[3][idx], atol=1e-6)
 
 
 def test_transform_translation_deprecation():

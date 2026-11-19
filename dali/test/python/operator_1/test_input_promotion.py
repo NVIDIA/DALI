@@ -22,7 +22,7 @@ def test_cat_numpy_array():
     src = fn.external_source([[np.array([[10, 11], [12, 13]], dtype=np.float32)]])
     pipe.set_outputs(fn.cat(src, np.array([[20], [21]], dtype=np.float32), axis=1))
     o = pipe.run()
-    assert np.array_equal(o[0].at(0), np.array([[10, 11, 20], [12, 13, 21]]))
+    assert np.array_equal(o[0][0], np.array([[10, 11, 20], [12, 13, 21]]))
 
 
 def test_stack_numpy_scalar():
@@ -30,7 +30,7 @@ def test_stack_numpy_scalar():
     src = fn.external_source([[np.array([[10, 11], [12, 13]], dtype=np.float32)]])
     pipe.set_outputs(fn.cat(src, np.array([[20], [21]], dtype=np.float32), axis=1))
     o = pipe.run()
-    assert np.array_equal(o[0].at(0), np.array([[10, 11, 20], [12, 13, 21]]))
+    assert np.array_equal(o[0][0], np.array([[10, 11, 20], [12, 13, 21]]))
 
 
 def test_slice_fn():
@@ -42,8 +42,8 @@ def test_slice_fn():
     out_gpu = fn.slice(src.gpu(), np.array([1, 1]), np.array([2, 1]), axes=[0, 1])
     pipe.set_outputs(out_cpu, out_gpu)
     out0, out1 = tuple(out.as_cpu() for out in pipe.run())
-    assert np.array_equal(out0.at(0), np.array([[14], [17]]))
-    assert np.array_equal(np.array(out1.at(0)), np.array([[14], [17]]))
+    assert np.array_equal(out0[0], np.array([[14], [17]]))
+    assert np.array_equal(np.array(out1[0]), np.array([[14], [17]]))
 
 
 def test_slice_ops():
@@ -57,8 +57,8 @@ def test_slice_ops():
     out_gpu = slice_gpu(src.gpu(), np.array([1, 1]), np.array([2, 1]))
     pipe.set_outputs(out_cpu, out_gpu)
     out0, out1 = tuple(out.as_cpu() for out in pipe.run())
-    assert np.array_equal(out0.at(0), np.array([[14], [17]]))
-    assert np.array_equal(out1.at(0), np.array([[14], [17]]))
+    assert np.array_equal(out0[0], np.array([[14], [17]]))
+    assert np.array_equal(out1[0], np.array([[14], [17]]))
 
 
 def test_python_function():
@@ -74,7 +74,7 @@ def test_python_function():
         )
         pipe.set_outputs(out_cpu)
     o = pipe.run()
-    assert np.array_equal(o[0].at(0), np.array([[1, 4], [9, 16]]))
+    assert np.array_equal(o[0][0], np.array([[1, 4], [9, 16]]))
 
 
 def test_arithm_ops():
@@ -85,9 +85,9 @@ def test_arithm_ops():
             in1 + np.array([[10, 20], [30, 40]]), in1 + np.array(5), in1 + np.uint8(100)
         )
     o = pipe.run()
-    assert np.array_equal(o[0].at(0), np.array([[11, 22], [33, 44]]))
-    assert np.array_equal(o[1].at(0), np.array([[6, 7], [8, 9]]))
-    assert np.array_equal(o[2].at(0), np.array([[101, 102], [103, 104]]))
+    assert np.array_equal(o[0][0], np.array([[11, 22], [33, 44]]))
+    assert np.array_equal(o[1][0], np.array([[6, 7], [8, 9]]))
+    assert np.array_equal(o[2][0], np.array([[101, 102], [103, 104]]))
 
 
 def test_arg_input():
@@ -96,4 +96,4 @@ def test_arg_input():
         in1 = fn.external_source([[np.float32([[1, 2, 3], [4, 5, 6]])]])
         pipe.set_outputs(fn.transforms.translation(in1, offset=np.float32([10, 20])))
     o = pipe.run()
-    assert np.array_equal(o[0].at(0), np.array([[1, 2, 13], [4, 5, 26]]))
+    assert np.array_equal(o[0][0], np.array([[1, 2, 13], [4, 5, 26]]))

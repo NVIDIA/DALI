@@ -682,7 +682,7 @@ def test_lab_color_conversion_accuracy():
     pipe = test_pipeline()
     pipe.build()
     outputs = pipe.run()
-    dali_result = outputs[0].as_cpu().at(0)
+    dali_result = outputs[0].as_cpu()[0].as_array()
 
     # For minimal CLAHE (1x1 tiles, low clip limit), the output should be
     # very close to input, primarily testing the RGB->LAB->RGB conversion

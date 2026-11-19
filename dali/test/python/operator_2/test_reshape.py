@@ -157,12 +157,12 @@ def verify_flatten(imgs, reshaped, src_shape=None):
     assert reshaped.layout() == "ab"
     for i in range(len(imgs)):
         if src_shape is not None:
-            assert imgs.at(i).shape == src_shape
-        img_shape = imgs.at(i).shape
+            assert imgs[i].as_array().shape == src_shape
+        img_shape = imgs[i].as_array().shape
         # collapse width and channels
         ref_shape = (img_shape[0], img_shape[1] * img_shape[2])
-        assert reshaped.at(i).shape == ref_shape
-        assert_array_equal(imgs.at(i).flatten(), reshaped.at(i).flatten())
+        assert reshaped[i].as_array().shape == ref_shape
+        assert_array_equal(imgs[i].as_array().flatten(), reshaped[i].as_array().flatten())
 
 
 def verify_make_tall(imgs, reshaped, src_shape=None):
@@ -170,12 +170,12 @@ def verify_make_tall(imgs, reshaped, src_shape=None):
     assert reshaped.layout() == "HWC"
     for i in range(len(imgs)):
         if src_shape is not None:
-            assert imgs.at(i).shape == src_shape
-        img_shape = imgs.at(i).shape
+            assert imgs[i].as_array().shape == src_shape
+        img_shape = imgs[i].as_array().shape
         # collapse width and channels
         ref_shape = (img_shape[0] * 2, img_shape[1] // 2, 3)
-        assert reshaped.at(i).shape == ref_shape
-        assert_array_equal(imgs.at(i).flatten(), reshaped.at(i).flatten())
+        assert reshaped[i].as_array().shape == ref_shape
+        assert_array_equal(imgs[i].as_array().flatten(), reshaped[i].as_array().flatten())
 
 
 def check_reshape(device, batch_size, relative, use_wildcard):
@@ -269,8 +269,8 @@ def _test_reinterpret_default_shape(device):
     in_batch = pipe_outs[0].as_cpu() if device == "gpu" else pipe_outs[0]
     out_batch = pipe_outs[1].as_cpu() if device == "gpu" else pipe_outs[1]
     for i in range(batch_size):
-        ref = in_batch.at(i).view(dtype=np.int32)
-        out = out_batch.at(i)
+        ref = in_batch[i].as_array().view(dtype=np.int32)
+        out = out_batch[i]
         assert_array_equal(ref, out)
 
 
@@ -311,8 +311,8 @@ def _test_reinterpret_wildcard_shape(device):
     in_batch = pipe_outs[0].as_cpu() if device == "gpu" else pipe_outs[0]
     out_batch = pipe_outs[1].as_cpu() if device == "gpu" else pipe_outs[1]
     for i in range(batch_size):
-        ref = in_batch.at(i).view(dtype=np.int32).reshape([20, 2])
-        out = out_batch.at(i)
+        ref = in_batch[i].as_array().view(dtype=np.int32).reshape([20, 2])
+        out = out_batch[i]
         assert_array_equal(ref, out)
 
 

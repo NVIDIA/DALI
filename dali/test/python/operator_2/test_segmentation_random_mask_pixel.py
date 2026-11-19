@@ -67,16 +67,15 @@ def check_random_mask_pixel(ndim=2, batch_size=3, min_extent=20, max_extent=50):
     for iter in range(3):
         outputs = pipe.run()
         for idx in range(batch_size):
-            in_mask = outputs[0].at(idx)
-            fg_pixel1 = outputs[1].at(idx).tolist()
-            fg_pixel2 = outputs[2].at(idx).tolist()
-            fg_pixel3 = outputs[3].at(idx).tolist()
-            rnd_pixel = outputs[4].at(idx).tolist()
-            coin_flip = outputs[5].at(idx).tolist()
-            fg_biased = outputs[6].at(idx).tolist()
-            anchor = outputs[7].at(idx).tolist()
-            crop_shape = outputs[8].at(idx).tolist()
-            out_mask = outputs[9].at(idx)
+            in_mask = outputs[0][idx].as_array()
+            fg_pixel1 = outputs[1][idx].as_array().tolist()
+            fg_pixel2 = outputs[2][idx].as_array().tolist()
+            fg_pixel3 = outputs[3][idx].as_array().tolist()
+            coin_flip = outputs[5][idx].as_array().tolist()
+            fg_biased = outputs[6][idx].as_array().tolist()
+            anchor = outputs[7][idx].as_array().tolist()
+            crop_shape = outputs[8][idx].as_array().tolist()
+            out_mask = outputs[9][idx].as_array()
 
             assert in_mask[tuple(fg_pixel1)] > 0
             assert in_mask[tuple(fg_pixel2)] > 0.99

@@ -72,7 +72,7 @@ def _test_use_foreground(classes, weights, bg):
     pipe.set_outputs(*pipe_outs)
     outs = pipe.run()
     for i in range(len(outs[2])):
-        assert outs[2].at(i) != (bg or 0)
+        assert outs[2][i].as_array() != (bg or 0)
 
 
 def test_use_foreground():
@@ -350,10 +350,10 @@ def _test_random_object_bbox_with_class(
         boxes = convert_boxes(outs, format)
 
         for i in range(len(inp)):
-            in_tensor = inp.at(i)
-            class_labels = classes_out.at(i)
+            in_tensor = inp[i].as_array()
+            class_labels = classes_out[i].as_array()
             if background is not None or classes is None:
-                background_label = background_out.at(i)
+                background_label = background_out[i].as_array()
             else:
                 background_label = 0 if 0 not in class_labels else np.min(class_labels) - 1
 
@@ -368,7 +368,7 @@ def _test_random_object_bbox_with_class(
                 ref_boxes = cls_boxes
                 if threshold is not None:
                     extent = box_extent(boxes[i])
-                    thr = threshold_out.at(i)
+                    thr = threshold_out[i].as_array()
                     assert np.all(extent >= thr)
                     ref_boxes = list(filter(lambda box: np.all(box_extent(box) >= thr), cls_boxes))
                 if k_largest is not None:
@@ -468,12 +468,12 @@ def _test_random_object_bbox_ignore_class(
         boxes = convert_boxes(outs, format)
 
         for i in range(len(inp)):
-            in_tensor = inp.at(i)
-            background_label = background_out.at(i)
+            in_tensor = inp[i].as_array()
+            background_label = background_out[i].as_array()
 
             ref_boxes = all_boxes(in_tensor, None, background_label)
             if threshold is not None:
-                thr = threshold_out.at(i)
+                thr = threshold_out[i].as_array()
                 ref_boxes = list(filter(lambda box: np.all(box_extent(box) >= thr), ref_boxes))
                 if len(ref_boxes) == 0:
                     ref_boxes = np.int32([[0] * len(in_tensor.shape) + list(in_tensor.shape)])
@@ -523,7 +523,7 @@ def _test_random_object_bbox_auto_bg(fg_labels, expected_bg):
 
     pipe.set_outputs(box, label)
     _, labels = pipe.run()
-    assert int(labels.at(0)) == expected_bg
+    assert int(labels[0].as_array()) == expected_bg
 
 
 def test_random_object_bbox_auto_bg():

@@ -1327,8 +1327,8 @@ def test_separated_exec_setup():
     a_raw = out[0]
     a_cpu = out[1]
     for i in range(batch_size):
-        t_raw = a_raw.at(i)
-        t_cpu = a_cpu.at(i)
+        t_raw = a_raw[i].as_array()
+        t_cpu = a_cpu[i].as_array()
         assert np.sum(np.abs(t_cpu - t_raw)) == 0
 
 
@@ -1337,7 +1337,7 @@ def test_tensor_subscript():
     input = fn.external_source(source=get_data)
     pipe.set_outputs(input[1:, :-1, 1])
     (out,) = pipe.run()
-    assert out.at(0).shape == np.zeros(test_data_shape)[1:, :-1, 1].shape
+    assert out[0].as_array().shape == np.zeros(test_data_shape)[1:, :-1, 1].shape
 
 
 def test_subscript_dim_check():

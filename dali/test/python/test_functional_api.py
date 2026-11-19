@@ -36,7 +36,7 @@ def _test_fn_rotate(device):
 
     outs = pipe.run()
     out = outs[0] if device == "cpu" else outs[0].as_cpu()
-    arr = out.at(0)
+    arr = out[0]
     ref = np.array([[4, 8, 12], [3, 7, 11], [2, 6, 10], [1, 5, 9]])[:, :, np.newaxis]
     assert np.array_equal(arr, ref)
 
@@ -86,8 +86,8 @@ def test_fn_python_function():
         out = fn.python_function(src, function=lambda x: x + 1)
         pipe.set_outputs(out)
 
-    assert np.array_equal(pipe.run()[0].at(0), batch1[0] + 1)
-    assert np.array_equal(pipe.run()[0].at(0), batch2[0] + 1)
+    assert np.array_equal(pipe.run()[0][0], batch1[0] + 1)
+    assert np.array_equal(pipe.run()[0][0], batch2[0] + 1)
 
 
 def test_fn_multiple_input_sets():
@@ -104,8 +104,8 @@ def test_fn_multiple_input_sets():
     pipe.set_outputs(*rotated)
 
     outs = pipe.run()
-    arr1 = outs[0].at(0)
-    arr2 = outs[1].at(0)
+    arr1 = outs[0][0]
+    arr2 = outs[1][0]
     ref1 = np.array([[4, 8, 12], [3, 7, 11], [2, 6, 10], [1, 5, 9]])[:, :, np.newaxis]
     ref2 = np.array([[20, 40, 60], [10, 30, 50]], dtype=np.uint8)[:, :, np.newaxis]
     assert np.array_equal(arr1, ref1)
@@ -126,9 +126,9 @@ def test_scalar_constant():
     pipe.set_outputs(*rotated, types.ScalarConstant(90))
 
     outs = pipe.run()
-    arr1 = outs[0].at(0)
-    arr2 = outs[1].at(0)
-    arr3 = outs[2].at(0)
+    arr1 = outs[0][0]
+    arr2 = outs[1][0]
+    arr3 = outs[2][0]
     ref1 = np.array([[4, 8, 12], [3, 7, 11], [2, 6, 10], [1, 5, 9]])[:, :, np.newaxis]
     ref2 = np.array([[20, 40, 60], [10, 30, 50]], dtype=np.uint8)[:, :, np.newaxis]
     ref3 = np.array(90)
@@ -152,9 +152,9 @@ def test_pseudoscalar():
     pipe.set_outputs(*rotated, types.ScalarConstant(np.array([90])))  # demoted to 0D
 
     outs = pipe.run()
-    arr1 = outs[0].at(0)
-    arr2 = outs[1].at(0)
-    arr3 = outs[2].at(0)
+    arr1 = outs[0][0]
+    arr2 = outs[1][0]
+    arr3 = outs[2][0]
     ref1 = np.array([[4, 8, 12], [3, 7, 11], [2, 6, 10], [1, 5, 9]])[:, :, np.newaxis]
     ref2 = np.array([[20, 40, 60], [10, 30, 50]], dtype=np.uint8)[:, :, np.newaxis]
     ref3 = np.array(90)

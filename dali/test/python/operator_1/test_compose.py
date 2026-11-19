@@ -32,8 +32,8 @@ def test_unified_arg_placement():
     matrices, offsets = pipe.run()
     assert len(matrices) == batch_size
     for i in range(len(matrices)):
-        offset = offsets.at(i)
-        matrix = matrices.at(i)
+        offset = offsets[i].as_array()
+        matrix = matrices[i]
         assert offset.shape == (3,)
         for j in range(3):
             assert offset[j] >= 1 and offset[j] < 2  # check that it's not all zeros or sth
@@ -52,8 +52,8 @@ def test_compose():
     matrices, offsets = pipe.run()
     assert len(matrices) == batch_size
     for i in range(len(matrices)):
-        offset = offsets.at(i)
-        matrix = matrices.at(i)
+        offset = offsets[i].as_array()
+        matrix = matrices[i]
         assert offset.shape == (3,)
         for j in range(3):
             assert offset[j] >= 1 and offset[j] < 2  # check that it's not all zeros or sth

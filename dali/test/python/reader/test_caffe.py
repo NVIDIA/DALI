@@ -61,7 +61,7 @@ def check_reader_path_vs_paths(paths, batch_size1, batch_size2, num_threads1, nu
         while True:
             pipe_out = pipe.run()
             for idx in range(len(pipe_out[0])):
-                yield pipe_out[0].at(idx), pipe_out[1].at(idx)
+                yield pipe_out[0][idx], pipe_out[1][idx]
 
     seq1 = Seq(pipe1)
     seq2 = Seq(pipe2)
@@ -296,7 +296,7 @@ def _run_caffe2(record, **kwargs):
         def pipe():
             return tuple(fn.readers.caffe2(path=[path], **kwargs)[:2])
 
-        return tuple(output.at(0).copy() for output in pipe().run())
+        return tuple(output[0].as_array().copy() for output in pipe().run())
 
 
 @params(

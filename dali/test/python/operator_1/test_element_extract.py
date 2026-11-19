@@ -83,10 +83,10 @@ def test_element_extract_operator():
     assert len(output4) == batch_size
 
     for i in range(batch_size):
-        out1 = output1.at(i)
-        out2 = output2.at(i)
-        out3 = output3.at(i)
-        out4 = output4.at(i)
+        out1 = output1[i].as_array()
+        out2 = output2[i].as_array()
+        out3 = output3[i].as_array()
+        out4 = output4[i].as_array()
 
         expected_first = test_data[i][0]
         assert out1.shape == out3.shape

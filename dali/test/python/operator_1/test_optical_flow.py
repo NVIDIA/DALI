@@ -243,8 +243,8 @@ def check_optflow(output_grid=1, hint_grid=1, use_temporal_hints=False):
     for _ in range(2):
         out0, out1 = tuple(out.as_cpu() for out in pipe.run())
         for i in range(batch_size):
-            seq = out0.at(i)
-            out_field = out1.at(i)[0]
+            seq = out0[i].as_array()
+            out_field = out1[i].as_array()[0]
             _, ref_field = get_mapping(seq.shape[1:3])
             dsize = (out_field.shape[1], out_field.shape[0])
             ref_field = cv2.resize(ref_field, dsize=dsize, interpolation=cv2.INTER_AREA)

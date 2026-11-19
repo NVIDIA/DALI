@@ -67,8 +67,8 @@ def test_cat_different_length():
     ref = np.array(
         [[1, 2, 3, 4, 13, 14, 15], [5, 6, 7, 8, 16, 17, 18], [9, 10, 11, 12, 19, 20, 21]]
     )
-    assert np.array_equal(o[0].at(0), ref)
-    assert np.array_equal(o[1].at(0), ref)
+    assert np.array_equal(o[0][0], ref)
+    assert np.array_equal(o[1][0], ref)
 
 
 def test_cat_empty_input():
@@ -89,8 +89,8 @@ def test_cat_empty_input():
     ref = np.array(
         [[1, 2, 3, 4, 13, 14, 15], [5, 6, 7, 8, 16, 17, 18], [9, 10, 11, 12, 19, 20, 21]]
     )
-    assert np.array_equal(o[0].at(0), ref)
-    assert np.array_equal(o[1].at(0), ref)
+    assert np.array_equal(o[0][0], ref)
+    assert np.array_equal(o[1][0], ref)
 
 
 def test_cat_all_empty():
@@ -107,8 +107,8 @@ def test_cat_all_empty():
     o[1] = o[1].as_cpu()
 
     ref = np.array([[], [], []], dtype=np.int32)
-    assert np.array_equal(o[0].at(0), ref)
-    assert np.array_equal(o[1].at(0), ref)
+    assert np.array_equal(o[0][0], ref)
+    assert np.array_equal(o[1][0], ref)
 
 
 def ref_cat(input_batches, axis):

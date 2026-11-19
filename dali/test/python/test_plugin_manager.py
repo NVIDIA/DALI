@@ -160,8 +160,8 @@ class TestLoadedPlugin(unittest.TestCase):
         assert len(output_cpu) == batch_size
 
         for i in range(len(images)):
-            img = images.at(i)
-            out = output_cpu.at(i)
+            img = images[i].as_array()
+            out = output_cpu[i].as_array()
             assert img.shape == out.shape
             np.testing.assert_array_equal(img, out)
 
