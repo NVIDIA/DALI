@@ -24,6 +24,8 @@ import functools
 import itertools
 import random
 import shutil
+import subprocess
+import sys
 import tempfile
 import unittest
 import uuid
@@ -899,6 +901,97 @@ def test_ycbcr_cpu_matches_gpu(source):
     assert cpu.shape == gpu.shape
     max_diff = np.abs(cpu - gpu).max()
     assert max_diff <= 1, f"CPU and GPU YCbCr differ by up to {max_diff}"
+
+
+MJPEG_AVI = os.path.join(DALI_EXTRA_PATH, "db", "video", "mjpeg", "mjpeg.avi")
+
+# Decodes MJPEG_AVI with the GPU (mixed) and CPU variants of experimental.readers.video or
+# decoders.video and prints the mean abs difference of every frame. Runs in a fresh process, so
+# that the NVDEC decoders are created for it (they are pooled within a process).
+_MJPEG_PARITY_CHILD = r"""
+import enum
+import sys
+
+import numpy as np
+from nvidia.dali import fn, pipeline_def
+
+
+class Op(enum.Enum):
+    READER = "reader"
+    DECODER = "decoder"
+
+
+path, op = sys.argv[1], Op(sys.argv[2])
+SEQUENCE_LENGTH, END_FRAME = 30, 60
+
+
+@pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+def pipe():
+    if op == Op.READER:
+        return tuple(
+            fn.experimental.readers.video(
+                device=device,
+                filenames=[path],
+                sequence_length=SEQUENCE_LENGTH,
+                name=f"r_{device}",
+            )
+            for device in ("gpu", "cpu")
+        )
+    data = fn.external_source(source=[[np.fromfile(path, dtype=np.uint8)]], cycle=True)
+    return tuple(
+        fn.decoders.video(data, device=device, end_frame=END_FRAME)
+        for device in ("mixed", "cpu")
+    )
+
+
+p = pipe()
+p.build()
+num_runs = p.reader_meta("r_gpu")["epoch_size"] if op == Op.READER else 1
+print("EXPECTED", num_runs * SEQUENCE_LENGTH if op == Op.READER else END_FRAME)
+for _ in range(num_runs):
+    gpu, cpu = p.run()
+    gpu = np.array(gpu.as_cpu()[0], dtype=np.int16)
+    cpu = np.array(cpu[0], dtype=np.int16)
+    assert gpu.shape == cpu.shape, f"shapes differ: {gpu.shape} vs {cpu.shape}"
+    for diff in np.abs(gpu - cpu).mean(axis=(1, 2, 3)):
+        print("DIFF", diff)
+"""
+
+
+class MjpegOp(enum.Enum):
+    READER = "reader"
+    DECODER = "decoder"
+
+
+@params(*MjpegOp)
+def test_mjpeg_gpu_matches_cpu(op):
+    """Every MJPEG frame decoded on the GPU must match the CPU backend's, up to the differences of
+    the two JPEG decoders and of the GPU's 4:2:0 chroma: on this file (a flat background with the
+    frame number drawn on it) that is 0.02 at most on average, while neighbouring frames differ by
+    0.07 at least, and a blank frame by tens. The GPU work of a JPEG decode is ordered with the
+    legacy default stream, which the color conversion, on the operator's non-blocking stream, must
+    wait for: otherwise it can read surfaces that weren't written yet and return blank frames.
+    FramesDecoderGpuTest.MjpegDecodesMultipleFrames checks that wait deterministically."""
+    res = subprocess.run(
+        [sys.executable, "-c", _MJPEG_PARITY_CHILD, MJPEG_AVI, op.value],
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    if res.returncode != 0 and (
+        "Codec configuration not supported on this GPU" in res.stderr
+        or "is not supported by NVDEC on this platform" in res.stderr
+    ):
+        raise unittest.SkipTest("NVDEC does not support this MJPEG file's format on this GPU")
+    assert res.returncode == 0, f"[{op}] child failed:\n{res.stderr[-3000:]}"
+    diffs = [float(line.split()[1]) for line in res.stdout.splitlines() if line.startswith("DIFF")]
+    expected = [
+        int(line.split()[1]) for line in res.stdout.splitlines() if line.startswith("EXPECTED")
+    ]
+    assert len(expected) == 1 and expected[0] > 0, f"[{op}] no expected frame count reported"
+    assert len(diffs) == expected[0], f"[{op}] compared {len(diffs)} frames, expected {expected[0]}"
+    bad = [(i, round(d, 3)) for i, d in enumerate(diffs) if d >= 0.05]
+    assert not bad, f"[{op}] frames differing from the CPU backend (index, mean abs diff): {bad}"
 
 
 def test_mpeg_program_stream_is_skipped():
