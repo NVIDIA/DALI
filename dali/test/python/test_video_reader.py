@@ -1097,6 +1097,45 @@ def test_uniform_sample_with_range_before_the_video(device):
     assert frame_nums == [0, 3, 6, 9]
 
 
+def _file_list_reader_pipeline(device, entries, **kwargs):
+    """A pipeline with the reader over file_list `entries` (label, start, end in frames) of
+    CFR_VP9_60FPS_FILE (50 frames), which returns the frame numbers of the sequences."""
+    list_file = _write_file_list([f"{CFR_VP9_60FPS_FILE} {entry}" for entry in entries])
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        _, _, frame_num = fn.experimental.readers.video(
+            device=device,
+            name="reader",
+            file_list=list_file,
+            file_list_format="frames",
+            enable_frame_num="sequence",
+            sequence_length=4,
+            **kwargs,
+        )
+        return frame_num
+
+    return pipe()
+
+
+@cartesian_params(devices)
+def test_file_list_range_after_the_video_is_skipped(device):
+    # '60 70' is entirely after the 50 frames of the video: it is empty once clamped, so it is
+    # skipped (with a warning), and the reader only has the samples of the other entry
+    p = _file_list_reader_pipeline(device, ["0 60 70", "1 10 14"])
+    p.build()
+    assert p.reader_meta("reader")["epoch_size"] == 1
+    (frame_num,) = p.run()
+    assert [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()] == [10, 11, 12, 13]
+
+
+@cartesian_params(devices)
+def test_file_list_with_only_ranges_after_the_video_raises(device):
+    p = _file_list_reader_pipeline(device, ["0 60 70"])
+    with assert_raises(RuntimeError, glob="*number of input samples: 0*"):
+        p.build()
+
+
 def test_mpeg_program_stream_is_skipped():
     """MPEG program streams are not supported: the reader skips them (with a warning that names
     the container). A file list that mixes one with a supported file only has the latter."""
