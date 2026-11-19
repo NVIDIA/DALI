@@ -61,11 +61,7 @@ constexpr double kMaxTimestampTicks = 4611686018427387904.0;  // 2^62
 /// Converts a whole number of ticks to int64_t, saturating to +-kMaxTimestampTicks -- a plain
 /// cast is UB for values outside of int64_t's range (e.g. a file_list time of 1e20 s).
 inline int64_t SaturateTicks(double ticks) {
-  if (ticks >= kMaxTimestampTicks)
-    return static_cast<int64_t>(kMaxTimestampTicks);
-  if (ticks <= -kMaxTimestampTicks)
-    return -static_cast<int64_t>(kMaxTimestampTicks);
-  return static_cast<int64_t>(ticks);
+  return static_cast<int64_t>(std::clamp(ticks, -kMaxTimestampTicks, kMaxTimestampTicks));
 }
 
 }  // namespace detail
