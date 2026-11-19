@@ -352,7 +352,7 @@ endif()
 ##################################################################
 set(DALI_INSTALL_REQUIRES_NVIMGCODEC "")
 if(BUILD_NVIMAGECODEC)
-  set(NVIMGCODEC_MIN_VERSION "0.10.0")
+  set(NVIMGCODEC_MIN_VERSION "0.10.1")
   set(NVIMGCODEC_MAX_VERSION "0.11.0")
   message(STATUS "nvImageCodec - requires version >=${NVIMGCODEC_MIN_VERSION}, <${NVIMGCODEC_MAX_VERSION}")
   if (WITH_DYNAMIC_NVIMGCODEC)
@@ -371,14 +371,14 @@ if(BUILD_NVIMAGECODEC)
       if ("${CUDA_VERSION_MAJOR}" EQUAL "13")
         FetchContent_Declare(
             nvimgcodec_headers
-            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.10.0.9_cuda13-archive.tar.xz
-            URL_HASH SHA512=66fa44280a327f1c876b0329cd5f823fad857aa786f970b611181146913c36331df50ba2ceb824a1e4c2648c3ab2dd9d1cdbe9f557b5e1bdbcd4a1a94597d213
+            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.10.1.12_cuda13-archive.tar.xz
+            URL_HASH SHA512=c78d044b51588e030ac13c6a270bb43d1bca52ef6821c137194e06ee3fae6a6b53e3a2d9e5b6f3b7af1aec63e1870df26c009278143971f3f6e5c9e0abba90e6
         )
       elseif ("${CUDA_VERSION_MAJOR}" EQUAL "12")
         FetchContent_Declare(
             nvimgcodec_headers
-            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.10.0.9_cuda12-archive.tar.xz
-            URL_HASH SHA512=3adada7a49fc60eed735853b453d82a3dc5e6edb8bf7d462e3db1b68c8d509e5be5b4a6e85fe2ed4fedc0e2b01b033b3ad10749d86cafa3f07b6775aec1bbd5d
+            URL      https://developer.download.nvidia.com/compute/nvimgcodec/redist/nvimgcodec/linux-x86_64/nvimgcodec-linux-x86_64-0.10.1.12_cuda12-archive.tar.xz
+            URL_HASH SHA512=4f7686003b8e324b2f6ce55c343c66b8cdf7df0a3a7d407a3616f2f6e659c4009eeebf559b1b1f57a5b42d680d6b5d119b39dd81496f2109980bcb615f573d22
         )
       else()
         message(FATAL_ERROR "Unsupported CUDA major version: ${CUDA_VERSION_MAJOR}")
