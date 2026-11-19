@@ -477,8 +477,8 @@ def check_crop_sequence_length(device, batch_size, dtype, input_layout, input_sh
     out_data = out[0]
 
     for i in range(batch_size):
-        assert out_data.at(i).shape == crop_shape, "Shape mismatch {} != {}".format(
-            out_data.at(i).shape, crop_shape
+        assert out_data[i].as_array().shape == crop_shape, "Shape mismatch {} != {}".format(
+            out_data[i].as_array().shape, crop_shape
         )
 
 
@@ -584,8 +584,8 @@ def check_crop_with_out_of_bounds_policy_support(
         out, in_data = tuple(out.as_cpu() for out in pipe.run())
         assert batch_size == len(out)
         for idx in range(batch_size):
-            sample_in = in_data.at(idx)
-            sample_out = out.at(idx)
+            sample_in = in_data[idx].as_array()
+            sample_out = out[idx].as_array()
             in_shape = list(sample_in.shape)
             crop_anchor_norm = [crop_y, crop_x]
             crop_anchor_abs = [

@@ -656,7 +656,7 @@ def test_wide_integer_constant(value, dtype):
     def pipe():
         return types.Constant([0], dtype=dtype) + types.Constant(value, dtype=dtype)
 
-    output = pipe().run()[0].at(0)
+    output = pipe().run()[0][0].as_array()
     assert_equals(output.dtype, dali_type_to_np(dtype))
     assert_equals(output.item(), value)
 

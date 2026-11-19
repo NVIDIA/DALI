@@ -28,8 +28,8 @@ def _test_permutation_generator(allow_repetitions, no_fixed):
     for iter in range(100):
         (idxs,) = pipe.run()
         for i in range(batch_size):
-            assert idxs.at(i).shape == ()
-        idxs = [int(idxs.at(i)) for i in range(batch_size)]
+            assert idxs[i].as_array().shape == ()
+        idxs = [int(idxs[i].as_array()) for i in range(batch_size)]
         if allow_repetitions:
             assert all(x >= 0 and x < batch_size for x in idxs)
         else:
@@ -65,9 +65,9 @@ def _test_permute_batch(device, type):
 
     for i in range(10):
         orig, permuted, idxs = pipe.run()
-        idxs = [int(idxs.at(i)) for i in range(batch_size)]
+        idxs = [int(idxs[i].as_array()) for i in range(batch_size)]
         orig = orig.as_cpu()
-        ref = [orig.at(idx) for idx in idxs]
+        ref = [orig[idx] for idx in idxs]
         check_batch(permuted, ref, len(ref), 0, 0, "abc")
 
 
@@ -89,7 +89,7 @@ def _test_permute_batch_fixed(device):
     for _ in range(10):
         orig, permuted = pipe.run()
         orig = orig.as_cpu()
-        ref = [orig.at(idx) for idx in idxs]
+        ref = [orig[idx] for idx in idxs]
         check_batch(permuted, ref, len(ref), 0, 0, "abc")
 
 

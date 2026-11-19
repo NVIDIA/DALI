@@ -339,13 +339,15 @@ def check_random_bbox_crop_variable_shape(
     for _ in range(100):
         outputs = pipe.run()
         for sample in range(batch_size):
-            in_boxes = outputs[0].at(sample)
-            out_crop_anchor = outputs[1].at(sample)
-            out_crop_shape = outputs[2].at(sample)
-            out_boxes = outputs[3].at(sample)
+            in_boxes = outputs[0][sample].as_array()
+            out_crop_anchor = outputs[1][sample].as_array()
+            out_crop_shape = outputs[2][sample].as_array()
+            out_boxes = outputs[3][sample].as_array()
             check_crop_dims_variable_size(out_crop_anchor, out_crop_shape, scaling, aspect_ratio)
             bbox_indices_out_idx = 4 if not use_labels else 5
-            bbox_indices = outputs[bbox_indices_out_idx].at(sample) if output_bbox_indices else None
+            bbox_indices = (
+                outputs[bbox_indices_out_idx][sample].as_array() if output_bbox_indices else None
+            )
             check_processed_bboxes(
                 out_crop_anchor, out_crop_shape, in_boxes, out_boxes, filter_fn, bbox_indices
             )
@@ -403,10 +405,10 @@ def check_random_bbox_crop_fixed_shape(
     for _ in range(100):
         outputs = pipe.run()
         for sample in range(batch_size):
-            in_boxes = outputs[0].at(sample)
-            out_crop_anchor = outputs[1].at(sample)
-            out_crop_shape = outputs[2].at(sample)
-            out_boxes = outputs[3].at(sample)
+            in_boxes = outputs[0][sample].as_array()
+            out_crop_anchor = outputs[1][sample].as_array()
+            out_crop_shape = outputs[2][sample].as_array()
+            out_boxes = outputs[3][sample].as_array()
             check_crop_dims_fixed_size(out_crop_anchor, out_crop_shape, crop_shape, input_shape)
             rel_out_crop_anchor = [out_crop_anchor[d] / input_shape[d] for d in range(ndim)]
             rel_out_crop_shape = [out_crop_shape[d] / input_shape[d] for d in range(ndim)]
@@ -459,11 +461,11 @@ def check_random_bbox_crop_overlap(batch_size, ndim, crop_shape, input_shape, us
     for _ in range(100):
         outputs = pipe.run()
         for sample in range(batch_size):
-            out_crop_anchor = outputs[1].at(sample)
-            out_crop_shape = outputs[2].at(sample)
+            out_crop_anchor = outputs[1][sample].as_array()
+            out_crop_shape = outputs[2][sample].as_array()
             rel_out_crop_anchor = [out_crop_anchor[d] / input_shape[d] for d in range(ndim)]
             rel_out_crop_shape = [out_crop_shape[d] / input_shape[d] for d in range(ndim)]
-            in_boxes = outputs[0].at(sample)
+            in_boxes = outputs[0][sample].as_array()
             nboxes = in_boxes.shape[0]
             at_least_one_box_in = False
             for box_idx in range(nboxes):
@@ -619,8 +621,8 @@ def _testimpl_random_bbox_crop_square(use_input_shape):
     for _ in range(3):
         outputs = pipe.run()
         for sample in range(batch_size):
-            in_shape = outputs[0].at(sample)
-            out_crop_shape = outputs[1].at(sample)
+            in_shape = outputs[0][sample].as_array()
+            out_crop_shape = outputs[1][sample].as_array()
             if use_input_shape:
                 np.testing.assert_allclose(
                     in_shape[0] * out_crop_shape[0], in_shape[1] * out_crop_shape[1], rtol=1e-06

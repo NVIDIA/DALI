@@ -135,7 +135,7 @@ def test_video_container_frame_dimensions(declared_width, declared_height):
         with assert_raises(RuntimeError, glob="*Decoded frame dimensions (64x48)*"):
             pipe.run()
     else:
-        np.testing.assert_allclose(pipe.run()[0].at(0), mjpeg_reference(data), atol=2, rtol=0)
+        np.testing.assert_allclose(pipe.run()[0][0], mjpeg_reference(data), atol=2, rtol=0)
 
 
 @cartesian_params([30, 64], [types.RGB, types.YCbCr])
@@ -153,7 +153,7 @@ def test_video_reader_matching_frame_dimensions(width, image_type):
                 filenames=[filename], sequence_length=2, device="cpu", image_type=image_type
             )
 
-        output = pipeline().run()[0].at(0)
+        output = pipeline().run()[0][0]
         np.testing.assert_allclose(output, mjpeg_reference(data, image_type), atol=2, rtol=0)
 
 
@@ -784,11 +784,11 @@ def test_video_decoder_frame_start_end_stride(
         )
         # Verify each sample in the batch
         for i in range(batch_size):
-            out_reference_full = out0.at(i)
-            out = out1.at(i)
-            start_frame = start_frame_arg.at(i)
-            length_or_end = length_or_end_arg.at(i)
-            stride = stride_arg.at(i)
+            out_reference_full = out0[i].as_array()
+            out = out1[i].as_array()
+            start_frame = start_frame_arg[i].as_array()
+            length_or_end = length_or_end_arg[i].as_array()
+            stride = stride_arg[i].as_array()
 
             if use_sequence_length:
                 frames = list(range(start_frame, start_frame + length_or_end * stride, stride))
@@ -848,10 +848,10 @@ def test_video_decoder_frame_indices(device, batch_size, filenames, frames, pad_
         out0, out1, frames_arg = (o.as_cpu() for o in pipe.run())
         # Verify each sample in the batch
         for i in range(batch_size):
-            full_video = out0.at(i)
+            full_video = out0[i].as_array()
             F, H, W, C = full_video.shape
-            out = out1.at(i)
-            frames = frames_arg.at(i)
+            out = out1[i].as_array()
+            frames = frames_arg[i].as_array()
             # Get frames at specified indices for reference
             if pad_mode == "none":
                 for f in frames:
@@ -904,8 +904,8 @@ def test_video_decoder_no_padding(device, batch_size, filenames, stride, sequenc
 
     # Verify each sample in the batch
     for i in range(batch_size):
-        ref = out_ref.at(i)
-        actual = out.at(i)
+        ref = out_ref[i].as_array()
+        actual = out[i].as_array()
         compare_videos(ref, actual)
 
 
@@ -1020,8 +1020,8 @@ def test_multichannel_fill_value(device):
     out0, out1 = (o.as_cpu() for o in out)
 
     for i in range(batch_size):
-        frames = out0.at(i)
-        frames_padded = out1.at(i)
+        frames = out0[i].as_array()
+        frames_padded = out1[i].as_array()
 
         padded_F = frames_padded.shape[0]
         F, H, W, C = frames.shape
@@ -1173,7 +1173,7 @@ def test_decoder_operator_codec_support(
     assert len(out) > 0, f"No output from decoder pipeline for {codec}"
 
     for i in range(batch_size):
-        frames = out.as_cpu().at(i)
+        frames = out.as_cpu()[i].as_array()
         assert frames.shape[0] > 0, f"No frames decoded for sample {i}"
         # Get the filename for the i-th sample
         filename = filenames[i % len(filenames)]
@@ -1225,8 +1225,8 @@ def test_reader_operator_codec_support(device, codec, sequence_length=3, stride=
     assert len(out) > 0, f"No output from decoder pipeline for {codec}"
 
     for i in range(batch_size):
-        frames = out.as_cpu().at(i)
-        frame_no_cpu = int(frame_no.as_cpu().at(i).item())
+        frames = out.as_cpu()[i].as_array()
+        frame_no_cpu = int(frame_no.as_cpu()[i].as_array().item())
         assert frames.shape[0] > 0, f"No frames decoded for sample {i}"
 
         # Get the filename for the i-th sample
@@ -1294,7 +1294,7 @@ def test_enable_frame_num_sequence_basic(device, stride):
     out_videos, out_frame_idxs = pipe.run()
 
     for i in range(batch_size):
-        idxs = out_frame_idxs.as_cpu().at(i)
+        idxs = out_frame_idxs.as_cpu()[i].as_array()
 
         # Output should have shape (sequence_length,)
         assert idxs.shape == (
@@ -1350,7 +1350,7 @@ def test_enable_frame_num_sequence_with_padding(device):
     padded_idxs = None
     for _ in range(full_sequences + 2):
         _, out_idxs = pipe.run()
-        idxs = out_idxs.as_cpu().at(0).flatten()
+        idxs = out_idxs.as_cpu()[0].as_array().flatten()
         if -1 in idxs:
             padded_idxs = idxs
             break
@@ -1447,7 +1447,7 @@ def test_enable_frame_num_sequence_non_constant_padding(device, pad_mode):
     padded_idxs = None
     for _ in range(num_full_seqs + 2):
         _, out_idxs = pipe.run()
-        idxs = out_idxs.as_cpu().at(0).flatten()
+        idxs = out_idxs.as_cpu()[0].as_array().flatten()
         if idxs[0] == tail_start:
             padded_idxs = idxs
             break
@@ -1503,8 +1503,8 @@ def test_enable_frame_num_sequence_matches_scalar(device):
     _, out_sequence = pipe_q.run()
 
     for i in range(batch_size):
-        scalar_idx = int(out_scalar.as_cpu().at(i)[0])
-        seq_idxs = out_sequence.as_cpu().at(i).flatten()
+        scalar_idx = int(out_scalar.as_cpu()[i].as_array()[0])
+        seq_idxs = out_sequence.as_cpu()[i].as_array().flatten()
         assert seq_idxs[0] == scalar_idx, (
             f"First element of 'sequence' output ({seq_idxs[0]}) should match "
             f"'scalar' output ({scalar_idx})"
@@ -1569,9 +1569,9 @@ def test_enable_frame_num_false_none_compat(device, value):
 
     pipe = no_frame_num_pipe(batch_size=batch_size, num_threads=2, device_id=0, seed=42)
     (videos,) = pipe.run()
-    assert videos.as_cpu().at(0).shape[0] == sequence_length, (
+    assert videos.as_cpu()[0].as_array().shape[0] == sequence_length, (
         f"enable_frame_num={value!r}: expected {sequence_length} frames, "
-        f"got {videos.as_cpu().at(0).shape[0]}"
+        f"got {videos.as_cpu()[0].as_array().shape[0]}"
     )
 
 
@@ -1648,8 +1648,8 @@ def test_video_decoder_matches_reader(filename, start_frame, sequence_length=8):
         decoder = decoder_pipe()
         reader.build()
         decoder.build()
-        expected = np.array(reader.run()[0].as_cpu().at(0))
-        decoded = np.array(decoder.run()[0].as_cpu().at(0))
+        expected = np.array(reader.run()[0].as_cpu()[0])
+        decoded = np.array(decoder.run()[0].as_cpu()[0])
     assert decoded.shape == expected.shape, f"{decoded.shape} != {expected.shape}"
     diff = np.abs(decoded.astype(np.int16) - expected.astype(np.int16))
     assert np.array_equal(decoded, expected), (
@@ -1733,9 +1733,9 @@ def non_idr_reader_sequences(codec, starts, sequence_length):
         sequences = []
         for start in starts:
             frames, labels = pipe.run()
-            label = int(np.array(labels.as_cpu().at(0)).reshape(-1)[0])
+            label = int(np.array(labels.as_cpu()[0]).reshape(-1)[0])
             assert label == start, f"The sequence of frame {label} came instead of {start}"
-            sequences.append(np.array(frames.as_cpu().at(0)))
+            sequences.append(np.array(frames.as_cpu()[0]))
         return sequences
 
 
@@ -1758,7 +1758,7 @@ def non_idr_decoder_frames(codec, start_frame, sequence_length):
 
     pipe = decoder_pipe()
     pipe.build()
-    return np.array(pipe.run()[0].as_cpu().at(0))
+    return np.array(pipe.run()[0].as_cpu()[0])
 
 
 def yuv420_to_rgb_bt601(y, u, v):

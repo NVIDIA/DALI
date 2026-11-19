@@ -138,8 +138,17 @@ def check_ref(inp_dtype, out_dtype, has_3_dims):
         inp, out_cpu, out_gpu, H, S, B, C = pipe.run()
         out_gpu = out_gpu.as_cpu()
         for i in range(batch_size):
-            h, s, b, c = H.at(i), S.at(i), B.at(i), C.at(i)
-            check(inp.at(i), out_cpu.at(i), out_gpu.at(i), h, s, b, c, dali_type_to_np(out_dtype))
+            h, s, b, c = H[i].as_array(), S[i].as_array(), B[i].as_array(), C[i].as_array()
+            check(
+                inp[i].as_array(),
+                out_cpu[i],
+                out_gpu[i],
+                h,
+                s,
+                b,
+                c,
+                dali_type_to_np(out_dtype),
+            )
 
 
 def test_color_twist():

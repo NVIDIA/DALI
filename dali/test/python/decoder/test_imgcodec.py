@@ -520,10 +520,10 @@ def test_tiff_palette():
     p = pipe()
     imgs, peeked_shapes = p.run()
     assert (
-        peeked_shapes.at(0) == peeked_shapes.at(1)
+        peeked_shapes[0].as_array() == peeked_shapes[1].as_array()
     ).all(), "Invalid peeked shape of palette TIFF"
 
-    delta = np.abs(imgs.at(0).astype("float") - imgs.at(1).astype("float")) / 256
+    delta = np.abs(imgs[0].as_array().astype("float") - imgs[1].as_array().astype("float")) / 256
     assert np.quantile(delta, 0.9) < 0.05, "Original and palette TIFF differ significantly"
 
 
@@ -547,7 +547,7 @@ def test_tiff_uint32():
     for device in ("cpu", "mixed"):
         p = pipe(device)
         (out,) = p.run()
-        result = out.as_cpu().at(0)
+        result = out.as_cpu()[0].as_array()
         assert result.dtype == np.uint32
         np.testing.assert_array_equal(result, ref, err_msg=f"device={device}")
 
@@ -570,7 +570,7 @@ def test_tiff_int32():
     # output against an independent reference decode (via tifffile).
     p = pipe("mixed")
     (out,) = p.run()
-    result = out.as_cpu().at(0)
+    result = out.as_cpu()[0].as_array()
     assert result.dtype == np.int32
     np.testing.assert_array_equal(result, ref)
 
@@ -583,7 +583,7 @@ def test_tiff_int32():
         if "Failed to decode sample" not in str(e):
             raise
     else:
-        result = out.as_cpu().at(0)
+        result = out.as_cpu()[0].as_array()
         assert result.dtype == np.int32
         np.testing.assert_array_equal(result, ref, err_msg="device=cpu")
 
@@ -748,7 +748,7 @@ def test_tiff_signed_color_conversion():
 
     def decode(encoded, device, output_type):
         (out,) = _signed_tiff_decode_pipe(encoded, device, output_type).run()
-        return np.array(out.as_cpu().at(0))
+        return np.array(out.as_cpu()[0])
 
     for name, encoded, raw in _signed_tiff_test_images():
         ref = _signed_rgb_to_ycbcr_uint8_ref(raw)
@@ -796,7 +796,7 @@ def test_tiff_signed_full_width(np_dtype):
     devices = ["mixed"] + (["cpu"] if _cpu_decodes_signed_tiff() else [])
     for device in devices:
         (out,) = pipe(device).run()
-        result = np.array(out.as_cpu().at(0))
+        result = np.array(out.as_cpu()[0])
         assert result.dtype == np_dtype, f"device={device}: {result.dtype}"
         np.testing.assert_array_equal(result, img, err_msg=f"device={device}")
 

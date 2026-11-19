@@ -190,8 +190,8 @@ def _test_rrc(
             outputs = outputs.as_cpu()
         assert outputs.layout() == layout
         for i in range(batch_size):
-            out = outputs.at(i)
-            input_shape = input_shapes.at(i).tolist()
+            out = outputs[i].as_array()
+            input_shape = input_shapes[i].as_array().tolist()
             check_output(out, channel_dim, input_shape, aspect_ratio_range, area_range, value_range)
 
 

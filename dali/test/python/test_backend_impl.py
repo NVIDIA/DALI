@@ -29,7 +29,7 @@ from nvidia.dali.backend_impl import types as types_
 import nvidia.dali as dali
 
 from nose2.tools import params
-from nose_utils import assert_raises, SkipTest
+from nose_utils import assert_raises, assert_warns, SkipTest
 from test_utils import dali_type_to_np, py_buffer_from_address, get_device_memory_info
 
 
@@ -96,7 +96,7 @@ def test_tensorlist_getitem_cpu():
     tensorlist = TensorListCPU(arr, "HWC")
     list_of_tensors = [x for x in tensorlist]
 
-    assert type(tensorlist.at(0)) is np.ndarray
+    assert type(tensorlist[0].as_array()) is np.ndarray
     assert type(tensorlist[0]) is not np.ndarray
     assert type(tensorlist[0]) is TensorCPU
     assert type(tensorlist[-3]) is TensorCPU
@@ -395,6 +395,24 @@ def test_dtype_deprecation_warning():
         warnings.simplefilter("always")
         TensorCPU(np.empty((0))).dtype()
         assert "Calling '.dtype()' is deprecated, please use '.dtype' instead" == str(w[-1].message)
+
+
+def test_tensor_cpu_as_array():
+    tensor = TensorListCPU(np.zeros((2, 2, 3), dtype=np.int32))[0]
+    view = tensor.as_array()
+    copy = tensor.as_array(copy=True)
+    view[0, 0] = 1
+    copy[0, 1] = 2
+    assert_array_equal(np.asarray(tensor), [[1, 0, 0], [0, 0, 0]])
+    assert_array_equal(copy, [[0, 2, 0], [0, 0, 0]])
+
+
+def test_tensorlist_at_deprecation_warning():
+    tl_cpu = TensorListCPU(np.zeros((2, 3)))
+    with assert_warns(glob="deprecated"):
+        tl_cpu.at(1)
+    with assert_warns(glob="deprecated"):
+        tl_cpu._as_gpu().at(1)
 
 
 def test_backend_deprecation_warning_honors_user_filters():

@@ -54,11 +54,11 @@ def check_select_masks(
     for iter in range(3):
         outputs = pipe.run()
         for idx in range(batch_size):
-            in_polygons = outputs[0].at(idx)
-            in_vertices = outputs[1].at(idx)
-            mask_ids = outputs[2].at(idx)
-            out_polygons = outputs[3].at(idx)
-            out_vertices = outputs[4].at(idx)
+            in_polygons = outputs[0][idx].as_array()
+            in_vertices = outputs[1][idx].as_array()
+            mask_ids = outputs[2][idx].as_array()
+            out_polygons = outputs[3][idx].as_array()
+            out_vertices = outputs[4][idx].as_array()
 
             in_polygons_dict = {}
             for k in range(in_polygons.shape[0]):

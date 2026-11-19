@@ -38,7 +38,9 @@ def compare(tl1, tl2):
     assert len(tl1_cpu) == len(tl2_cpu)
     for i in range(0, len(tl1_cpu)):
         assert_array_equal(
-            tl1_cpu.at(i), tl2_cpu.at(i), f"cached and non-cached images differ for sample #{i}"
+            tl1_cpu[i],
+            tl2_cpu[i],
+            f"cached and non-cached images differ for sample #{i}",
         )
 
 

@@ -154,12 +154,12 @@ def common_case(wrapped_fun, device, compare, synchronize=True):
 
 
 def pytorch_compare(fun, pre1, pre2, post1, post2):
-    torch_pre1 = [torch.from_numpy(pre1.at(i)) for i in range(BATCH_SIZE)]
-    torch_pre2 = [torch.from_numpy(pre2.at(i)) for i in range(BATCH_SIZE)]
+    torch_pre1 = [torch.from_numpy(pre1[i].as_array()) for i in range(BATCH_SIZE)]
+    torch_pre2 = [torch.from_numpy(pre2[i].as_array()) for i in range(BATCH_SIZE)]
     torch_post1, torch_post2 = fun(torch_pre1, torch_pre2)
     for i in range(BATCH_SIZE):
-        assert numpy.array_equal(post1.at(i), torch_post1[i].numpy())
-        assert numpy.array_equal(post2.at(i), torch_post2[i].numpy())
+        assert numpy.array_equal(post1[i], torch_post1[i].numpy())
+        assert numpy.array_equal(post2[i], torch_post2[i].numpy())
 
 
 def pytorch_case(fun, device):
@@ -214,8 +214,8 @@ def cupy_wrapper(fun, synchronize):
 
 
 def cupy_compare(fun, synchronize, pre1, pre2, post1, post2):
-    cupy_pre1 = [cupy.asarray(pre1.at(i)) for i in range(BATCH_SIZE)]
-    cupy_pre2 = [cupy.asarray(pre2.at(i)) for i in range(BATCH_SIZE)]
+    cupy_pre1 = [cupy.asarray(pre1[i]) for i in range(BATCH_SIZE)]
+    cupy_pre2 = [cupy.asarray(pre2[i]) for i in range(BATCH_SIZE)]
     if synchronize:
         cupy_post1, cupy_post2 = fun(cupy_pre1, cupy_pre2)
     else:
@@ -223,10 +223,10 @@ def cupy_compare(fun, synchronize, pre1, pre2, post1, post2):
         cupy_post1, cupy_post2 = fun(cupy_pre1, cupy_pre2, stream=stream)
         stream.synchronize()
     for i in range(BATCH_SIZE):
-        assert post1.at(i).shape == cupy_post1[i].shape
-        assert post2.at(i).shape == cupy_post2[i].shape
-        assert numpy.array_equal(post1.at(i), cupy.asnumpy(cupy_post1[i]))
-        assert numpy.array_equal(post2.at(i), cupy.asnumpy(cupy_post2[i]))
+        assert post1[i].as_array().shape == cupy_post1[i].shape
+        assert post2[i].as_array().shape == cupy_post2[i].shape
+        assert numpy.array_equal(post1[i], cupy.asnumpy(cupy_post1[i]))
+        assert numpy.array_equal(post2[i], cupy.asnumpy(cupy_post2[i]))
 
 
 def cupy_case(fun, synchronize=True):

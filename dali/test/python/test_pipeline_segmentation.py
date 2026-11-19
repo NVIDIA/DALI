@@ -139,7 +139,7 @@ def check_bbox_random_crop_adjust_polygons(
                 slice_anchor,
                 slice_shape,
                 bbox_indices,
-            ) = (outs[k].at(j) for k in range(len(outs)))
+            ) = (outs[k][j].as_array() for k in range(len(outs)))
 
             # Checking that the output polygon descriptors are the ones associated with the
             # selected bounding boxes

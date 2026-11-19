@@ -40,17 +40,17 @@ def run_decode(data_path, out_type):
         for i in range(batch_size):
             # as we are asking for a particular color space it may
             # differ from the source image, so don't compare it
-            image = images.at(i)
+            image = images[i].as_array()
             shape_type = np.int64 if out_type is None else dali_type_to_np(out_type)
             for d in range(len(image.shape) - 1):
-                assert image.shape[d] == decoded_shape.at(i)[d], "{} vs {}".format(
-                    image.shape[d], decoded_shape.at(i)[d]
+                assert image.shape[d] == decoded_shape[i].as_array()[d], "{} vs {}".format(
+                    image.shape[d], decoded_shape[i].as_array()[d]
                 )
-                assert image.shape[d] == raw_shape.at(i)[d], "{} vs {}".format(
-                    image.shape[d], raw_shape.at(i)[d]
+                assert image.shape[d] == raw_shape[i].as_array()[d], "{} vs {}".format(
+                    image.shape[d], raw_shape[i].as_array()[d]
                 )
-                assert raw_shape.at(i)[d].dtype == shape_type, "{} vs {}".format(
-                    raw_shape.at(i)[d].dtyp, shape_type
+                assert raw_shape[i].as_array()[d].dtype == shape_type, "{} vs {}".format(
+                    raw_shape[i].as_array()[d].dtyp, shape_type
                 )
 
 

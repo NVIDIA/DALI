@@ -79,7 +79,7 @@ def check_operator_coco_reader_custom_order(order=None, add_invalid_paths=False)
         while i < len(images):
             out = pipeline.run()
             for s in range(batch_size):
-                assert out[0].at(s) == expected_ids[i], f"{i}, {expected_ids}"
+                assert out[0][s].as_array() == expected_ids[i], f"{i}, {expected_ids}"
                 i = i + 1
 
         filenames_file = os.path.join(annotations_dir, "filenames.dat")
@@ -122,10 +122,10 @@ def test_operator_coco_reader_label_remap(avoid_remap):
     while i < len(images):
         out = pipeline.run()
         for s in range(batch_size):
-            print(out[0].at(s), out[1].at(s))
-            assert ids_map[int(out[0].at(s).item())] == int(
-                out[1].at(s).item()
-            ), f"{i}, {ids_map[int(out[0].at(s).item())]} vs {out[1].at(s).item()}"
+            print(out[0][s], out[1][s])
+            assert ids_map[int(out[0][s].as_array().item())] == int(
+                out[1][s].as_array().item()
+            ), f"{i}, {ids_map[int(out[0][s].as_array().item())]} vs {out[1][s].as_array().item()}"
             i = i + 1
 
 
@@ -242,8 +242,8 @@ def test_coco_pixelwise_category_ids(category_id):
                 json.dump(annotations, f)
             for preprocessed in (False, True):
                 labels, masks = masks_pipe(preprocessed).run()
-                np.testing.assert_array_equal(labels.at(0), [category_id])
-                np.testing.assert_array_equal(masks.at(0), np.full((2, 2, 1), category_id))
+                np.testing.assert_array_equal(labels[0], [category_id])
+                np.testing.assert_array_equal(masks[0], np.full((2, 2, 1), category_id))
 
 
 @params(False, True)
@@ -311,7 +311,7 @@ def check_coco_pixelwise_merged_annotations(categories, segmentations, expected)
 
         for preprocessed in (False, True):
             (masks,) = masks_pipe(preprocessed).run()
-            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+            np.testing.assert_array_equal(masks[0].as_array()[:, :, 0], expected)
 
 
 def test_operator_coco_reader_same_images():
@@ -365,12 +365,12 @@ def test_operator_coco_reader_same_images():
                 boxes3,
                 labels3,
             ) = pipe.run()
-            np.testing.assert_array_equal(inputs1.at(0), inputs2.at(0))
-            np.testing.assert_array_equal(inputs1.at(0), inputs3.at(0))
-            np.testing.assert_array_equal(labels1.at(0), labels2.at(0))
-            np.testing.assert_array_equal(labels1.at(0), labels3.at(0))
-            np.testing.assert_array_equal(boxes1.at(0), boxes2.at(0))
-            np.testing.assert_array_equal(boxes1.at(0), boxes3.at(0))
+            np.testing.assert_array_equal(inputs1[0], inputs2[0])
+            np.testing.assert_array_equal(inputs1[0], inputs3[0])
+            np.testing.assert_array_equal(labels1[0], labels2[0])
+            np.testing.assert_array_equal(labels1[0], labels3[0])
+            np.testing.assert_array_equal(boxes1[0], boxes2[0])
+            np.testing.assert_array_equal(boxes1[0], boxes3[0])
 
 
 @raises(

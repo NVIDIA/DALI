@@ -772,9 +772,9 @@ def check_cmn_with_out_of_bounds_policy_support(
 
         assert batch_size == len(out)
         for idx in range(batch_size):
-            sample_in = in_data.at(idx)
-            sample_out = out.at(idx)
-            mirror = mirror_data.at(idx)
+            sample_in = in_data[idx].as_array()
+            sample_out = out[idx].as_array()
+            mirror = mirror_data[idx].as_array()
             flip = [0, mirror]
             in_shape = list(sample_in.shape)
             crop_anchor_norm = [crop_y, crop_x]

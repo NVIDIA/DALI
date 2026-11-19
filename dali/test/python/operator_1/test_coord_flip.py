@@ -67,17 +67,17 @@ def check_operator_coord_flip(device, batch_size, layout, shape, center_x, cente
     for _ in range(30):
         outputs = tuple(out.as_cpu() for out in pipe.run())
         for sample in range(batch_size):
-            in_coords = outputs[0].at(sample)
-            out_coords = outputs[1].at(sample)
+            in_coords = outputs[0][sample].as_array()
+            out_coords = outputs[1][sample].as_array()
             if in_coords.shape == () or in_coords.shape[0] == 0:
                 assert out_coords.shape == () or out_coords.shape[0] == 0
                 continue
 
-            flip_x = outputs[2].at(sample)
-            flip_y = outputs[3].at(sample)
+            flip_x = outputs[2][sample].as_array()
+            flip_y = outputs[3][sample].as_array()
             flip_z = None
             if len(layout) == 3:
-                flip_z = outputs[4].at(sample)
+                flip_z = outputs[4][sample].as_array()
             _, ndim = in_coords.shape
 
             flip_dim = [flip_x, flip_y]
