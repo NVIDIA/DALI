@@ -366,13 +366,16 @@ TEST(DecodeLanePlannerTest, BalancesALargeBatch) {
     std::iota(all.begin(), all.end(), 0);
     EXPECT_EQ(planned, all);
     EXPECT_LE(max_load, div_ceil(total, num_lanes) + longest);
+    // The bound above is loose: assigning the runs in batch order instead of longest first also
+    // meets it (1069 and 585). So the plan of this batch is pinned too
+    EXPECT_EQ(max_load, num_lanes == 4 ? 1046 : 535);
   }
 }
 
 // A run is never split between lanes: consecutive samples of one long video, read in order, are
 // one run, which one lane decodes while the other lanes have nothing to do. Here 32 samples of 16
-// frames with a keyframe every 250 frames: split at the keyframes, two lanes would take about 250
-// and 278 pictures, but one lane takes all 512.
+// frames with a keyframe every 250 frames: split at the keyframe 250, two lanes would decode 250
+// and 262 pictures, but one lane decodes all 512.
 TEST(DecodeLanePlannerTest, OneLongRunUsesOneLane) {
   auto index = MakeIndex(1000, 250);
   std::vector<std::vector<int>> samples;
@@ -466,11 +469,13 @@ TEST(DecodeLanePlannerTest, InvalidInput) {
 }
 
 TEST(DecodeLanePlannerTest, EmptyFilenameIsNotHeld) {
-  // A lane without a decoder (an empty filename) does not hold a file with an empty name
+  // A lane without a decoder (an empty filename) does not hold a file with an empty name. Its
+  // position is where a held decoder would continue without an opening, so that holding the file
+  // would cost less
   auto index = MakeIndex(50, 50);
   Batch batch;
   batch.Add("", &index, 0, 0, 9);
-  auto plans = Plan(batch, {{}});
+  auto plans = Plan(batch, {{"", {0, -1}}});
   EXPECT_EQ(plans[0].runs, std::vector<int>({0}));
   EXPECT_EQ(plans[0].load, kOpenCost + 10);
 }
