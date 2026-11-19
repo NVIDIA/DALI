@@ -25,11 +25,12 @@ import itertools
 import multiprocessing
 import random
 import shutil
+import struct
 import tempfile
 import unittest
 import uuid
 from nose_utils import assert_raises
-from test_utils import get_dali_extra_path
+from test_utils import check_output_pattern, get_dali_extra_path
 from nose2.tools import cartesian_params, params
 
 np.random.seed(42)
@@ -46,6 +47,9 @@ PLENTY_VIDEO_FILES = [PLENTY_VIDEO_DIRECTORY + "/" + f for f in PLENTY_VIDEO_FIL
 FILE_LIST = "/tmp/file_list.txt"
 MULTIPLE_RESOLUTION_ROOT = "/tmp/video_resolution/vp9/"
 VFR_VIDEO_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "vfr_test.mp4")
+# VP9 (supported by both backends), 50 frames, variable frame rate: the stream ends at 1.9833 s,
+# whereas the last frame's pts plus the gap to the previous frame would give 2.0167 s
+VFR_VP9_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "vfr", "test_1_vp9.mp4")
 CFR_VIDEO_FILE = os.path.join(DALI_EXTRA_PATH, "db", "video", "cfr_test.mp4")
 
 # VP9, 24 fps, 240 frames, timebase 1/12288, first pts 0 (cut with ffmpeg -ss 0 -t 10 by
@@ -960,6 +964,108 @@ def test_mpeg_program_stream_is_skipped():
     p.run()
 
 
+all_file_list_roundings = ["start_down_end_up", "start_up_end_down", "all_up", "all_down"]
+
+
+@cartesian_params(devices, all_file_list_roundings)
+def test_file_list_timestamps_end_at_duration_is_kept_any_rounding(device, rounding):
+    list_file = _write_file_list([f"{VIDEO_0} 0 1.0 10.0"])  # end == video duration
+    selection = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_rounding=rounding
+    )
+    # the start 1.0 s is frame 24 exactly, so it does not depend on the rounding of the start
+    assert selection == (216, list(range(24, 240))), f"{rounding}: {selection[0]} frames"
+    if rounding == "start_down_end_up":  # the rounding of file_list_include_preceding_frame
+        legacy = _file_list_frame_selection(
+            _legacy_gpu_reader, list_file, file_list_include_preceding_frame=True
+        )
+        assert selection == legacy, f"experimental: {selection}, legacy: {legacy}"
+
+
+@cartesian_params(devices, all_file_list_roundings)
+def test_file_list_timestamps_end_at_vfr_duration_is_kept(device, rounding):
+    # 2.0 s is after the end of the stream (1.9833 s) but before the end estimated from the last
+    # gap (2.0167 s): the last frame must be kept also when the end is rounded down
+    list_file = _write_file_list([f"{VFR_VP9_FILE} 0 0.0 2.0"])
+    selection = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_rounding=rounding
+    )
+    assert selection == (50, list(range(50))), f"{rounding}: {selection[0]} frames"
+
+
+def _with_edit_list_duration(path, duration):
+    """Writes a copy of an MP4 file whose first edit list entry (of the first track) lasts
+    `duration` (in the movie's timescale), and returns its path."""
+    with open(path, "rb") as f:
+        data = bytearray(f.read())
+
+    def find(begin, end, name):
+        while begin + 8 <= end:
+            size, box = struct.unpack(">I4s", data[begin : begin + 8])
+            if box == name:
+                return begin, begin + size
+            begin += size
+        raise AssertionError(f"No {name} box in {path}")
+
+    box = (0, len(data))
+    for name in (b"moov", b"trak", b"edts", b"elst"):
+        box = find(box[0] + (8 if name != b"moov" else 0), box[1], name)
+    assert data[box[0] + 8] == 0, "Only version 0 edit lists are supported"
+    struct.pack_into(">I", data, box[0] + 16, duration)  # the first entry's segment duration
+    out = os.path.join(_file_list_dir, f"edit_list_{uuid.uuid4().hex}.mp4")
+    with open(out, "wb") as f:
+        f.write(data)
+    return out
+
+
+@cartesian_params(devices, all_file_list_roundings)
+def test_file_list_timestamps_end_at_edited_duration_is_kept(device, rounding):
+    # The edit list ends the stream at 9.98 s, inside the last frame (9.9583 s to 10.0 s by its
+    # packet): a range ending at the edited end keeps the last frame, also when rounded down
+    video = _with_edit_list_duration(VIDEO_0, 9980)  # movie timescale 1/1000
+    list_file = _write_file_list([f"{video} 0 1.0 9.98"])
+    selection = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_rounding=rounding
+    )
+    assert selection == (216, list(range(24, 240))), f"{rounding}: {selection[0]} frames"
+
+
+@cartesian_params(devices, [("start_down_end_up", 50), ("all_up", 50), ("all_down", 49)])
+def test_file_list_timestamps_end_inside_the_last_frame(device, case):
+    rounding, expected_frames = case
+    # 1.975 s is inside the last frame (it starts at 1.9667 s and lasts until the end, 1.9833 s)
+    list_file = _write_file_list([f"{VFR_VP9_FILE} 0 0.0 1.975"])
+    selection = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_rounding=rounding
+    )
+    assert selection == (expected_frames, list(range(expected_frames))), f"{rounding}: {selection}"
+
+
+@cartesian_params(
+    devices,
+    [
+        ("start_down_end_up", [24, 36, 37]),
+        ("start_up_end_down", []),
+        ("all_up", [37]),
+        ("all_down", [36]),
+    ],
+)
+def test_file_list_timestamps_short_and_empty_ranges(device, case):
+    rounding, kept = case
+    lines = [
+        f"{VIDEO_0} 0 1.01 1.03",  # inside frame 24 (1.0 s to 1.0417 s)
+        f"{VIDEO_0} 0 1.51 1.56",  # from inside frame 36 to inside frame 37 (1.5417 s to 1.5833 s)
+        f"{VIDEO_0} 0 11.0 12.0",  # after the end of the stream (10 s): always empty
+        f"{VIDEO_0} 0 2.0 3.0",  # frames 48 to 71, with any rounding
+    ]
+    with check_output_pattern(r"Empty frame range \[240, 240\)"):
+        selection = _file_list_frame_selection(
+            _experimental_reader(device), _write_file_list(lines), file_list_rounding=rounding
+        )
+    expected = kept + list(range(48, 72))
+    assert selection == (len(expected), expected), f"{rounding}: {selection}"
+
+
 @cartesian_params(devices)
 def test_empty_labels_raise(device):
     # Unlike legacy readers.video, where labels=[] means 0-based indices: an empty list is more
@@ -1076,3 +1182,10 @@ def test_two_non_empty_sources_raise(device):
     with assert_raises(ValueError, glob="*Exactly one of*Got 2*"):
         p = pipe()
         p.build()
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_no_frames_in_any_range(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 11.0 12.0"])  # after the end of the stream (10 s)
+    with assert_raises(RuntimeError, glob="The number of input samples: 0, needs to be at least*"):
+        _file_list_frame_selection(_experimental_reader(device), list_file)
