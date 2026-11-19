@@ -1740,6 +1740,8 @@ void ExposeTensorListCPU(py::module &m) {
       Number of dimensions of the tensors in the list.
       )code")
     .def("at", [](TensorList<CPUBackend> &tl, Index id) -> py::array {
+          py::module::import("nvidia.dali.backend").attr("deprecation_warning")(
+              "`TensorListCPU.at` is deprecated. Use `tl[i].as_array(copy=True)` instead.");
           DALI_ENFORCE(IsValidType(tl.type()), "Cannot produce "
               "buffer info for tensor w/ invalid type.");
           DALI_ENFORCE(id < tl.num_samples(), "Index is out-of-range.");
@@ -1763,8 +1765,9 @@ void ExposeTensorListCPU(py::module &m) {
               shape.size(), shape, stride));
         },
       R"code(
-      Returns tensor at given position in the list.
+      Returns a copy of the tensor at given position in the list, as a NumPy array.
 
+      Deprecated: use ``tl[i].as_array(copy=True)`` instead.
       )code")
       .def("__getitem__",
         [](TensorList<CPUBackend> &tl, Index i) -> std::unique_ptr<Tensor<CPUBackend>> {
@@ -1824,8 +1827,7 @@ void ExposeTensorListCPU(py::module &m) {
           return py::array(py::dtype(format), shape, strides, raw_mutable_data);
         },
       R"code(
-      Returns TensorList as a numpy array. TensorList must be dense.
-
+      Returns a copy of the TensorList as a NumPy array. TensorList must be dense.
       )code")
     .def("__len__", [](TensorList<CPUBackend> &tl) {
           return tl.num_samples();
@@ -2100,11 +2102,9 @@ void ExposeTesorListGPU(py::module &m) {
       )code",
       py::keep_alive<0, 1>())
     .def("at",
-        [&](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
-          std::cout << "Warning: `TensorListGPU.at` is deprecated for `TensorListGPU.__getitem__`. "
-                       "It will be removed in future version of DALI."
-                       "Please make sure to update your projects with the item access operator []"
-                    << std::endl;
+        [](TensorList<GPUBackend> &t, Index id) -> std::unique_ptr<Tensor<GPUBackend>> {
+          py::module::import("nvidia.dali.backend").attr("deprecation_warning")(
+              "`TensorListGPU.at` is deprecated. Use `tl[i]` instead.");
           return TensorListGetItemImpl(t, id);
         },
       R"code(
