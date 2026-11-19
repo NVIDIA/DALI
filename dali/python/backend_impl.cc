@@ -952,6 +952,18 @@ void ExposeTensor(py::module &m) {
       R"code(
       Returns the address of the first element of tensor.
       )code")
+    .def("as_array", [](py::object self, bool copy) -> py::array {
+          auto np = py::module::import("numpy");
+          return copy ? np.attr("array")(self) : np.attr("asarray")(self);
+        },
+      "copy"_a = false,
+      R"code(
+      Returns the tensor as a NumPy array.
+
+      copy : bool, default: False
+            If True, returns a copy of the data. Otherwise, returns a view that shares memory
+            with the tensor and keeps it alive.
+      )code")
     .def("reinterpret", ReinterpretTensor<CPUBackend>,
       "new_type"_a,
       R"code(
