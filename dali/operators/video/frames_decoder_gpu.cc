@@ -839,7 +839,7 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     frame_returned_ = true;
     LOG_LINE << "Found frame with correct display timestamp " << current_pts_
               << " for index " << next_frame_idx_ << std::endl;
-    keep_as_last_frame = KeepsLastFrame();
+    keep_as_last_frame = ShouldKeepLastFrame();
     if (current_copy_to_output_) {
       if (!surface_decoded_[picture_display_info->picture_index]) {
         throw std::logic_error(make_string("Internal error: frame ", next_frame_idx_, " of \"",
@@ -921,7 +921,7 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
     // The picture was buffered for its own frame (a later one): the frame wanted is a copy of it
     copyD2D(static_cast<uint8_t *>(current_frame_output_),
             static_cast<const uint8_t *>(frame_output), FrameBytes(), stream_);
-    if (KeepsLastFrame())
+    if (ShouldKeepLastFrame())
       KeepAsLastFrame(frame_output);
     frame_returned_ = true;
   }
@@ -965,7 +965,7 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
         LOG_LINE << "Copying from frame buffer to frame_output" << std::endl;
         copyD2D(data, frame.frame_.data(), FrameSize(), stream_);
       }
-      if (KeepsLastFrame() && frame.has_data_)
+      if (ShouldKeepLastFrame() && frame.has_data_)
         KeepAsLastFrame(frame.frame_.data());
       LOG_LINE << "Found buffered frame with pts=" << frame.pts_ << std::endl;
 
@@ -985,14 +985,14 @@ bool FramesDecoderGpu::ReadNextFrameWithIndex(uint8_t *data) {
           next = &frame;
       }
       // It has its data unless the index says that the stream has no frames without pictures (see
-      // KeepsLastFrame), and this one has none all the same
+      // ShouldKeepLastFrame), and this one has none all the same
       if (!next->has_data_) {
         throw std::logic_error(make_string("Internal error: frame ", next_frame_idx_, " of \"",
                                            Filename(), "\" is read, but it has no picture, and "
                                            "only the timestamp of the next frame shown was kept."));
       }
       copyD2D(data, next->frame_.data(), FrameSize(), stream_);
-      if (KeepsLastFrame())
+      if (ShouldKeepLastFrame())
         KeepAsLastFrame(next->frame_.data());
     } else {
       RepeatLastFrame(data);
@@ -1369,7 +1369,7 @@ bool FramesDecoderGpu::ShouldBufferPixels(int64_t pts) const {
   // When the decoder keeps the last frame read, any buffered frame may be the last frame that a
   // frame without a picture repeats (see KeepAsLastFrame), so all of them keep their data
   return buffered_frame_data_ == BufferedFrameData::kIfRead
-             ? (KeepsLastFrame() || MayNeedPixelsLater(pts))
+             ? (ShouldKeepLastFrame() || MayNeedPixelsLater(pts))
              : buffered_frame_data_ == BufferedFrameData::kAll;
 }
 
