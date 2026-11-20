@@ -17,6 +17,7 @@
 #include <cstdarg>
 #include <cstdlib>
 #include <cstring>
+#include <limits>
 #include <list>
 #include <stdexcept>
 #include <string>
@@ -33,6 +34,39 @@ namespace {
 
 static_assert(is_pow2(kBlockSize),
               "The implementation assumes that the block size is a power of 2");
+
+// Decode the bounded header field ourselves: older libtar headers truncate sizes to 32 bits.
+// Negative, malformed and overflowing sizes are invalid, regardless of the libtar version.
+bool ParseTarSizeField(const char (&field)[12], uint64_t &value) {
+  value = 0;
+  const auto *bytes = reinterpret_cast<const unsigned char *>(field);
+  if (bytes[0] & 0x80) {  // GNU base-256: the remaining 95 bits form a signed integer.
+    if (bytes[0] & 0x40)
+      return false;
+    value = bytes[0] & 0x3f;
+    for (size_t i = 1; i < sizeof(field); i++) {
+      if (value > (std::numeric_limits<uint64_t>::max() >> 8))
+        return false;
+      value = (value << 8) | bytes[i];
+    }
+    return true;
+  }
+
+  size_t i = 0;
+  while (i < sizeof(field) && field[i] == ' ')
+    i++;
+  const size_t first_digit = i;
+  for (; i < sizeof(field) && field[i] >= '0' && field[i] <= '7'; i++) {
+    value = (value << 3) | (field[i] - '0');
+  }
+  // Twelve octal digits fit in 36 bits. Only spaces and NULs may follow them.
+  const bool has_digits = i > first_digit;
+  for (; i < sizeof(field); i++) {
+    if (field[i] != ' ' && field[i] != '\0')
+      return false;
+  }
+  return has_digits;
+}
 
 constexpr uint64_t kEmptyEofBlocks = 2;
 constexpr uint64_t kTarArchiveBufferInitSize = 1;
@@ -230,7 +264,6 @@ inline void TarArchive::ParseHeader() {
     SetEof();
   } else {
     filename_ = th_get_pathname(ToTarHandle(handle_));
-    filesize_ = th_get_size(ToTarHandle(handle_));
 
     if (TH_ISREG(ToTarHandle(handle_))) {
       filetype_ = ENTRY_FILE;
@@ -259,18 +292,33 @@ inline void TarArchive::ParseHeader() {
     if (filetype_ != ENTRY_FILE && filetype_ != ENTRY_UNKNOWN) {
       filesize_ = 0;
     } else {
+      uint64_t declared_size;
+      if (!ParseTarSizeField(ToTarHandle(handle_)->th_buf.size, declared_size)) {
+        const auto &field = ToTarHandle(handle_)->th_buf.size;
+        constexpr char kHexDigits[] = "0123456789abcdef";
+        std::string hex_field;
+        for (unsigned char byte : field) {
+          hex_field += kHexDigits[byte >> 4];
+          hex_field += kHexDigits[byte & 0xf];
+        }
+        throw std::runtime_error(make_string(
+            "Corrupted tar file ", stream_->path(), ": entry ", filename_,
+            ": invalid tar entry size (hex: ", hex_field,
+            "); expected a nonnegative octal or GNU base-256 value fitting in uint64_t."));
+      }
       const auto data_offset = stream_->TellRead();
       const auto archive_size = stream_->Size();
       const bool valid_offset = data_offset >= 0 &&
                                 static_cast<uint64_t>(data_offset) <= archive_size;
       const auto available_bytes = valid_offset ? archive_size - data_offset : 0;
-      if (!valid_offset || filesize_ > available_bytes) {
+      if (!valid_offset || declared_size > available_bytes) {
         throw std::runtime_error(
             make_string("Corrupted tar file ", stream_->path(), ": entry ", filename_,
-                        " declares ", filesize_, " bytes, but only ", available_bytes,
+                        " declares ", declared_size, " bytes, but only ", available_bytes,
                         " bytes are available at offset ", data_offset,
                         "; the entry extends beyond the archive."));
       }
+      filesize_ = declared_size;
     }
   }
   readoffset_ = 0;
