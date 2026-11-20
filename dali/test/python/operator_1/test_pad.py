@@ -107,13 +107,13 @@ def check_pad(device, batch_size, input_max_shape, axes, axis_names, align, shap
             align_val = align[i]
             shape_arg_val = shape_arg[i]
             for i in range(batch_size):
-                input_shape = out0.at(i).shape
+                input_shape = out0[i].as_array().shape
                 if input_shape[dim] > max_shape[dim]:
                     max_shape[dim] = input_shape[dim]
 
         for i in range(batch_size):
-            input_shape = out0.at(i).shape
-            output_shape = out1.at(i).shape
+            input_shape = out0[i].as_array().shape
+            output_shape = out1[i].as_array().shape
 
             for j in range(len(actual_axes)):
                 dim = actual_axes[j]
@@ -221,7 +221,7 @@ def check_pad_per_sample_shapes_and_alignment(device="cpu", batch_size=3, ndim=2
         outs = tuple(out.as_cpu() for out in pipe.run())
         for i in range(batch_size):
             in_shape, in_data, req_shape, req_align, out_pad_shape, out_pad_align, out_pad_both = [
-                outs[out_idx].at(i) for out_idx in range(len(outs))
+                outs[out_idx][i].as_array() for out_idx in range(len(outs))
             ]
             assert (in_shape == in_data.shape).all()
             # Pad to explicit shape
@@ -259,7 +259,7 @@ def check_pad_to_square(device="cpu", batch_size=3, ndim=2, num_iter=3):
     for _ in range(num_iter):
         outs = tuple(out.as_cpu() for out in pipe.run())
         for i in range(batch_size):
-            in_data, out_data = [outs[out_idx].at(i) for out_idx in range(len(outs))]
+            in_data, out_data = [outs[out_idx][i].as_array() for out_idx in range(len(outs))]
             in_shape = in_data.shape
             max_side = max(in_shape)
             for s in out_data.shape:

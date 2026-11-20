@@ -727,10 +727,10 @@ def _test_stitching(backend, dim, channel_first, dtype, interp):
         for i in range(batch_size):
             slices = []
             for z in range(dim - 1):
-                q00 = out[1 + z * 4 + 0].at(i)
-                q01 = out[1 + z * 4 + 1].at(i)
-                q10 = out[1 + z * 4 + 2].at(i)
-                q11 = out[1 + z * 4 + 3].at(i)
+                q00 = out[1 + z * 4 + 0][i].as_array()
+                q01 = out[1 + z * 4 + 1][i].as_array()
+                q10 = out[1 + z * 4 + 2][i].as_array()
+                q11 = out[1 + z * 4 + 3][i].as_array()
                 if channel_first:
                     slices.append(np.block([[q00, q01], [q10, q11]]))
                 else:
@@ -794,9 +794,9 @@ def _test_empty_input(dim, backend):
             out_with_empty = out_with_empty.as_cpu()
         for i in range(batch_size):
             if i % 2 != 0:
-                assert np.array_equal(out_no_empty.at(i), out_with_empty.at(i))
+                assert np.array_equal(out_no_empty[i], out_with_empty[i])
             else:
-                assert np.prod(out_with_empty.at(i).shape) == 0
+                assert np.prod(out_with_empty[i].as_array().shape) == 0
 
 
 def test_empty_input():
@@ -864,7 +864,7 @@ def test_large_gpu(interp, antialias):
 
     pipe = resize_pipe()
     (outs,) = pipe.run()
-    out = np.array(outs.at(0).as_cpu())
+    out = np.array(outs[0].as_cpu())
     global large_data_resized
     if large_data_resized is None:
         large_data_resized = make_cube(350, 224, 224)

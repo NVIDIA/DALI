@@ -31,12 +31,14 @@ TensorListCPU
 .. autoclass:: TensorListCPU
    :members:
    :special-members: __getitem__, __init__
+   :exclude-members: at
 
 TensorListGPU
 ^^^^^^^^^^^^^
 .. autoclass:: TensorListGPU
    :members:
    :special-members: __getitem__, __init__
+   :exclude-members: at
 
 Tensor
 ------

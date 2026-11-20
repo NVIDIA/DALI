@@ -113,7 +113,7 @@ def compare_video_resize_pipelines(pipeline, gt_pipeline, batch_size, video_leng
 
     for sample_id in range(batch_size):
         global_sample_id = global_sample_id + 1
-        sample = batch.at(sample_id)
+        sample = batch[sample_id].as_array()
         for frame_id in range(video_length):
             frame = sample[frame_id]
             gt_frame = gt_pipeline.run()[0].as_cpu().as_array()[0]

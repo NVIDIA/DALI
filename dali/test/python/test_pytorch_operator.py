@@ -107,9 +107,9 @@ def check_pytorch_operator(device):
             output1 = output1.as_cpu()
             output2 = output2.as_cpu()
         for i in range(len(output1)):
-            res1 = output1.at(i)
-            res2 = output2.at(i)
-            exp1_t, exp2_t = torch_operation(torch.from_numpy(preprocessed_output.at(i)))
+            res1 = output1[i]
+            res2 = output2[i]
+            exp1_t, exp2_t = torch_operation(torch.from_numpy(preprocessed_output[i].as_array()))
             assert numpy.allclose(res1, exp1_t.numpy())
             assert numpy.allclose(res2, exp2_t.numpy())
 
@@ -125,15 +125,15 @@ def check_pytorch_operator_batch_processing(device):
     pt_pipe = TorchPythonFunctionPipeline(torch_batch_operation, device, True)
     for it in range(ITERS):
         (preprocessed_output,) = pipe.run()
-        tensors = [torch.from_numpy(preprocessed_output.at(i)) for i in range(BATCH_SIZE)]
+        tensors = [torch.from_numpy(preprocessed_output[i].as_array()) for i in range(BATCH_SIZE)]
         exp1, exp2 = torch_batch_operation(tensors)
         output1, output2 = pt_pipe.run()
         if device == "gpu":
             output1 = output1.as_cpu()
             output2 = output2.as_cpu()
         for i in range(len(output1)):
-            res1 = output1.at(i)
-            res2 = output2.at(i)
+            res1 = output1[i]
+            res2 = output2[i]
             assert numpy.allclose(res1, exp1[i].numpy())
             assert numpy.allclose(res2, exp2[i].numpy())
 

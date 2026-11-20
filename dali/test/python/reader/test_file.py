@@ -86,8 +86,8 @@ def _test_reader_files_arg(use_root, use_labels, shuffle):
     for i in range(num_iters):
         out_f, out_l = pipe.run()
         for j in range(batch_size):
-            contents = bytes(out_f.at(j)).decode("utf-8")
-            label = out_l.at(j)[0]
+            contents = bytes(out_f[j]).decode("utf-8")
+            label = out_l[j].as_array()[0]
             index = label - 10000 if use_labels else label
             assert contents == ref_contents(fnames[index])
 
@@ -112,8 +112,8 @@ def test_file_reader_relpath():
     for i in range(num_iters):
         out_f, out_l = pipe.run()
         for j in range(batch_size):
-            contents = bytes(out_f.at(j)).decode("utf-8")
-            index = out_l.at(j)[0]
+            contents = bytes(out_f[j]).decode("utf-8")
+            index = out_l[j].as_array()[0]
             assert contents == ref_contents(fnames[index])
 
 
@@ -134,8 +134,8 @@ def test_file_reader_relpath_file_list():
     for i in range(num_iters):
         out_f, out_l = pipe.run()
         for j in range(batch_size):
-            contents = bytes(out_f.at(j)).decode("utf-8")
-            label = out_l.at(j)[0]
+            contents = bytes(out_f[j]).decode("utf-8")
+            label = out_l[j].as_array()[0]
             index = 10000 - label
             assert contents == ref_contents(fnames[index])
 
@@ -163,7 +163,7 @@ def _test_file_reader_filter(
         for j in range(batch_size):
             with open(fnames[i * batch_size + j][2], "rb") as file:
                 contents = np.array(list(file.read()))
-                assert all(contents == out_f.at(j))
+                assert all(contents == out_f[j].as_array())
 
 
 def test_file_reader_filters():
@@ -252,8 +252,8 @@ def _check_file_labels(pipe, fnames, expected_labels, dtype):
     for _ in range(num_iters):
         out_f, out_l = pipe.run()
         for j in range(batch_size):
-            contents = bytes(out_f.at(j)).decode("utf-8")
-            label = out_l.at(j)
+            contents = bytes(out_f[j]).decode("utf-8")
+            label = out_l[j].as_array()
             assert label.dtype == dtype, f"{label.dtype} != {dtype}"
             assert label.shape == (1,)
             assert label[0] == dtype(label_of[contents]), f"{label[0]} != {label_of[contents]}"
@@ -377,9 +377,9 @@ def test_file_root_label_dtype():
     for _ in range(3):
         (ref_f, ref_l), (out_f, out_l) = ref_pipe.run(), pipe.run()
         for j in range(batch_size):
-            assert np.array_equal(ref_f.at(j), out_f.at(j))
-            assert out_l.at(j).dtype == np.float32
-            assert out_l.at(j)[0] == ref_l.at(j)[0]
+            assert np.array_equal(ref_f[j], out_f[j])
+            assert out_l[j].as_array().dtype == np.float32
+            assert out_l[j].as_array()[0] == ref_l[j].as_array()[0]
 
 
 @params(

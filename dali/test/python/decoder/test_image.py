@@ -484,10 +484,10 @@ def test_tiff_palette():
     p = pipe()
     imgs, peeked_shapes = p.run()
     assert (
-        peeked_shapes.at(0) == peeked_shapes.at(1)
+        peeked_shapes[0].as_array() == peeked_shapes[1].as_array()
     ).all(), "Invalid peeked shape of palette TIFF"
 
-    delta = np.abs(imgs.at(0).astype("float") - imgs.at(1).astype("float")) / 256
+    delta = np.abs(imgs[0].as_array().astype("float") - imgs[1].as_array().astype("float")) / 256
     assert np.quantile(delta, 0.9) < 0.05, "Original and palette TIFF differ significantly"
 
 

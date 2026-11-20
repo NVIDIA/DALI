@@ -550,7 +550,7 @@ def check_output(outputs, ref_out, ref_is_list_of_outputs=None):
         for i in range(len(out)):
             if not np.array_equal(out[i], ref[i]):
                 print("Mismatch at sample", i)
-                print("Out: ", out.at(i))
+                print("Out: ", out[i])
                 print("Ref: ", ref[i])
             assert np.array_equal(out[i], ref[i])
 

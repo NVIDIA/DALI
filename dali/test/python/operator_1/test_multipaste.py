@@ -281,7 +281,7 @@ def manual_verify(
         assert (
             output[i].source_info() == ref_source_info
         ), f"{output[i].source_info()} == {ref_source_info}"
-        out = output.at(i)
+        out = output[i].as_array()
         out_size = out_size_l[i]
         assert out.shape == out_size, f"{out.shape} vs {out_size}"
         ref = np.zeros(out.shape)
@@ -290,7 +290,7 @@ def manual_verify(
             roi_end = roi_start + shapes_l[i][j]
             out_start = out_anchors_l[i][j]
             out_end = out_start + shapes_l[i][j]
-            ref[out_start[0] : out_end[0], out_start[1] : out_end[1]] = inp.at(idx)[
+            ref[out_start[0] : out_end[0], out_start[1] : out_end[1]] = inp[idx].as_array()[
                 roi_start[0] : roi_end[0], roi_start[1] : roi_end[1]
             ]
         ref = ref.astype(np_type_map[dtype])
@@ -313,7 +313,7 @@ def show_images(batch_size, image_batch):
     for j in range(rows * columns):
         plt.subplot(gs[j])
         plt.axis("off")
-        plt.imshow(image_batch.at(j))
+        plt.imshow(image_batch[j])
     plt.show()
 
 
