@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <cstring>
 #include <future>
+#include <limits>
 #include <memory>
 #include <string>
 #include <utility>
@@ -69,6 +70,70 @@ TEST(LibTarUtilsTest, ReadsPayloadWithoutBlockPadding) {
   char actual[4];
   ASSERT_EQ(archive.Read(actual, sizeof(actual)), sizeof(actual));
   EXPECT_EQ(std::string(actual, sizeof(actual)), "abcd");
+}
+
+namespace {
+
+// Builds a 12-byte tar size field the way writers do: right-justified in 11 characters + NUL.
+template <typename Field>
+void SetOctalField(Field &field, const char *digits) {
+  std::memset(field, 0, sizeof(field));
+  size_t n = std::strlen(digits);
+  std::memset(field, ' ', 11);
+  std::memcpy(field + 11 - n, digits, n);
+}
+
+}  // namespace
+
+TEST(TarSizeParsing, Octal) {
+  char field[12];
+  SetOctalField(field, "4000");
+  EXPECT_EQ(ParseTarSize(field), 2048u);
+  SetOctalField(field, "0");
+  EXPECT_EQ(ParseTarSize(field), 0u);
+  // The largest value a 11-digit field can hold needs more than 32 bits.
+  SetOctalField(field, "77777777777");
+  EXPECT_EQ(ParseTarSize(field), 8589934591u);
+  // 4 GiB + 512: a 32-bit parser (stock libtar) would report 512 here.
+  SetOctalField(field, "40000001000");
+  EXPECT_EQ(ParseTarSize(field), 4294967808u);
+}
+
+TEST(TarSizeParsing, FullFieldWithoutTerminatorIsBounded) {
+  // 12 octal digits and no NUL: the parser must not read into the neighbouring header field.
+  struct {
+    char size[12];
+    char mtime[12];
+  } fields = {};
+  std::memset(fields.size, '7', sizeof(fields.size));
+  std::memset(fields.mtime, '7', sizeof(fields.mtime));
+  EXPECT_EQ(ParseTarSize(fields.size), (uint64_t(1) << 36) - 1);
+}
+
+TEST(TarSizeParsing, MalformedFields) {
+  char field[12];
+  // Same convention as libtar's oct_to_size: no digits -> 0.
+  std::memset(field, 0, sizeof(field));
+  EXPECT_EQ(ParseTarSize(field), 0u);
+  std::memcpy(field, "garbage\0\0\0\0\0", 12);
+  EXPECT_EQ(ParseTarSize(field), 0u);
+  // A negative number wraps modulo 2^64, like the 64-bit libtar fork does.
+  SetOctalField(field, "-4");
+  EXPECT_EQ(ParseTarSize(field), uint64_t(0) - 4);
+}
+
+TEST(TarSizeParsing, Base256) {
+  unsigned char field[12] = {0x80, 0, 0, 0, 0, 0, 0, 0x01, 0x40, 0, 0, 0};  // 5 GiB
+  EXPECT_EQ(ParseTarSize(reinterpret_cast<const char (&)[12]>(field)), uint64_t(5) << 30);
+  // Negative (0xFF prefix) and values that do not fit in 64 bits are not representable;
+  // they must come out as something no archive can satisfy.
+  unsigned char negative[12] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
+                                0xFC};
+  EXPECT_EQ(ParseTarSize(reinterpret_cast<const char (&)[12]>(negative)),
+            std::numeric_limits<uint64_t>::max());
+  unsigned char too_big[12] = {0x80, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0};
+  EXPECT_EQ(ParseTarSize(reinterpret_cast<const char (&)[12]>(too_big)),
+            std::numeric_limits<uint64_t>::max());
 }
 
 TEST(LibTarUtilsTestSimple, Interface) {

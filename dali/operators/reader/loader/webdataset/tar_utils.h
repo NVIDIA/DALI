@@ -28,6 +28,19 @@ namespace detail {
 constexpr size_t kBlockSize = T_BLOCKSIZE;
 
 /**
+ * @brief Decodes the 12-byte size field of a tar header into a 64-bit value.
+ *
+ * Independent of the linked libtar: stock libtar's `th_get_size` returns an `unsigned int`, which
+ * silently truncates sizes to 32 bits (e.g. the conda-forge package).
+ *
+ * Accepts octal digits (space/NUL padded; the terminator is optional) and the GNU base-256
+ * encoding. A field without digits yields 0, like libtar. A leading '-' wraps modulo 2^64.
+ * Base-256 values that are negative or do not fit in 64 bits yield UINT64_MAX, which no archive
+ * can satisfy, so the caller's bounds check rejects them.
+ */
+DLL_PUBLIC uint64_t ParseTarSize(const char (&field)[12]);
+
+/**
  * @brief Used to access .tar archives through the given FileStream
  */
 class DLL_PUBLIC TarArchive {
