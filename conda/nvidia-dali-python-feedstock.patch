@@ -133,10 +133,15 @@ index 675c252..78d6591 100644
        ignore_run_exports:
          by_name:
 diff --git a/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml b/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
-index 55f8137..0d96c39 100644
+index 55f8137..2d3b82e 100644
 --- a/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
 +++ b/.ci_support/linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
-@@ -41,9 +41,9 @@ libcvcuda:
+@@ -37,13 +37,13 @@ libboost_headers:
+ libcst:
+ - '>=1.8,<2.0'
+ libcvcuda:
+-- 0.16.*
++- 0.19.*
  libjpeg_turbo:
  - '3'
  libnvcomp:
@@ -149,10 +154,15 @@ index 55f8137..0d96c39 100644
  - 4.13.*
  libprotobuf:
 diff --git a/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml b/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml
-index ff66761..94ed305 100644
+index ff66761..260b779 100644
 --- a/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml
 +++ b/.ci_support/linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml
-@@ -41,9 +41,9 @@ libcvcuda:
+@@ -37,13 +37,13 @@ libboost_headers:
+ libcst:
+ - '>=1.8,<2.0'
+ libcvcuda:
+-- 0.16.*
++- 0.19.*
  libjpeg_turbo:
  - '3'
  libnvcomp:

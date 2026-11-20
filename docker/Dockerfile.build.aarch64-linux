@@ -49,6 +49,7 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
                        cuda-cccl-cross-aarch64-${CUDA_CROSS_VERSION} \
                        cuda-nvcc-cross-aarch64-${CUDA_CROSS_VERSION} \
                        libnpp-cross-aarch64-${CUDA_CROSS_VERSION} \
+                       cuda-nvtx-cross-aarch64-${CUDA_CROSS_VERSION} \
     && \
     rm -rf /var/lib/apt/lists/* && \
     rm /usr/bin/python3 && ln -s python3.10 /usr/bin/python3 && \
@@ -59,7 +60,7 @@ RUN apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/
         curl -O https://bootstrap.pypa.io/get-pip.py; \
     fi && python3 get-pip.py && rm get-pip.py && \
     # decouple libclang and clang installation so libclang changes are not overriden by clang
-    pip install clang==14.0 && pip install libclang==14.0.1 flake8 bandit "black[jupyter]"==26.5.1 build && \
+    pip install clang==14.0 && pip install libclang==14.0.1 flake8 bandit "black[jupyter]"==26.10.1 build && \
     rm -rf /root/.cache/pip/ && \
     cd /tmp && git clone https://github.com/NixOS/patchelf && cd patchelf && \
     ./bootstrap.sh && ./configure --prefix=/usr/ && make -j install && cd / && rm -rf /tmp/patchelf && \
