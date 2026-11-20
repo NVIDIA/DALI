@@ -316,7 +316,7 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   /**
    * @brief Number of pictures mapped and converted so far (for tests and diagnostics).
    *
-   * Pictures that cannot be read with their data when they are displayed (MayNeedPixelsLater is
+   * Pictures that cannot be read with their data when they are displayed (ShouldBufferPixels is
    * false), or that are displayed as the next frame while it is only skipped, are not.
    */
   int64_t MappedPictures() const {
@@ -337,7 +337,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * kIfRead drops instead (see IsAmongNextFrames).
    */
   enum class BufferedFrameData {
-    // those that may be read with their data (see MayNeedPixelsLater)
+    // those that may be read with their data (see MayNeedPixelsLater), or all of them when the
+    // decoder keeps the last frame read (see ShouldBufferPixels)
     kIfRead,
     // all of them; every picture is then decoded (see ShouldDecodePicture)
     kAll,
@@ -372,7 +373,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @brief Whether the parser displays a frame with this timestamp, that is not the next one, with
    *        its pixels (mapped and converted) in the buffer, or only its timestamp.
    *
-   * It follows MayNeedPixelsLater, unless SetBufferedFrameDataForTesting says otherwise.
+   * It follows MayNeedPixelsLater, except when the decoder keeps the last frame read
+   * (ShouldKeepLastFrame): then every buffered frame keeps its pixels.
+   * SetBufferedFrameDataForTesting can override both.
    */
   bool ShouldBufferPixels(int64_t pts) const;
 
@@ -443,7 +446,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   bool labels_from_parser_ = false;
   // With labels_from_parser_: a copy of the last frame read, which a frame without a picture of its
   // own (e.g. the not-coded VOP of a DivX packed stream) repeats. Unknown after a flush: such a
-  // frame then takes the next picture shown.
+  // frame then takes the next picture shown. Only kept when the index says that such frames may
+  // exist (see ShouldKeepLastFrame).
   DeviceBuffer<uint8_t> last_frame_;
   bool has_last_frame_ = false;
 
@@ -476,6 +480,14 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   // Bytes of a frame in the output type
   size_t FrameBytes() const;
+
+  // Whether the frames read are kept in last_frame_: with labels_from_parser_, and only for a
+  // stream that may have frames without pictures. Otherwise a skipped frame needs no color
+  // conversion, a frame read needs no copy, and a buffered frame that is not read is not mapped
+  // (see ShouldBufferPixels).
+  bool ShouldKeepLastFrame() const {
+    return labels_from_parser_ && index_.may_have_frames_without_pictures;
+  }
 
   // The buffer for the last frame read (see last_frame_), allocated for the output type
   uint8_t *LastFrame();

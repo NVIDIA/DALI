@@ -264,6 +264,7 @@ static void ExpectIndexerGivesTheIndexOfTheDecoder(FramesDecoderBase &decoder,
   EXPECT_EQ(actual.timebase.num, expected.timebase.num);
   EXPECT_EQ(actual.timebase.den, expected.timebase.den);
   EXPECT_EQ(actual.decode_order_timestamps, expected.decode_order_timestamps);
+  EXPECT_EQ(actual.may_have_frames_without_pictures, expected.may_have_frames_without_pictures);
   for (size_t i = 0; i < expected.size(); i++) {
     EXPECT_EQ(actual.index[i].pts, expected.index[i].pts) << "frame " << i;
     EXPECT_EQ(actual.index[i].is_keyframe, expected.index[i].is_keyframe) << "frame " << i;
@@ -1197,6 +1198,37 @@ TEST_F(FramesDecoderGpuTest, PicturesNotReadAreNotMapped) {
   check("from frame 30", {30, 31});
 }
 
+// An AVI with B-frames has timestamps in decoding order, so the decoder labels the pictures with
+// the timestamps that the parser hands out. Unless the stream may have frames without pictures,
+// no frame repeats a buffered one, so the pictures that are not read are not mapped either.
+TEST_F(FramesDecoderGpuTest, AviPicturesNotReadAreNotMapped) {
+  // H.264 with B-frames, every packet a picture
+  auto path = make_string(testing::dali_extra_path(), "/db/video/containers/avi/cfr.avi");
+  FramesDecoderGpu indexed(path);
+  indexed.BuildIndex();
+  auto &index = indexed.GetIndex();
+  ASSERT_TRUE(index.decode_order_timestamps) << path;
+  ASSERT_FALSE(index.may_have_frames_without_pictures) << path;
+  std::set<int> all_frames;
+  for (int i = 0; i < 40; i++)
+    all_frames.insert(i);
+  auto sequential = SequentialFrameHashes(path, index, all_frames);
+  auto check = [&](const std::string &what, const std::vector<int> &frame_ids) {
+    auto run = CheckSameFramesAsMappingAll(path, index, what, [&](FramesDecoderGpu &d) {
+      return DecodeAndHash(d, frame_ids);
+    });
+    std::vector<size_t> expected;
+    for (int frame : frame_ids)
+      expected.push_back(sequential[frame]);
+    EXPECT_EQ(run.result.frames, expected) << what << ": not the frames that a sequential read "
+                                           << "gives";
+    EXPECT_LE(run.result.mapped, static_cast<int64_t>(frame_ids.size()) + kMaxMappedAhead)
+        << what;
+  };
+  check("stride 3", Strided(0, 40, 3));
+  check("from frame 30", {30, 31});
+}
+
 TEST_F(FramesDecoderGpuTest, SameFramesAsMappingAll) {
   auto video_dir = make_string(testing::dali_extra_path(), "/db/video");
   // H.264 without a lead-in: 13 I- and P-frames, then B-frames, of which the non-reference ones
@@ -2007,6 +2039,27 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, LeadingPicturesOfIdrKeyframes) {
     for (size_t i = 0; i < index.size(); i++)
       unknown += index[i].is_keyframe && index[i].leading_pictures == -1;
     EXPECT_GT(unknown, 0);
+  }
+}
+
+// Only a stream with packets that may hold no picture, or keyframes that may have leading pictures
+// (dropped by a decoder that starts there), needs the GPU decoder to keep the last frame read,
+// which a frame without a picture repeats (with timestamps in decoding order)
+TEST_F(FramesDecoderTest_CpuOnlyTests, IndexKnowsFramesWithoutPictures) {
+  const std::string video_dir = make_string(testing::dali_extra_path(), "/db/video");
+  std::vector<std::pair<std::string, bool>> files = {
+      // DivX packed: a not-coded VOP after each packet that holds a P-VOP and a B-VOP
+      {make_string(video_dir, "/ucf101_test/packed_bframes_test.avi"), true},
+      {make_string(video_dir, "/cfr/test_1.avi"), false},          // MPEG-4 Part 2, all coded
+      {make_string(video_dir, "/containers/avi/cfr.avi"), false},  // H.264, one closed GOP
+      {make_string(video_dir, "/cfr/test_1.mp4"), false},  // H.264, IDR keyframes
+      // HEVC, open GOPs: CRA keyframes, whose leading pictures are not known
+      {make_string(video_dir, "/hevc/sintel_trailer-720p.mp4"), true}};
+  for (const auto &[path, expected] : files) {
+    SCOPED_TRACE(path);
+    FramesIndexer indexer(path);
+    indexer.BuildIndex();
+    EXPECT_EQ(indexer.GetIndex().may_have_frames_without_pictures, expected);
   }
 }
 
