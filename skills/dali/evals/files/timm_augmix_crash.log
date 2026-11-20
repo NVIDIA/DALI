@@ -1,0 +1,57 @@
+Training with a single process on 1 device (cuda).
+Model resnet50 created, param count:23514179
+Data processing configuration for current model + dataset:
+	input_size: (3, 200, 300)
+	interpolation: bicubic
+	mean: (0.485, 0.456, 0.406)
+	std: (0.229, 0.224, 0.225)
+	crop_pct: 0.95
+	crop_mode: center
+Using native Torch AMP. Training in mixed precision.
+Learning rate (0.025) calculated from base learning rate (0.1) and effective global batch size (64) with linear scaling.
+ClassificationTask: criterion=LabelSmoothingCrossEntropy
+Created SGD (sgd) optimizer: lr: 0.025, momentum: 0.9, dampening: 0, weight_decay: 2e-05, nesterov: True, maximize: False, foreach: None, differentiable: False, fused: None
+Scheduled epochs: 50 (epochs + cooldown_epochs). Warmup within epochs when warmup_prefix=False. LR stepped per epoch.
+Traceback (most recent call last):
+  File "/workspace/timm/train.py", line 1552, in <module>
+    main()
+  File "/workspace/timm/train.py", line 1130, in main
+    train_metrics = train_one_epoch(
+                    ^^^^^^^^^^^^^^^^
+  File "/workspace/timm/train.py", line 1295, in train_one_epoch
+    for batch_idx, (input, target) in enumerate(loader):
+                                      ^^^^^^^^^^^^^^^^^
+  File "/workspace/timm/timm/data/loader.py", line 150, in __iter__
+    for next_input, next_target in self.loader:
+                                   ^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 725, in __next__
+    data = self._next_data()
+           ^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 1531, in _next_data
+    return self._process_data(data, worker_id)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/torch/utils/data/dataloader.py", line 1569, in _process_data
+    data.reraise()
+  File "/usr/local/lib/python3.12/site-packages/torch/_utils.py", line 803, in reraise
+    raise exception
+ValueError: Caught ValueError in DataLoader worker process 0.
+Original Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/site-packages/torch/utils/data/_utils/worker.py", line 375, in _worker_loop
+    data = fetcher.fetch(index)  # type: ignore[possibly-undefined]
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/torch/utils/data/_utils/fetch.py", line 54, in fetch
+    data = [self.dataset[idx] for idx in possibly_batched_index]
+            ~~~~~~~~~~~~^^^^^
+  File "/workspace/timm/timm/data/dataset.py", line 68, in __getitem__
+    img = self.transform(img)
+          ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/site-packages/torchvision/transforms/transforms.py", line 95, in __call__
+    img = t(img)
+          ^^^^^^
+  File "/workspace/timm/timm/data/auto_augment.py", line 941, in __call__
+    mixed = self._apply_basic(img, mixing_weights, m)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/timm/timm/data/auto_augment.py", line 930, in _apply_basic
+    mixed += mw * np.asarray(img_aug, dtype=np.float32)
+ValueError: operands could not be broadcast together with shapes (300,200,3) (200,300,3) (300,200,3) 
+
