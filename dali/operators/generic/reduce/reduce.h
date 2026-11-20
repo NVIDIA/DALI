@@ -1,4 +1,4 @@
-// Copyright (c) 2020-2023, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@
 #include "dali/operators/util/axes_utils.h"
 #include "dali/pipeline/operator/checkpointing/stateless_operator.h"
 
-#define REDUCE_TYPES (uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float)  // NOLINT
+#define REDUCE_TYPES uint8_t, int8_t, uint16_t, int16_t, uint32_t, int32_t, uint64_t, int64_t, float  // NOLINT
 
 namespace dali {
 
@@ -152,18 +152,17 @@ class Reduce : public StatelessOperator<Backend>, AxesHelper {
   kernels::KernelManager kmgr_;
 };
 
-
 template <template <typename T, typename R> class ReductionType, typename Backend>
-class ReduceOp : public Reduce<ReductionType, Backend, ReduceOp> {
+class MinMaxOp : public Reduce<ReductionType, Backend, MinMaxOp> {
  public:
-  explicit inline ReduceOp(const OpSpec &spec) :  Reduce<ReductionType, Backend, ReduceOp>(spec) {}
+  explicit inline MinMaxOp(const OpSpec &spec) :  Reduce<ReductionType, Backend, MinMaxOp>(spec) {}
 
   void RunImplImpl(Workspace &ws) {
     auto& in = ws.Input<Backend>(0);
     DALIDataType input_type = in.type();
 
-    TYPE_SWITCH(input_type, type2id, DataType, REDUCE_TYPES, (
-      auto& base = static_cast<Reduce<ReductionType, Backend, ReduceOp>&>(*this);
+    TYPE_SWITCH(input_type, type2id, DataType, (REDUCE_TYPES, bool), (
+      auto& base = static_cast<Reduce<ReductionType, Backend, MinMaxOp>&>(*this);
       base.template RunTyped<DataType, DataType>(ws);),
       DALI_FAIL(make_string("Unsupported input type: ", input_type)))
   }

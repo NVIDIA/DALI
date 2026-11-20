@@ -33,5 +33,6 @@ from . import random  # noqa: F401
 from . import checkpoint  # noqa: F401
 from . import pytorch as pytorch  # noqa: F401
 from . import capture as capture  # noqa: F401
+from ._quant import *  # noqa: F401, F403
 
 _ops._initialize()
