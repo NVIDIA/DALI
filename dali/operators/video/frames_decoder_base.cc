@@ -14,6 +14,7 @@
 
 #include "dali/operators/video/frames_decoder_base.h"
 #include <algorithm>
+#include <cstring>
 #include <iomanip>
 #include <memory>
 #include <stdexcept>
@@ -255,6 +256,16 @@ std::string FramesDecoderBase::GetAllStreamInfo() const {
 }
 
 bool FramesDecoderBase::SelectVideoStream(int stream_id) {
+  // The packets of MPEG program streams do not have the timestamps that the index and the seeks
+  // need (they are only stamped on some of them, and a seek does not land on keyframes), so the
+  // files are rejected with a message that says why, rather than as having no video stream.
+  if (ctx_->iformat && std::strcmp(ctx_->iformat->name, "mpeg") == 0) {
+    DALI_WARN(make_string(
+        Filename(), ": MPEG-PS (MPEG program stream, .mpg, .vob) is not supported: many of its "
+        "packets have no timestamp, and seeks do not land on keyframes. Remux it, for example to "
+        "MP4 or MKV: `ffmpeg -i in.mpg -c copy out.mp4`."));
+    return false;
+  }
   if (stream_id < 0) {
     LOG_LINE << "Finding video stream" << std::endl;
     stream_id = av_find_best_stream(ctx_, AVMEDIA_TYPE_VIDEO, -1, -1, nullptr, 0);
@@ -1040,7 +1051,8 @@ void FramesDecoderBase::AddDecodeWork(const FrameIndex &index, DecodePosition &p
   pos.next_frame = frame + 1 < n ? frame + 1 : -1;
 }
 
-int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id, int roi_start, int roi_end) {
+int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int frame_id,
+                                      int roi_start, int roi_end) {
   DALI_ENFORCE(boundary_type == boundary::BoundaryType::CLAMP ||
                    boundary_type == boundary::BoundaryType::CONSTANT ||
                    boundary_type == boundary::BoundaryType::REFLECT_1001 ||
@@ -1055,10 +1067,11 @@ int FramesDecoderBase::HandleBoundary(boundary::BoundaryType boundary_type, int 
       return std::clamp(frame_id, roi_start, roi_end - 1);
     case boundary::BoundaryType::CONSTANT:
       return -1;
+    // Reflect within [roi_start, roi_end), so that padded indices never leave the ROI
     case boundary::BoundaryType::REFLECT_1001:
-      return boundary::idx_reflect_1001(frame_id, roi_end);
+      return boundary::idx_reflect_1001(frame_id, roi_start, roi_end);
     case boundary::BoundaryType::REFLECT_101:
-      return boundary::idx_reflect_101(frame_id, roi_end);
+      return boundary::idx_reflect_101(frame_id, roi_start, roi_end);
     case boundary::BoundaryType::ISOLATED:
     default:
       DALI_FAIL(make_string(

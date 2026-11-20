@@ -509,7 +509,7 @@ class DLL_PUBLIC FramesDecoderBase {
    *
    * @return int Index of the next frame to be read
    */
-  int NextFrameIdx() { return next_frame_idx_; }
+  int NextFrameIdx() const { return next_frame_idx_; }
 
   /**
    * @brief Returns true if the index was built.

@@ -95,6 +95,24 @@ def test_swapped_ends():
         assert np.array_equal(x[2:1], gpu.at(i))
 
 
+@params(
+    (slice(3, 0, 3),),
+    (slice(3, 1, 2),),
+    (slice(-1, -6, 3),),
+    (slice(1, 3, -2),),
+    (slice(0, 4, -3),),
+)
+def test_swapped_ends_with_stride(ranges):
+    data = [np.arange(5, dtype=np.int32), np.arange(7, dtype=np.int32)]
+    src = fn.external_source(lambda: data)
+    pipe = index_pipe(src, lambda x: x[ranges])
+    inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
+    for i in range(len(inp)):
+        x = inp.at(i)
+        assert np.array_equal(x[ranges], cpu.at(i))
+        assert np.array_equal(x[ranges], gpu.at(i))
+
+
 def test_noop():
     node = dali.types.Constant(np.float32([1, 2, 2]))
     indexed = node[:]

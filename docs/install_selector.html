@@ -1,0 +1,244 @@
+<style>
+  /* Point sphinx-design's button colors at the NVIDIA theme's green. */
+  #dali-install {
+    --sd-color-primary: var(--pst-color-primary);
+    --sd-color-primary-highlight: var(--pst-color-primary);
+    --sd-color-primary-text: var(--pst-color-background);
+    margin-bottom: 1.5rem;
+  }
+  #dali-install [hidden] { display: none !important; }
+  #dali-install .dali-install-row {
+    display: grid;
+    grid-template-columns: 9rem minmax(0, 1fr);
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+  #dali-install .dali-install-label { font-weight: bold; }
+  #dali-install .dali-install-options { display: flex; gap: 0.375rem; }
+  #dali-install .dali-install-options .sd-btn { flex: 1; }
+  #dali-install .sd-btn:disabled { opacity: 0.4; pointer-events: none; }
+  /* By default, hovered buttons are underlined and focused ones are filled, which looks selected. */
+  #dali-install .sd-btn:hover { text-decoration: none; }
+  #dali-install .sd-btn-outline-primary:focus:not(:hover) {
+    background-color: transparent !important;
+    color: var(--sd-color-primary) !important;
+  }
+  #dali-install button:focus-visible { outline: 2px solid var(--pst-color-primary); outline-offset: 2px; }
+  #dali-install .dali-install-command { position: relative; min-width: 0; }
+  #dali-install .dali-install-command div { margin: 0; }
+  #dali-install .dali-install-command pre { margin: 0; padding-right: 2.5rem; } /* Room for the copy icon. */
+  #dali-install .dali-install-copy {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    border: 0;
+    background: var(--pst-color-surface); /* Same as the code block, so scrolled text is hidden. */
+    color: var(--pst-color-text-muted);
+    cursor: pointer;
+    opacity: 0;
+  }
+  #dali-install .dali-install-command:hover .dali-install-copy,
+  #dali-install .dali-install-copy:focus-visible { opacity: 1; }
+  #dali-install .dali-install-note {
+    grid-column: 2;
+    margin: 0;
+    font-size: 0.875em;
+    color: var(--pst-color-text-muted);
+  }
+</style>
+
+<noscript>
+  <p>To install DALI with pip for CUDA 13 (use <code>nvidia-dali-cuda120</code> for CUDA 12):</p>
+  <div class="highlight-bash notranslate"><div class="highlight"><pre>pip install --upgrade nvidia-dali-cuda130</pre></div></div>
+</noscript>
+
+<div id="dali-install" hidden>
+  <p>Select your configuration to get the install command.</p>
+  <div class="dali-install-row">
+    <span class="dali-install-label">Method</span>
+    <div class="dali-install-options" data-key="method">
+      <button class="sd-btn" value="pip">pip</button>
+      <button class="sd-btn" value="conda">conda</button>
+      <button class="sd-btn" value="docker">Docker</button>
+      <button class="sd-btn" value="source">Source</button>
+    </div>
+  </div>
+  <div class="dali-install-row" data-methods="pip">
+    <span class="dali-install-label">Release</span>
+    <div class="dali-install-options" data-key="release">
+      <button class="sd-btn" value="stable">Stable</button>
+      <button class="sd-btn" value="nightly">Nightly</button>
+      <button class="sd-btn" value="weekly">Weekly</button>
+    </div>
+  </div>
+  <div class="dali-install-row" data-methods="pip conda">
+    <span class="dali-install-label">CUDA</span>
+    <div class="dali-install-options" data-key="cuda">
+      <button class="sd-btn" value="13">CUDA 13</button>
+      <button class="sd-btn" value="12">CUDA 12</button>
+    </div>
+  </div>
+  <div class="dali-install-row" data-methods="pip">
+    <span class="dali-install-label">TensorFlow plugin</span>
+    <div class="dali-install-options" data-key="tf">
+      <button class="sd-btn" value="no">No</button>
+      <button class="sd-btn" value="yes">Yes</button>
+    </div>
+  </div>
+  <div class="dali-install-row" data-methods="docker">
+    <span class="dali-install-label">Framework</span>
+    <div class="dali-install-options" data-key="framework">
+      <button class="sd-btn" value="pytorch">PyTorch</button>
+      <button class="sd-btn" value="jax">JAX</button>
+      <button class="sd-btn" value="tensorflow">TensorFlow</button>
+      <button class="sd-btn" value="paddlepaddle">PaddlePaddle</button>
+    </div>
+  </div>
+  <div class="dali-install-row">
+    <span class="dali-install-label dali-install-run">Run this command</span>
+    <div class="dali-install-command">
+      <div class="highlight-bash notranslate"><div class="highlight"><pre></pre></div></div>
+      <button class="dali-install-copy" title="Copy command"><i class="fa-regular fa-copy"></i></button>
+    </div>
+    <p class="dali-install-note"></p>
+  </div>
+</div>
+
+<script>
+(() => {
+  const root = document.getElementById("dali-install");
+  const pre = root.querySelector("pre");
+  const copyButton = root.querySelector(".dali-install-copy");
+  const state = {method: "pip", release: "stable", cuda: "13", tf: "no", framework: "pytorch"};
+
+  const about = {
+    pip: '<a href="#install-pip">About the pip packages</a>',
+    tfPlugin: '<a href="#install-tf-plugin">About the TensorFlow plugin</a>',
+    prerelease: '<a href="#install-prerelease">About nightly and weekly builds</a>',
+    conda: '<a href="#install-conda">About the conda packages</a>',
+    docker: '<a href="#install-docker">About the containers</a>',
+  };
+
+  // Containers that are no longer released, and the DALI version they ship.
+  const finalContainers = {
+    tensorflow: {tag: "25.02-tf2-py3", dali: "1.46.0"},
+    paddlepaddle: {tag: "24.12-py3", dali: "1.44.0"},
+  };
+  // Replaced by the newest monthly tags when the page is served from docs.nvidia.com.
+  const latestTags = {pytorch: "<yy.mm>-py3", jax: "<yy.mm>-py3"};
+
+  // Puts each part on its own line if the command is wider than the code block (71 characters).
+  function formatCommand(...parts) {
+    const line = parts.join(" ");
+    return line.length <= 71 ? line : parts.join(" \\\n    ");
+  }
+
+  // Returns the command for the selection (none for building from source) and the note below it.
+  function select(s) {
+    if (s.method === "source") {
+      return {command: "", note: 'Follow <a href="compilation.html">Compiling DALI from Source</a>.'};
+    }
+    if (s.method === "conda") {
+      return {
+        command: formatCommand("conda install -c conda-forge", `nvidia-dali-python cuda-version=${s.cuda}`),
+        note: `Community build. ${about.conda}`,
+      };
+    }
+    if (s.method === "docker") {
+      const final = finalContainers[s.framework];
+      const tag = final ? final.tag : latestTags[s.framework];
+      return {
+        command: formatCommand(
+          "docker run --gpus all -it --rm",
+          "--ipc=host --ulimit memlock=-1 --ulimit stack=67108864",
+          `nvcr.io/nvidia/${s.framework}:${tag}`,
+        ),
+        note: final ? `Final release of this container. It ships DALI ${final.dali}. ${about.docker}`
+                    : `DALI is preinstalled. ${about.docker}`,
+      };
+    }
+    const prerelease = s.release !== "stable";
+    const plugin = s.tf === "yes" ? "-tf-plugin" : "";
+    const channel = prerelease ? `-${s.release}` : "";
+    const cuda = s.cuda === "13" ? "cuda130" : "cuda120";
+    const pkg = `nvidia-dali${plugin}${channel}-${cuda}`;
+    const parts = prerelease
+      ? ["pip install", `--extra-index-url https://developer.download.nvidia.com/compute/redist/${s.release}`, `--upgrade ${pkg}`]
+      : ["pip install", `--upgrade ${pkg}`];
+    const notes = [];
+    if (prerelease) notes.push("Uninstall stable DALI first.");
+    if (s.tf === "yes") {
+      parts.push("--no-build-isolation");
+      notes.push("Install TensorFlow first.", about.tfPlugin);
+    } else {
+      notes.push(prerelease ? about.prerelease : about.pip);
+    }
+    return {command: formatCommand(...parts), note: notes.join(" ")};
+  }
+
+  function render() {
+    // Weekly builds exist only for CUDA 13. state.cuda keeps the user's choice for other selections.
+    const weekly = state.method === "pip" && state.release === "weekly";
+    const s = {...state, cuda: weekly ? "13" : state.cuda};
+
+    for (const row of root.querySelectorAll("[data-methods]")) {
+      row.hidden = !row.dataset.methods.split(" ").includes(s.method);
+    }
+    for (const options of root.querySelectorAll("[data-key]")) {
+      for (const button of options.children) {
+        const selected = s[options.dataset.key] === button.value;
+        button.classList.toggle("sd-btn-primary", selected);
+        button.classList.toggle("sd-btn-outline-primary", !selected);
+        button.setAttribute("aria-pressed", selected);
+      }
+    }
+    root.querySelector('[data-key="cuda"] [value="12"]').disabled = weekly;
+
+    const {command, note} = select(s);
+    pre.textContent = command;
+    root.querySelector(".dali-install-run").hidden = !command;
+    root.querySelector(".dali-install-command").hidden = !command;
+    root.querySelector(".dali-install-note").innerHTML = note;
+  }
+
+  root.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-key] button");
+    if (button) {
+      state[button.parentElement.dataset.key] = button.value;
+      render();
+    }
+  });
+
+  copyButton.addEventListener("click", () => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(pre.textContent);
+    } else {
+      // navigator.clipboard only exists on https and localhost. Plain-http previews use the legacy API.
+      getSelection().selectAllChildren(pre);
+      document.execCommand("copy");
+      getSelection().removeAllRanges();
+    }
+    copyButton.innerHTML = '<i class="fa-solid fa-check"></i>';
+    setTimeout(() => (copyButton.innerHTML = '<i class="fa-regular fa-copy"></i>'), 1500);
+  });
+
+  // Read the latest tags from same-origin release notes because NGC's API blocks cross-origin requests
+  for (const framework of Object.keys(latestTags)) {
+    fetch(`/deeplearning/frameworks/${framework}-release-notes/index.html`)
+      .then((response) => response.text())
+      .then((html) => {
+        const pattern = new RegExp(`${framework}-release-notes/rel-(\\d\\d)-(\\d\\d)\\.html`, "g");
+        const releases = [...html.matchAll(pattern)].map((m) => `${m[1]}.${m[2]}`);
+        if (releases.length) {
+          latestTags[framework] = releases.sort().pop() + "-py3";
+          render();
+        }
+      })
+      .catch(() => {});
+  }
+
+  render();
+  root.hidden = false;
+})();
+</script>

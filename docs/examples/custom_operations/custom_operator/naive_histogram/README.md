@@ -12,7 +12,7 @@ DALI operators.
 To run the example, please follow the steps:
 
 1. Clone or download the repo
-1. Install DALI wheel, for example using [these instructions](https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/installation.html#pip-official-releases)
+1. Install DALI wheel, for example using [these instructions](https://docs.nvidia.com/deeplearning/dali/main-user-guide/docs/installation.html)
 1. Build the `libnaivehistogram.so`:
 ```bash
 $ cd naive_histogram

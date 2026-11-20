@@ -185,8 +185,9 @@ std::vector<std::thread::id> ThreadPoolFacade::GetThreadIds() const {
 
 bool UseNewThreadPool() {
   static bool use_new_thread_pool = []() {
+    // The new thread pool is the default; set DALI_USE_NEW_THREAD_POOL=0 to opt out.
     const char *new_tp = getenv("DALI_USE_NEW_THREAD_POOL");
-    return new_tp && atoi(new_tp);
+    return !new_tp || !*new_tp || atoi(new_tp) != 0;
   }();
   return use_new_thread_pool;
 }
