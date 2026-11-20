@@ -12,6 +12,8 @@ install_cuda_compat
 
 cd /opt/dali/docs/examples/use_cases/pytorch/resnet50
 
+pip install torchdata
+
 NUM_GPUS=$(nvidia-smi -L | wc -l)
 
 link_imagenet_jpeg
