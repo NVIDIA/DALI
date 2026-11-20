@@ -22,7 +22,13 @@ from PIL import Image
 import torch
 import torchvision.transforms.v2 as transforms
 
-from nvidia.dali.experimental.torchvision import Compose, Grayscale, ColorJitter, RandomGrayscale
+from nvidia.dali.experimental.torchvision import (
+    Compose,
+    Grayscale,
+    ColorJitter,
+    Normalize,
+    RandomGrayscale,
+)
 from nvidia.dali.experimental.torchvision.v2.functional import to_grayscale, rgb_to_grayscale
 
 
@@ -250,6 +256,37 @@ def test_colorjitter_hue_range_is_converted(device):
             f"hue range ({lo}, {hi}) should rotate within "
             f"[{lo * 360.0:.0f}, {hi * 360.0:.0f}] degrees, measured {actual:.2f}: {fn}"
         )
+
+
+@cartesian_params((0.5, 1.5), ("cpu", "gpu"))
+def test_colorjitter_contrast_matches_torchvision(contrast, device):
+    # torchvision blends towards the mean of the grayscale image. The darkened copy has a mean far
+    # from the middle of the range, where blending towards 128 is off by tens of levels.
+    cj = Compose([ColorJitter(contrast=(contrast, contrast), device=device)])
+    # Normalize hands ColorJitter floats in [0, 1] instead of uint8.
+    cj_float = Compose(
+        [
+            Normalize(mean=[0.0, 0.0, 0.0], std=[255.0, 255.0, 255.0], device=device),
+            ColorJitter(contrast=(contrast, contrast), device=device),
+        ]
+    )
+
+    for fn in test_files:
+        img = Image.open(fn).convert("RGB")
+        for x in (img, img.point(lambda v: v // 4)):
+            expected = transforms.functional.adjust_contrast(x, contrast)
+            actual = cj(x)
+            assert verify_non_one_off(
+                transforms.functional.pil_to_tensor(actual),
+                transforms.functional.pil_to_tensor(expected),
+            ), f"contrast={contrast} differs from torchvision by more than 1: {fn}"
+
+            x_float = transforms.functional.pil_to_tensor(x) / 255
+            expected = transforms.functional.adjust_contrast(x_float, contrast) * 255
+            actual = transforms.functional.pil_to_tensor(cj_float(x)).float()
+            assert verify_non_one_off(
+                actual, expected
+            ), f"contrast={contrast} on floats differs from torchvision by more than 1: {fn}"
 
 
 """
