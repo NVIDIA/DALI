@@ -47,6 +47,22 @@ TEST(NumpyLoaderTest, ParseHeader) {
     ASSERT_EQ(target.fortran_order, false);
     ASSERT_TRUE(target.shape.empty());
   }
+  {
+    HeaderData target;
+    ParseHeaderContents(target, "{'descr':'<c8','fortran_order':False,'shape':(2,3),}");
+    ASSERT_EQ(target.type(), DALI_COMPLEX64);
+    ASSERT_EQ(target.fortran_order, false);
+    ASSERT_EQ(target.shape, (TensorShape<>{2, 3}));
+    ASSERT_EQ(target.nbytes(), 6u * 8u);
+  }
+  {
+    HeaderData target;
+    ParseHeaderContents(target, "{'descr':'<c16','fortran_order':True,'shape':(4,5),}");
+    ASSERT_EQ(target.type(), DALI_COMPLEX128);
+    ASSERT_EQ(target.fortran_order, true);
+    ASSERT_EQ(target.shape, (TensorShape<>{5, 4}));
+    ASSERT_EQ(target.nbytes(), 20u * 16u);
+  }
 }
 
 TEST(NumpyLoaderTest, ParseHeaderError) {
