@@ -843,15 +843,14 @@ class VideoReaderDecoder
 
   /**
    * @brief Number of decode lanes: num_threads, but no more than the batch size and, on the GPU,
-   * kLanesPerEngine per NVDEC engine.
+   * kLanesPerEngine per NVDEC engine, or one if the number of engines is unknown.
    */
   int NumLanes(const OpSpec &spec) {
     int lanes = std::min(spec.GetArgument<int>("num_threads"),
                          spec.GetArgument<int>("max_batch_size"));
     if constexpr (std::is_same_v<Backend, GPUBackend>) {
       int engines = FramesDecoderGpu::NumEngines(spec.GetArgument<int>("device_id"));
-      if (engines > 0)
-        lanes = std::min(lanes, kLanesPerEngine * engines);
+      lanes = std::min(lanes, engines > 0 ? kLanesPerEngine * engines : 1);
     }
     return std::max(lanes, 1);
   }
