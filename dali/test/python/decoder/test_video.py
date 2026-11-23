@@ -2240,7 +2240,11 @@ def test_reader_destroyed_while_decoding(device):
     @pipeline_def(batch_size=4, num_threads=4, device_id=0)
     def pipe(lazy_init):
         return fn.experimental.readers.video(
-            filenames=cfr_files + vfr_files, device=device, sequence_length=5, lazy_init=lazy_init
+            filenames=cfr_files + vfr_files,
+            device=device,
+            sequence_length=5,
+            lazy_init=lazy_init,
+            num_decode_lanes=4,
         )
 
     for i in range(30):
