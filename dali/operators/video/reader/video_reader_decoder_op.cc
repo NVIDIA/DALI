@@ -639,7 +639,8 @@ class VideoReaderDecoder
     }
     DALI_ENFORCE(fill_value_.size() >= 1, "fill_value must contain at least one value");
 
-    StreamInitialization(spec);
+    if constexpr (std::is_same_v<Backend, GPUBackend>)
+      use_streams_ = DriverSupportsStreams();
     DALI_ENFORCE(image_type_ == DALI_RGB || image_type_ == DALI_YCbCr,
                  make_string("Invalid image_type: ", image_type_));
 
@@ -652,25 +653,27 @@ class VideoReaderDecoder
     LOG_LINE << "VideoReaderDecoder destructor done" << std::endl;
   }
 
-  void StreamInitialization(const OpSpec &spec) {
-    if constexpr (std::is_same_v<Backend, GPUBackend>) {
+  /**
+   * @brief Whether the GPU decoders decode on streams of their own: not with the driver versions
+   * checked here, with which they decode on the default stream (with a warning, once).
+   */
+  static bool DriverSupportsStreams() {
 #if NVML_ENABLED
-      auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
-      static float driver_version = nvml::GetDriverVersion();
-      if (driver_version > 460 && driver_version < 470.21) {
-        DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
-        return;
-      }
-#else
-      int driver_cuda_version = 0;
-      CUDA_CALL(cuDriverGetVersion(&driver_cuda_version));
-      if (driver_cuda_version >= 11030 && driver_cuda_version < 11040) {
-        DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
-        return;
-      }
-#endif
-      use_streams_ = true;
+    auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
+    static float driver_version = nvml::GetDriverVersion();
+    if (driver_version > 460 && driver_version < 470.21) {
+      DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
+      return false;
     }
+#else
+    int driver_cuda_version = 0;
+    CUDA_CALL(cuDriverGetVersion(&driver_cuda_version));
+    if (driver_cuda_version >= 11030 && driver_cuda_version < 11040) {
+      DALI_WARN_ONCE("Warning: Decoding on a default stream. Performance may be affected.");
+      return false;
+    }
+#endif
+    return true;
   }
 
   bool SetupImpl(std::vector<OutputDesc> &output_desc, const Workspace &ws) override {
