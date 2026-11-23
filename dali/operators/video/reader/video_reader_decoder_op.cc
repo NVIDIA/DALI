@@ -828,7 +828,7 @@ class VideoReaderDecoder
     CUDAStreamLease stream;  // GPU only; empty: the default stream
     std::unique_ptr<FramesDecoderImpl> decoder;  // after `stream`: destroyed (and synced) first
     Tensor<Backend> constant_frame;
-    std::vector<int> frame_idxs;  // scratch
+    SmallVector<int, 32> frames;  // scratch: the frames of the sample it decodes (DecodeSample)
     // Errors of the current batch: (position in the batch, exception)
     std::vector<std::pair<int, std::exception_ptr>> errors;
   };
@@ -1081,9 +1081,12 @@ class VideoReaderDecoder
     auto &decoder = *lane.decoder;
     DALI_ENFORCE(decoder.IsValid(), make_string("Invalid decoder for filename ", filename));
 
-    int64_t num_frames = sample.frame_idxs_.empty()
-        ? (sample.end_ - sample.start_ + sample.stride_ - 1) / sample.stride_
-        : static_cast<int64_t>(sample.frame_idxs_.size());
+    // the frames of the sample, padded to its region of the file (the same as the planner's)
+    auto &frames = lane.frames;
+    RegionFrames(frames, sample.frame_idxs_, sample.start_, sample.end_, sample.stride_,
+                 boundary_type_, sample.video_file_meta_->start_frame,
+                 sample.video_file_meta_->end_frame);
+    int64_t num_frames = frames.size();
     sample.data_.Resize(
         {num_frames, decoder.Height(), decoder.Width(), decoder.Channels()}, DALI_UINT8);
     sample.data_.SetSourceInfo(decoder.Filename());
@@ -1099,64 +1102,21 @@ class VideoReaderDecoder
     } else {
       sample.timestamps_.clear();
     }
-    if (!sample.frame_idxs_.empty()) {
-      LOG_LINE << "Decoding frames (uniform) num_frames=" << num_frames
-               << ", frame_idxs=[" << sample.frame_idxs_.front() << ".."
-               << sample.frame_idxs_.back() << "]"
-               << ", filename=" << sample.video_file_meta_->filename
-               << ", label=" << sample.video_file_meta_->label
-               << ", boundary_type=" << to_string(boundary_type_) << std::endl;
-    } else {
-      LOG_LINE << "Decoding frames start=" << sample.start_ << ", end=" << sample.end_
-               << ", stride=" << sample.stride_ << ", num_frames=" << num_frames
-               << ", filename=" << sample.video_file_meta_->filename
-               << ", label=" << sample.video_file_meta_->label
-               << ", start=" << sample.video_file_meta_->start_frame
-               << ", end=" << sample.video_file_meta_->end_frame
-               << ", boundary_type=" << to_string(boundary_type_) << std::endl;
-    }
-    int roi_start = sample.video_file_meta_->start_frame;
-    int roi_end = sample.video_file_meta_->end_frame;
     if (frame_num_policy_ == FrameNumPolicy::Sequence) {
-      sample.frame_idx_.resize(num_frames);
-      if (!sample.frame_idxs_.empty()) {
-        // Uniform indices are always within [roi_start, roi_end-1], so HandleBoundary
-        // is a no-op here — but we call it for consistency with the stride path below.
-        for (int64_t i = 0; i < num_frames; ++i) {
-          sample.frame_idx_[i] = static_cast<int32_t>(decoder.HandleBoundary(
-              boundary_type_, sample.frame_idxs_[i], roi_start, roi_end));
-        }
-      } else {
-        for (int64_t i = 0; i < num_frames; ++i) {
-          sample.frame_idx_[i] = static_cast<int32_t>(decoder.HandleBoundary(
-              boundary_type_,
-              static_cast<int>(sample.start_ + i * sample.stride_),
-              roi_start, roi_end));
-        }
-      }
+      sample.frame_idx_.assign(frames.begin(), frames.end());
     } else {
       sample.frame_idx_.clear();
     }
-    if (!sample.frame_idxs_.empty()) {
-      // Uniform sampling: explicit frame indices already include ROI offset (start_frame)
-      decoder.DecodeFrames(sample.data_.template mutable_data<uint8_t>(),
-                           make_cspan(sample.frame_idxs_), boundary_type_, constant_frame,
-                           make_span(sample.timestamps_));
-    } else if (roi_start != 0 || roi_end != decoder.NumFrames()) {
-      lane.frame_idxs.clear();
-      for (int frame_idx = sample.start_; frame_idx < sample.end_;
-           frame_idx += sample.stride_) {
-        lane.frame_idxs.push_back(decoder.HandleBoundary(
-            boundary_type_, frame_idx, roi_start, roi_end));
-      }
-      decoder.DecodeFrames(sample.data_.template mutable_data<uint8_t>(),
-                           make_cspan(lane.frame_idxs), boundary_type_, constant_frame,
-                           make_span(sample.timestamps_));
-    } else {
-      decoder.DecodeFrames(sample.data_.template mutable_data<uint8_t>(), sample.start_,
-                           sample.end_, sample.stride_, boundary_type_, constant_frame,
-                           make_span(sample.timestamps_));
-    }
+    LOG_LINE << "Decoding frames num_frames=" << num_frames << ", start=" << sample.start_
+             << ", end=" << sample.end_ << ", stride=" << sample.stride_
+             << ", uniform=" << !sample.frame_idxs_.empty()
+             << ", filename=" << sample.video_file_meta_->filename
+             << ", label=" << sample.video_file_meta_->label
+             << ", roi_start=" << sample.video_file_meta_->start_frame
+             << ", roi_end=" << sample.video_file_meta_->end_frame
+             << ", boundary_type=" << to_string(boundary_type_) << std::endl;
+    decoder.DecodeFrames(sample.data_.template mutable_data<uint8_t>(), make_cspan(frames),
+                         boundary_type_, constant_frame, make_span(sample.timestamps_));
     LOG_LINE << "Decoding frames done" << std::endl;
   }
 
