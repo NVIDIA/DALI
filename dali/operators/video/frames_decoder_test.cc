@@ -16,6 +16,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <cstring>
 #include <exception>
 #include <functional>
 #include <limits>
@@ -33,6 +34,7 @@
 #include "dali/core/dev_buffer.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/dynlink_cuda.h"
+#include "dali/core/endian_util.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/format.h"
 #include "dali/operators/video/frames_decoder_cpu.h"
@@ -2031,6 +2033,28 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryCfrVideo) {
   FramesDecoderCpu decoder(memory_video.data(), memory_video.size());
   decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[1]);
+}
+
+TEST_F(FramesDecoderTest_CpuOnlyTests, InMemoryChunkOffsetPastEnd) {
+  using namespace std::string_view_literals;
+  // The fixture's stco has zero version/flags and one entry.
+  constexpr auto kStcoHeader = "stco" "\0\0\0\0" "\0\0\0\1"sv;
+
+  auto video = MemoryVideo(cfr_videos_paths_[1]);
+  const std::string_view bytes(video.data(), video.size());
+  const auto stco = bytes.find(kStcoHeader);
+  ASSERT_NE(stco, std::string_view::npos);
+  ASSERT_EQ(stco, bytes.rfind(kStcoHeader));
+
+  const auto first_entry = stco + kStcoHeader.size();
+  ASSERT_LE(first_entry + sizeof(uint32_t), video.size());
+
+  uint32_t offset = video.size() + (1u << 31) + 1;
+  to_big_endian(offset);
+  std::memcpy(video.data() + first_entry, &offset, sizeof(offset));
+
+  FramesDecoderCpu decoder(video.data(), video.size());
+  EXPECT_FALSE(decoder.IsValid() && decoder.ReadNextFrame(nullptr));
 }
 
 TEST_F(FramesDecoderGpuTest, InMemoryCfrVideo) {
