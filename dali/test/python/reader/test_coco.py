@@ -266,7 +266,7 @@ def test_coco_valid_rle_mask(counts, expected):
         for preprocessed in (False, True):
             pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
             (masks,) = pipe.run()
-            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+            np.testing.assert_array_equal(masks[0].as_array()[:, :, 0], expected)
 
 
 @params(False, True)
@@ -290,7 +290,7 @@ def test_coco_empty_image_size(missing_size):
         else:
             for preprocessed in (False, True):
                 (masks,) = coco_rle_masks_pipe(directory, preprocessed=preprocessed).run()
-                np.testing.assert_array_equal(masks.at(0), np.zeros((2, 2, 1), dtype=np.int32))
+                np.testing.assert_array_equal(masks[0], np.zeros((2, 2, 1), dtype=np.int32))
 
 
 @params("rectangle", "stripes")
@@ -309,7 +309,7 @@ def test_coco_reference_compressed_rle_mask(kind):
         write_coco_rle_annotations(directory, [{"size": [64, 48], "counts": counts}], 64, 48)
         for preprocessed in (False, True):
             (masks,) = coco_rle_masks_pipe(directory, preprocessed=preprocessed).run()
-            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+            np.testing.assert_array_equal(masks[0].as_array()[:, :, 0], expected)
 
 
 @params((1, 2147483647, "oooooo10"), (65535, 65537, "oooooo30"))
@@ -335,7 +335,7 @@ def test_coco_polygon_mask_ownership(polygons):
         for preprocessed in (False, True):
             pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
             (masks,) = pipe.run()
-            np.testing.assert_array_equal(masks.at(0)[:, :, 0], [[1, 1], [1, 1]])
+            np.testing.assert_array_equal(masks[0].as_array()[:, :, 0], [[1, 1], [1, 1]])
 
 
 @params(
@@ -355,7 +355,7 @@ def test_coco_pixelwise_masks_arbitrary_category_ids(category_ids, counts, expec
         for preprocessed in (False, True):
             pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed, remap_classes=False)
             (masks,) = pipe.run()
-            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+            np.testing.assert_array_equal(masks[0].as_array()[:, :, 0], expected)
 
 
 # On a 2x2 image, these RLE masks and polygons fill the left or the right column.
@@ -385,7 +385,7 @@ def test_coco_pixelwise_masks_same_category(category_ids, segmentations, expecte
         for preprocessed in (False, True):
             pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
             (masks,) = pipe.run()
-            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+            np.testing.assert_array_equal(masks[0].as_array()[:, :, 0], expected)
 
 
 # Polygons that extend outside the image are clipped to it, however far they extend.
@@ -408,7 +408,7 @@ def test_coco_polygon_outside_image(polygon, expected, ratio):
         for preprocessed in (False,) if ratio else (False, True):
             pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed, ratio=ratio)
             (masks,) = pipe.run()
-            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+            np.testing.assert_array_equal(masks[0].as_array()[:, :, 0], expected)
 
 
 VERTEX_OUT_OF_RANGE = (
@@ -512,7 +512,7 @@ def test_coco_rle_mask_overlapping_labels(counts, expected):
         for preprocessed in (False, True):
             pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
             (masks,) = pipe.run()
-            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+            np.testing.assert_array_equal(masks[0].as_array()[:, :, 0], expected)
 
 
 @params(
@@ -525,7 +525,7 @@ def test_coco_null_segmentation(segmentations, expected):
         for preprocessed in (False, True):
             pipe = coco_rle_masks_pipe(directory, preprocessed=preprocessed)
             (masks,) = pipe.run()
-            np.testing.assert_array_equal(masks.at(0)[:, :, 0], expected)
+            np.testing.assert_array_equal(masks[0].as_array()[:, :, 0], expected)
 
 
 @params(

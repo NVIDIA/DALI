@@ -331,7 +331,7 @@ def test_use_twice():
     assert out[1].is_dense_tensor()
     assert out[0].as_tensor().shape() == out[1].as_tensor().shape()
     for i in range(batch_size):
-        assert np.array_equal(out[0][i], out[0][i])
+        assert np.array_equal(out[0][i], out[1][i])
 
 
 def test_cropmirrornormalize_layout():

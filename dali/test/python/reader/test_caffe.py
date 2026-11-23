@@ -296,7 +296,7 @@ def _run_caffe2(record, **kwargs):
         def pipe():
             return tuple(fn.readers.caffe2(path=[path], **kwargs)[:2])
 
-        return tuple(output[0].as_array().copy() for output in pipe().run())
+        return tuple(output[0].as_array(copy=True) for output in pipe().run())
 
 
 @params(

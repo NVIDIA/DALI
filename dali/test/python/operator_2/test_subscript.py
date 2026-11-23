@@ -108,9 +108,9 @@ def test_swapped_ends_with_stride(ranges):
     pipe = index_pipe(src, lambda x: x[ranges])
     inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
-        x = inp.at(i)
-        assert np.array_equal(x[ranges], cpu.at(i))
-        assert np.array_equal(x[ranges], gpu.at(i))
+        x = inp[i].as_array()
+        assert np.array_equal(x[ranges], cpu[i])
+        assert np.array_equal(x[ranges], gpu[i])
 
 
 def test_noop():

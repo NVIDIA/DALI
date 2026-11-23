@@ -16,6 +16,7 @@ import gc
 import sys
 import tracemalloc
 import warnings
+import weakref
 
 import numpy as np
 import nvidia.dali.fn as fn
@@ -405,6 +406,20 @@ def test_tensor_cpu_as_array():
     copy[0, 1] = 2
     assert_array_equal(np.asarray(tensor), [[1, 0, 0], [0, 0, 0]])
     assert_array_equal(copy, [[0, 2, 0], [0, 0, 0]])
+
+
+def test_tensor_cpu_as_array_lifetime():
+    tensor = TensorListCPU(np.arange(6).reshape(2, 3))[0]
+    view = tensor.as_array()
+    ref = weakref.ref(tensor)
+    del tensor
+    gc.collect()
+    assert ref() is not None
+    assert_array_equal(view, [0, 1, 2])
+
+    del view
+    gc.collect()
+    assert ref() is None
 
 
 def test_tensorlist_at_deprecation_warning():

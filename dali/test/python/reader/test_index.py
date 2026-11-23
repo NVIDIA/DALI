@@ -544,7 +544,7 @@ def test_recordio_reader_index_skips_files(use_mmap, shuffle):
             observed = []
             for _ in range(3):
                 images, _ = p.run()
-                observed.append(images[0].as_array().copy())
+                observed.append(images[0].as_array(copy=True))
             assert sorted(int(image[0]) for image in observed) == [0, 2, 3]
             for image in observed:
                 np.testing.assert_array_equal(image, np.full(4, image[0], dtype=np.uint8))
@@ -624,7 +624,7 @@ def test_recordio_reader_unsorted_duplicate_offsets_and_empty_shard(use_mmap, sh
             observed = []
             for _ in range(2):
                 images, _ = p.run()
-                observed.append(images[0].as_array().copy())
+                observed.append(images[0].as_array(copy=True))
             assert sorted(int(image[0]) for image in observed) == [0, 2]
             for image in observed:
                 np.testing.assert_array_equal(image, np.full(image_size, image[0], dtype=np.uint8))
