@@ -643,6 +643,9 @@ class VideoReaderDecoder
       use_streams_ = DriverSupportsStreams();
     DALI_ENFORCE(image_type_ == DALI_RGB || image_type_ == DALI_YCbCr,
                  make_string("Invalid image_type: ", image_type_));
+    int num_decode_lanes = spec.GetArgument<int>("num_decode_lanes");
+    DALI_ENFORCE(num_decode_lanes >= 0,
+                 make_string("num_decode_lanes must not be negative, got ", num_decode_lanes));
 
     InitLanes(spec);
   }
@@ -841,17 +844,27 @@ class VideoReaderDecoder
   // and each one adds a decoder's surfaces to the memory used.
   static constexpr int kLanesPerEngine = 1;
 
+  // CPU: the most decode lanes picked automatically. Each lane keeps its own libavcodec decoder
+  // and frame buffers, so the memory used grows with the number of lanes.
+  static constexpr int kMaxAutoLanesCpu = 4;
+
   /**
-   * @brief Number of decode lanes: num_threads, but no more than the batch size and, on the GPU,
-   * kLanesPerEngine per NVDEC engine, or one if the number of engines is unknown.
+   * @brief Number of decode lanes: num_decode_lanes or, when it is 0, num_threads capped at
+   * kLanesPerEngine per NVDEC engine on the GPU (one lane if the number of engines is unknown) and
+   * at kMaxAutoLanesCpu on the CPU; never more than the batch size, since extra lanes are idle.
    */
   int NumLanes(const OpSpec &spec) {
-    int lanes = std::min(spec.GetArgument<int>("num_threads"),
-                         spec.GetArgument<int>("max_batch_size"));
-    if constexpr (std::is_same_v<Backend, GPUBackend>) {
-      int engines = FramesDecoderGpu::NumEngines(spec.GetArgument<int>("device_id"));
-      lanes = std::min(lanes, engines > 0 ? kLanesPerEngine * engines : 1);
+    int lanes = spec.GetArgument<int>("num_decode_lanes");
+    if (lanes == 0) {
+      lanes = spec.GetArgument<int>("num_threads");
+      if constexpr (std::is_same_v<Backend, GPUBackend>) {
+        int engines = FramesDecoderGpu::NumEngines(spec.GetArgument<int>("device_id"));
+        lanes = std::min(lanes, engines > 0 ? kLanesPerEngine * engines : 1);
+      } else {
+        lanes = std::min(lanes, kMaxAutoLanesCpu);
+      }
     }
+    lanes = std::min(lanes, spec.GetArgument<int>("max_batch_size"));
     return std::max(lanes, 1);
   }
 
@@ -1155,10 +1168,10 @@ The following codecs are supported by the GPU backend only:
 * H.264/AVC
 * H.265/HEVC
 
-The samples of a batch are decoded in parallel, by up to ``num_threads`` decoders (on the GPU, at
-most one per NVDEC engine of the device). Consecutive samples of one file that can be decoded
-without seeking are decoded by the same decoder, one after another. Every decoder has its own
-frame buffers, so the memory used grows with the number of decoders.
+The samples of a batch are decoded in parallel, by up to `num_decode_lanes` decoders (decode
+lanes). Consecutive samples of one file that can be decoded without seeking are decoded by the
+same decoder, one after another. Every decoder has its own frame buffers, so the memory used
+grows with the number of decoders.
 
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
@@ -1292,6 +1305,19 @@ Otherwise, the number of values must match the number of channels in the video.)
                     std::vector<int>{
                         0,
                     })
+    .AddOptionalArg("num_decode_lanes",
+                    R"code(Number of decode lanes: decoders that decode the samples of a batch in
+parallel.
+
+* ``0`` (default): Picked automatically: on the GPU, one lane per NVDEC engine of the device (one
+  lane if the number of engines is unknown), on the CPU, up to 4 lanes; in both cases, no more
+  than ``num_threads``.
+* A positive value sets the number of lanes.
+
+The number of lanes is never more than ``max_batch_size``, since extra lanes would be idle.
+Every lane has its own decoder and frame buffers, so the memory used grows with the number of
+lanes.)code",
+                    0)
     .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).
 
 YCbCr output contains the decoded samples upsampled to 4:4:4, in the color range and matrix of

@@ -1942,7 +1942,7 @@ def _assert_frames_match_file(frames, frame_nums, filename, window=32):
         ), f"{filename}: frame {num} is closer to frame {closest}"
 
 
-# The reader decodes the samples of a batch in parallel, by up to num_threads decoders (decode
+# The reader decodes the samples of a batch in parallel, by up to num_decode_lanes decoders (decode
 # lanes). Its output must not depend on how many there are.
 _lanes_reader_cases = [
     dict(sequence_length=5),  # consecutive sequences of each file
@@ -1971,13 +1971,13 @@ def _lanes_reader_files(device):
     return cfr_files + vfr_files + (gpu_files if device == "gpu" else [])
 
 
-def _check_reader_output_independent_of_num_threads(
-    device, kwargs, batch_size, num_threads, files=None, window=32
+def _check_reader_output_independent_of_num_lanes(
+    device, kwargs, batch_size, num_lanes, files=None, window=32
 ):
     files = files or _lanes_reader_files(device)
 
-    @pipeline_def(batch_size=batch_size, device_id=0, seed=42)
-    def pipe():
+    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, seed=42)
+    def pipe(num_lanes):
         # videos, labels (the index of the file), frame numbers and, with enable_timestamps,
         # timestamps
         return tuple(
@@ -1986,16 +1986,15 @@ def _check_reader_output_independent_of_num_threads(
                 labels=list(range(len(files))),
                 device=device,
                 enable_frame_num="sequence",
+                num_decode_lanes=num_lanes,
                 **kwargs,
             )
         )
 
-    compare_pipelines(
-        pipe(num_threads=1), pipe(num_threads=num_threads), batch_size=batch_size, N_iterations=8
-    )
+    compare_pipelines(pipe(1), pipe(num_lanes), batch_size=batch_size, N_iterations=8)
 
     # The two runs could agree on wrong frames, so check the frames against PyAV as well
-    p = pipe(num_threads=num_threads)
+    p = pipe(num_lanes)
     for _ in range(4):
         videos, labels, frame_nums, *_ = (t.as_cpu() for t in p.run())
         for i in range(batch_size):
@@ -2008,20 +2007,20 @@ def _check_reader_output_independent_of_num_threads(
 
 
 @cartesian_params(["cpu", "gpu"], range(len(_lanes_reader_cases)))
-def test_reader_output_independent_of_num_threads(device, case):
+def test_reader_output_independent_of_num_lanes(device, case):
     skip_if_m60()
-    _check_reader_output_independent_of_num_threads(
-        device, _lanes_reader_cases[case], batch_size=4, num_threads=4
+    _check_reader_output_independent_of_num_lanes(
+        device, _lanes_reader_cases[case], batch_size=4, num_lanes=4
     )
 
 
-# One sample per batch: one lane decodes, whatever the number of threads, and its decoder carries
-# over from batch to batch
+# One sample per batch: one lane decodes, also when more lanes are asked for than the batch has
+# samples, and its decoder carries over from batch to batch
 @cartesian_params(["cpu", "gpu"], (0, 1, 3))
-def test_reader_batch_size_1_output_independent_of_num_threads(device, case):
+def test_reader_batch_size_1_output_independent_of_num_lanes(device, case):
     skip_if_m60()
-    _check_reader_output_independent_of_num_threads(
-        device, _lanes_reader_cases[case], batch_size=1, num_threads=4
+    _check_reader_output_independent_of_num_lanes(
+        device, _lanes_reader_cases[case], batch_size=1, num_lanes=4
     )
 
 
@@ -2035,13 +2034,13 @@ long_lead_in_files = [
 # Consecutive sequences (from the start of a file, after its lead-in), sparse samples (frames
 # skipped in between) and shuffled samples (seeks, also back to the lead-in)
 @params(0, 1, 3)
-def test_reader_lead_in_output_independent_of_num_threads(case):
+def test_reader_lead_in_output_independent_of_num_lanes(case):
     skip_if_m60()
-    _check_reader_output_independent_of_num_threads(
+    _check_reader_output_independent_of_num_lanes(
         "gpu",
         _lanes_reader_cases[case],
         batch_size=4,
-        num_threads=4,
+        num_lanes=4,
         files=long_lead_in_files,
         window=16,
     )
@@ -2058,10 +2057,10 @@ _multi_run_lanes_cases = [
 
 
 @cartesian_params(["cpu", "gpu"], range(len(_multi_run_lanes_cases)))
-def test_reader_multi_run_lanes_output_independent_of_num_threads(device, case):
+def test_reader_multi_run_lanes_output_independent_of_num_lanes(device, case):
     skip_if_m60()
-    _check_reader_output_independent_of_num_threads(
-        device, _multi_run_lanes_cases[case], batch_size=8, num_threads=2
+    _check_reader_output_independent_of_num_lanes(
+        device, _multi_run_lanes_cases[case], batch_size=8, num_lanes=2
     )
 
 
@@ -2092,6 +2091,7 @@ def test_reader_pad_last_batch_repeats_last_sample(device, shard_id):
             pad_last_batch=True,
             num_shards=3,
             shard_id=shard_id,
+            num_decode_lanes=4,
         )
         return videos, labels
 
@@ -2132,7 +2132,7 @@ def _num_frames(filename, device):
 
 
 @cartesian_params(("cpu", "gpu"), (1, 4))
-def test_reader_reports_first_error_of_batch(device, num_threads):
+def test_reader_reports_first_error_of_batch(device, num_lanes):
     """Samples fail in two lanes of a batch and in the next batch: the error is the first one of
     the batch, at that batch, whatever the lanes' timing."""
     skip_if_m60()
@@ -2148,7 +2148,7 @@ def test_reader_reports_first_error_of_batch(device, num_threads):
         for i, (f, start) in enumerate(samples):
             file_list.write(f"{files[f]} {i} {start} {start + 4}\n")
 
-    @pipeline_def(batch_size=batch_size, num_threads=num_threads, device_id=0)
+    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
     def pipe():
         videos, _ = fn.experimental.readers.video(
             file_list=file_list.name,
@@ -2156,6 +2156,7 @@ def test_reader_reports_first_error_of_batch(device, num_threads):
             file_list_include_end=False,
             device=device,
             sequence_length=4,
+            num_decode_lanes=num_lanes,
         )
         return videos
 
@@ -2167,3 +2168,17 @@ def test_reader_reports_first_error_of_batch(device, num_threads):
             p.run()
     finally:
         os.remove(file_list.name)
+
+
+@params("cpu", "gpu")
+def test_reader_negative_num_decode_lanes(device):
+    skip_if_m60()
+
+    @pipeline_def(batch_size=2, num_threads=2, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            filenames=cfr_files, device=device, sequence_length=3, num_decode_lanes=-1
+        )
+
+    with assert_raises(RuntimeError, glob="num_decode_lanes must not be negative, got -1"):
+        pipe().build()
