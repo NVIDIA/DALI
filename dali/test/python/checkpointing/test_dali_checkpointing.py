@@ -841,6 +841,7 @@ def test_experimental_video_reader_prefetch_queue_depth(device, reader_depth, ra
         initial_fill=8,
         pad_last_batch=True,
         prefetch_queue_depth=reader_depth,
+        num_decode_lanes=4,
         sequence_length=3,
         stride=1,
         step=5,
