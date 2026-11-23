@@ -20,7 +20,6 @@ import av
 import io
 import struct
 import tempfile
-import functools
 import nvidia.dali.types as types
 import glob
 import os
@@ -1915,12 +1914,17 @@ def test_non_idr_keyframes_warm_seeks(codec, sequence_length=4):
         )
 
 
-@functools.lru_cache(maxsize=4)
+# Frames are compared subsampled by this factor in each dimension: small enough to keep every file
+# decoded, and the closest frame is still the same one
+_reference_subsample = 4
+
+
+@lru_cache(maxsize=None)
 def _reference_frames(filename):
-    """All frames of the file, decoded with PyAV, in presentation order (the last few files are
-    kept: the tests check one file after another)."""
+    """All frames of the file, decoded with PyAV, in presentation order, subsampled"""
+    k = _reference_subsample
     with av.open(filename) as container:
-        return [f.to_ndarray(format="rgb24") for f in container.decode(video=0)]
+        return [f.to_ndarray(format="rgb24")[::k, ::k] for f in container.decode(video=0)]
 
 
 def _assert_frames_match_file(frames, frame_nums, filename, window=32):
@@ -1934,7 +1938,9 @@ def _assert_frames_match_file(frames, frame_nums, filename, window=32):
             continue
         start = 0 if window is None else max(0, num - window)
         end = len(reference) if window is None else min(len(reference), num + window + 1)
-        diffs = {i: np.abs(frame.astype(np.int32) - reference[i]).mean() for i in range(start, end)}
+        k = _reference_subsample
+        frame = np.asarray(frame)[::k, ::k].astype(np.int32)
+        diffs = {i: np.abs(frame - reference[i]).mean() for i in range(start, end)}
         closest = min(diffs, key=diffs.get)
         assert (
             diffs[num] < 10
@@ -1944,8 +1950,8 @@ def _assert_frames_match_file(frames, frame_nums, filename, window=32):
         ), f"{filename}: frame {num} is closer to frame {closest}"
 
 
-# The reader decodes the samples of a batch in parallel, by up to num_decode_lanes decoders (decode
-# lanes). Its output must not depend on how many there are.
+# The reader decodes the samples of a batch in parallel by several decoders (decode lanes). Its
+# output must not depend on how many there are.
 _lanes_reader_cases = [
     dict(sequence_length=5),  # consecutive sequences of each file
     dict(sequence_length=4, stride=3, step=20),  # sparse samples of each file
@@ -2168,7 +2174,7 @@ def test_reader_reports_first_error_of_batch(device, num_lanes):
 
         p = pipe()
         p.build()  # indexes the files
-        for filename, delete in zip(files, deleted):
+        for filename, delete in zip(files, deleted, strict=True):
             if delete:
                 os.remove(filename)
         p.run()  # batch 0

@@ -1523,7 +1523,12 @@ int FramesDecoderGpu::NumEngines(int device_id) {
     auto decoder_caps = frame_dec_gpu_impl::GetDecoderCaps(cudaVideoCodec_H264,
                                                            cudaVideoChromaFormat_420, 0);
     return decoder_caps.bIsSupported ? decoder_caps.nNumNVDECs : 0;
+  } catch (const std::exception &e) {
+    DALI_WARN("Could not query the number of NVDEC engines of device ", device_id, ": ",
+              e.what());
+    return 0;  // unknown
   } catch (...) {
+    DALI_WARN("Could not query the number of NVDEC engines of device ", device_id, ".");
     return 0;  // unknown
   }
 }

@@ -625,6 +625,10 @@ class VideoReaderDecoder
         has_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
         boundary_type_(GetBoundaryType(spec)),
         image_type_(spec.GetArgument<DALIImageType>("image_type")) {
+    // before InitLoader, which indexes every file unless lazy_init is set
+    int num_decode_lanes = spec.GetArgument<int>("num_decode_lanes");
+    DALI_ENFORCE(num_decode_lanes >= 0,
+                 make_string("num_decode_lanes must not be negative, got ", num_decode_lanes));
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
 
@@ -643,9 +647,6 @@ class VideoReaderDecoder
       use_streams_ = DriverSupportsStreams();
     DALI_ENFORCE(image_type_ == DALI_RGB || image_type_ == DALI_YCbCr,
                  make_string("Invalid image_type: ", image_type_));
-    int num_decode_lanes = spec.GetArgument<int>("num_decode_lanes");
-    DALI_ENFORCE(num_decode_lanes >= 0,
-                 make_string("num_decode_lanes must not be negative, got ", num_decode_lanes));
 
     InitLanes(spec);
   }
@@ -846,12 +847,12 @@ class VideoReaderDecoder
 
   // CPU: the most decode lanes picked automatically. Each lane keeps its own libavcodec decoder
   // and frame buffers, so the memory used grows with the number of lanes.
-  static constexpr int kMaxAutoLanesCpu = 4;
+  static constexpr int kMaxAutoLanesCPU = 4;
 
   /**
    * @brief Number of decode lanes: num_decode_lanes or, when it is 0, num_threads capped at
    * kLanesPerEngine per NVDEC engine on the GPU (one lane if the number of engines is unknown) and
-   * at kMaxAutoLanesCpu on the CPU; never more than the batch size, since extra lanes are idle.
+   * at kMaxAutoLanesCPU on the CPU; never more than the batch size, since extra lanes are idle.
    */
   int NumLanes(const OpSpec &spec) {
     int lanes = spec.GetArgument<int>("num_decode_lanes");
@@ -861,7 +862,7 @@ class VideoReaderDecoder
         int engines = FramesDecoderGpu::NumEngines(spec.GetArgument<int>("device_id"));
         lanes = std::min(lanes, engines > 0 ? kLanesPerEngine * engines : 1);
       } else {
-        lanes = std::min(lanes, kMaxAutoLanesCpu);
+        lanes = std::min(lanes, kMaxAutoLanesCPU);
       }
     }
     lanes = std::min(lanes, spec.GetArgument<int>("max_batch_size"));
@@ -1027,11 +1028,10 @@ class VideoReaderDecoder
    * @brief Decodes a lane's runs of the batch. A sample that fails is recorded in the lane's
    * errors.
    */
-  void DecodeLanePart(int l) {
-    auto &lane = lanes_[l];
-    const auto &plan = plans_[l];
-    auto &errors = lane.errors;
-    errors.clear();
+  void DecodeLanePart(int lane_id) {
+    auto &lane = lanes_[lane_id];
+    const auto &plan = plans_[lane_id];
+    lane.errors.clear();
     for (int r : plan.runs) {
       for (int t : runs_[r].tasks) {
         auto &task = tasks_[t];
@@ -1039,25 +1039,25 @@ class VideoReaderDecoder
           DecodeSample(*task.sample, lane);
         } catch (...) {
           lane.decoder.reset();  // in an unknown state; its destructor waits for its stream
-          errors.emplace_back(task.batch_idx, std::current_exception());
+          lane.errors.emplace_back(task.batch_idx, std::current_exception());
         }
       }
     }
     if constexpr (std::is_same_v<Backend, GPUBackend>) {
       // the samples are read on the workspace stream once the batch is consumed
       cudaStream_t stream = lane.stream ? lane.stream.get() : 0;
-      if (errors.empty()) {
+      if (lane.errors.empty()) {
         try {
           CUDA_CALL(cudaStreamSynchronize(stream));
         } catch (...) {
-          errors.emplace_back(std::numeric_limits<int>::max(), std::current_exception());
+          lane.errors.emplace_back(std::numeric_limits<int>::max(), std::current_exception());
         }
       } else if (cudaStreamSynchronize(stream) != cudaSuccess) {
         (void)cudaGetLastError();  // already failing: report the sample's error
       }
     }
-    LOG_LINE << "Lane " << l << " planned " << plan.pictures << " pictures (load " << plan.load
-             << ")" << std::endl;
+    LOG_LINE << "Lane " << lane_id << " planned " << plan.pictures << " pictures (load "
+             << plan.load << ")" << std::endl;
   }
 
   /**
@@ -1168,10 +1168,10 @@ The following codecs are supported by the GPU backend only:
 * H.264/AVC
 * H.265/HEVC
 
-The samples of a batch are decoded in parallel, by up to `num_decode_lanes` decoders (decode
-lanes). Consecutive samples of one file that can be decoded without seeking are decoded by the
-same decoder, one after another. Every decoder has its own frame buffers, so the memory used
-grows with the number of decoders.
+The samples of a batch are decoded in parallel by several decoders (decode lanes), see
+`num_decode_lanes`. Consecutive samples of one file that can be decoded without seeking are
+decoded by the same decoder, one after another. Every decoder has its own frame buffers, so the
+memory used grows with the number of decoders.
 
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
