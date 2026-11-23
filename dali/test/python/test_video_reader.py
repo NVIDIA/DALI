@@ -1200,7 +1200,7 @@ def pipe():
 
 try:
     pipe().build()
-except Exception as e:
+except RuntimeError as e:  # any other exception fails the child with a non-zero exit code
     print("RAISED:", e)
     sys.exit(0)
 print("BUILT")
@@ -1231,32 +1231,57 @@ def _build_reader_in_bounded_subprocess(device, sequence_length, stride, timeout
         )
 
 
+def _assert_raised(res, message):
+    """The child process of _build_reader_in_bounded_subprocess raised a RuntimeError (any other
+    exception makes it exit with an error) with `message` in it."""
+    assert res.returncode == 0 and "RAISED:" in res.stdout and message in res.stdout, (
+        f"Expected a RuntimeError with {message!r}; returncode={res.returncode}, "
+        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
+    )
+
+
 @cartesian_params(devices)
 def test_stride_zero_raises_instead_of_hanging(device):
     res = _build_reader_in_bounded_subprocess(device, sequence_length=3, stride=0)
-    assert "RAISED:" in res.stdout and "stride" in res.stdout, (
-        f"Expected a prompt error mentioning `stride`; returncode={res.returncode}, "
-        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
-    )
+    _assert_raised(res, "stride must be greater than 0, got 0.")
 
 
 @cartesian_params(devices)
 def test_sequence_length_zero_raises_instead_of_hanging(device):
     res = _build_reader_in_bounded_subprocess(device, sequence_length=0, stride=1)
-    assert "RAISED:" in res.stdout and "sequence_length" in res.stdout, (
-        f"Expected a prompt error mentioning `sequence_length`; returncode={res.returncode}, "
-        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
-    )
+    _assert_raised(res, "sequence_length must be at least 1, got 0.")
 
 
 @cartesian_params(devices)
 def test_huge_stride_times_sequence_length_raises_instead_of_hanging(device):
     # 65536 * 65536 overflows int: the default step (stride * sequence_length) used to wrap to 0.
     res = _build_reader_in_bounded_subprocess(device, sequence_length=65536, stride=65536)
-    assert "RAISED:" in res.stdout and "sequence_length" in res.stdout, (
-        f"Expected a prompt error mentioning `sequence_length`; returncode={res.returncode}, "
-        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
-    )
+    _assert_raised(res, "stride * sequence_length must not exceed 2147483647, got 65536 * 65536.")
+
+
+@cartesian_params(devices)
+def test_padded_tail_past_int_max_raises(device):
+    # stride * sequence_length fits in int, but the padded tail sample of the range [10, 20)
+    # starts at frame 10 and would end at frame 10 + INT_MAX.
+    int_max = 2**31 - 1
+    list_file = _write_file_list([f"{CFR_VP9_60FPS_FILE} 0 10 20"])
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        frames, _ = fn.experimental.readers.video(
+            device=device,
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=1,
+            stride=int_max,
+            step=int_max,
+            pad_mode="constant",
+        )
+        return frames
+
+    p = pipe()
+    with assert_raises(RuntimeError, glob="*exceeds the supported frame index range*"):
+        p.build()
 
 
 @cartesian_params(devices)
