@@ -1285,12 +1285,12 @@ class VideoReaderDecoder
    * thread, that would end the process, and the batch would never be done. With `setup_error`
    * (the lane's thread could not be set up), the part fails with it.
    */
-  void RunLanePart(int l, PendingBatch &batch, std::exception_ptr setup_error = nullptr) {
+  void RunLanePart(int lane_id, PendingBatch &batch, std::exception_ptr setup_error = nullptr) {
     std::vector<SampleError> errors;
     std::exception_ptr failure = setup_error;  // of the lane's part, not of a sample
     if (!failure) {
       try {
-        DecodeLanePart(l, batch, errors);
+        DecodeLanePart(lane_id, batch, errors);
       } catch (...) {
         failure = std::current_exception();
       }
@@ -1298,7 +1298,7 @@ class VideoReaderDecoder
     std::lock_guard<std::mutex> lock(lanes_mutex_);
     try {
       if (failure)
-        errors.push_back({std::numeric_limits<int>::max(), l, failure});
+        errors.push_back({std::numeric_limits<int>::max(), lane_id, failure});
       batch.errors.insert(batch.errors.end(), errors.begin(), errors.end());
     } catch (...) {
       // out of memory: the batch fails all the same
@@ -1312,21 +1312,21 @@ class VideoReaderDecoder
   /**
    * @brief Decodes a lane's runs of a batch. A sample that fails is recorded in `errors`.
    */
-  void DecodeLanePart(int l, PendingBatch &batch, std::vector<SampleError> &errors) {
-    auto &lane = lanes_[l];
-    const auto &plan = batch.plans[l];
+  void DecodeLanePart(int lane_id, PendingBatch &batch, std::vector<SampleError> &errors) {
+    auto &lane = lanes_[lane_id];
+    const auto &plan = batch.plans[lane_id];
     if (plan.runs.empty()) {
       if (lanes_.size() > 1)
         lane.decoder.reset();  // do not keep its frame buffers and NVDEC decoder idle
       return;
     }
-    DomainTimeRange tr(make_string("[DALI][VideoReaderDecoder] lane ", l),
+    DomainTimeRange tr(make_string("[DALI][VideoReaderDecoder] lane ", lane_id),
                        DomainTimeRange::kOrange);
     try {
-      CheckPlan(lane, batch.lane_start[l]);
+      CheckPlan(lane, batch.lane_start[lane_id]);
     } catch (...) {
       int first_task = batch.runs[plan.runs[0]].tasks[0];
-      errors.push_back({batch.tasks[first_task].batch_idx, l, std::current_exception()});
+      errors.push_back({batch.tasks[first_task].batch_idx, lane_id, std::current_exception()});
     }
     bool cancelled = false;
     for (size_t i = 0; i < plan.runs.size() && !cancelled; i++) {
@@ -1339,7 +1339,7 @@ class VideoReaderDecoder
         } catch (...) {
           lane.decoder.reset();  // in an unknown state; its destructor waits for its stream
           lane.failed = true;
-          errors.push_back({task.batch_idx, l, std::current_exception()});
+          errors.push_back({task.batch_idx, lane_id, std::current_exception()});
         }
       }
     }
@@ -1350,7 +1350,7 @@ class VideoReaderDecoder
         try {
           CUDA_CALL(cudaStreamSynchronize(stream));
         } catch (...) {
-          errors.push_back({std::numeric_limits<int>::max(), l, std::current_exception()});
+          errors.push_back({std::numeric_limits<int>::max(), lane_id, std::current_exception()});
         }
       } else if (cudaStreamSynchronize(stream) != cudaSuccess) {
         (void)cudaGetLastError();  // already failing: report the sample's error
