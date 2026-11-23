@@ -22,6 +22,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
@@ -789,22 +790,26 @@ class VideoReaderDecoder
    * @brief A sample to decode, with the frames it decodes (for planning only).
    */
   struct SampleTask {
-    VideoSample<Backend> *sample;
-    int batch_idx;  // first position of the sample in the batch
-    int first;      // smallest frame index decoded; -1 if none (padding only)
-    int last;       // largest frame index decoded; -1 if none
+    VideoSample<Backend> *sample = nullptr;
+    int batch_idx = 0;  // first position of the sample in the batch
+    int first = -1;     // smallest frame index decoded; -1 if none (padding only)
+    int last = -1;      // largest frame index decoded; -1 if none
     SmallVector<int, 32> frames;  // the frames the decoder seeks to, in order (see SampleFrames)
   };
 
   /**
    * @brief Samples of one file that one decoder decodes in a row, without seeking.
+   *
+   * The filename and the index are those of its samples' file: they live as long as the batch.
    */
   struct DecodeRun {
-    const std::string *filename;
-    std::vector<int> tasks;  // indices into tasks_, in decoding order
-    int first;
-    int last;
-    int batch_idx;  // the smallest position of its samples in the batch
+    std::string_view filename;
+    const FrameIndex *index = nullptr;  // the index of the file; not null
+    // Indices into tasks_, in decoding order: usually a few samples, up to the batch size for
+    // consecutive samples of one file
+    SmallVector<int, 4> tasks;
+    int last = -1;      // largest frame index decoded; -1 if none
+    int batch_idx = 0;  // the smallest position of its samples in the batch
   };
 
   /**
@@ -877,65 +882,66 @@ class VideoReaderDecoder
    */
   void PlanBatch() {
     auto &batch = prefetched_batch_queue_[curr_batch_producer_];
-    auto &tasks = tasks_;
-    auto &runs = runs_;
-    tasks.clear();
-    runs.clear();
+    tasks_.clear();
+    runs_.clear();
     for (int i = 0; i < static_cast<int>(batch.size()); i++) {
-      auto *sample = batch[i].get();
-      if (sample->planned)
+      auto &sample = *batch[i];
+      if (sample.planned)
         continue;
-      sample->planned = true;
-      SampleTask task{sample, i, -1, -1, {}};
+      sample.planned = true;
+      const auto &filename = sample.video_file_meta_->filename;
+      const FrameIndex *index = FileIndex(filename);
+      if (!index)
+        throw std::logic_error(
+            make_string("Internal error: no frame index for \"", filename, "\"."));
+      SampleTask task;
+      task.sample = &sample;
+      task.batch_idx = i;
       try {
-        const auto &filename = sample->video_file_meta_->filename;
-        const FrameIndex *index = FileIndex(filename);
-        if (!index)
-          throw std::logic_error(
-              make_string("Internal error: no frame index for \"", filename, "\"."));
-        SampleFrames(task.frames, sample->frame_idxs_, sample->start_, sample->end_,
-                     sample->stride_, boundary_type_, sample->video_file_meta_->start_frame,
-                     sample->video_file_meta_->end_frame, index->size());
+        SampleFrames(task.frames, sample.frame_idxs_, sample.start_, sample.end_, sample.stride_,
+                     boundary_type_, sample.video_file_meta_->start_frame,
+                     sample.video_file_meta_->end_frame, index->size());
       } catch (...) {
-        // decoding the sample reports the error, in its lane, and resets the decoder
+        // An invalid sample is planned without frames: decoding it throws the same error, in its
+        // lane, so that the batch reports the error of its first failing sample
         task.frames.clear();
       }
       if (!task.frames.empty()) {
         task.first = task.frames.front();
         task.last = task.frames.back();
       }
-      tasks.push_back(std::move(task));
+      tasks_.push_back(std::move(task));
     }
 
-    std::vector<int> order(tasks.size());
+    std::vector<int> order(tasks_.size());
     std::iota(order.begin(), order.end(), 0);
     std::sort(order.begin(), order.end(), [&](int a, int b) {
-      const auto &ta = tasks[a], &tb = tasks[b];
+      const auto &ta = tasks_[a], &tb = tasks_[b];
       const auto &fa = ta.sample->video_file_meta_->filename;
       const auto &fb = tb.sample->video_file_meta_->filename;
       return std::tie(fa, ta.first, ta.batch_idx) < std::tie(fb, tb.first, tb.batch_idx);
     });
-    const FrameIndex *index = nullptr;
     size_t file_runs = 0;  // the first run of the current file
     for (int t : order) {
-      auto &task = tasks[t];
+      auto &task = tasks_[t];
       const auto &filename = task.sample->video_file_meta_->filename;
-      if (runs.empty() || *runs.back().filename != filename) {
-        file_runs = runs.size();
-        index = FileIndex(filename);
-      }
+      if (runs_.empty() || runs_.back().filename != filename)
+        file_runs = runs_.size();
       // join a run of the file that a decoder continues to this sample without seeking
-      auto run = std::find_if(runs.begin() + file_runs, runs.end(), [&](const DecodeRun &r) {
-        return task.first < 0 || CanReachWithoutSeek(*index, r.last + 1, task.first);
+      auto run = std::find_if(runs_.begin() + file_runs, runs_.end(), [&](const DecodeRun &r) {
+        return task.first < 0 || CanReachWithoutSeek(*r.index, r.last + 1, task.first);
       });
-      if (run != runs.end()) {
+      if (run != runs_.end()) {
         run->tasks.push_back(t);
-        if (run->first < 0)  // opened by a sample that decodes no frame
-          run->first = task.first;
         run->last = std::max(run->last, task.last);
         run->batch_idx = std::min(run->batch_idx, task.batch_idx);
       } else {
-        runs.push_back({&filename, {t}, task.first, task.last, task.batch_idx});
+        DecodeRun &new_run = runs_.emplace_back();
+        new_run.filename = filename;
+        new_run.index = FileIndex(filename);
+        new_run.tasks.push_back(t);
+        new_run.last = task.last;
+        new_run.batch_idx = task.batch_idx;
       }
     }
   }
@@ -947,7 +953,7 @@ class VideoReaderDecoder
   void AssignRuns() {
     std::vector<PlannedRun> runs;
     for (const auto &run : runs_) {
-      runs.push_back({*run.filename, FileIndex(*run.filename), run.batch_idx, {}});
+      runs.push_back({run.filename, run.index, run.batch_idx, {}});
       for (int t : run.tasks)
         runs.back().samples.push_back(make_cspan(tasks_[t].frames));
     }
