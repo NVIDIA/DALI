@@ -25,6 +25,8 @@ import nvidia.dali.types as types
 import glob
 import os
 import random
+import re
+import shutil
 from enum import Enum
 from functools import lru_cache
 from itertools import cycle
@@ -2137,37 +2139,42 @@ def test_reader_reports_first_error_of_batch(device, num_lanes):
     the batch, at that batch, whatever the lanes' timing."""
     skip_if_m60()
     batch_size = 4
-    files = cfr_files  # with different numbers of frames
-    num_frames = [_num_frames(f, device) for f in files]
-    assert num_frames[0] != num_frames[1]
-    # (file, start) of each sample, with sequences that start past the end of the file
-    samples = [(0, 0), (1, 0), (0, 4), (1, 4)]  # batch 0
-    samples += [(0, 8), (0, num_frames[0] + 10), (1, 8), (1, num_frames[1] + 20)]  # batch 1
-    samples += [(0, num_frames[0] + 30), (1, 12), (0, 12), (1, 16)]  # batch 2
-    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as file_list:
-        for i, (f, start) in enumerate(samples):
-            file_list.write(f"{files[f]} {i} {start} {start + 4}\n")
+    # Whether each sample's file is deleted after the reader has indexed it, so that it fails to
+    # open when decoded. Each sample has its own copy of the file, and so its own decoder.
+    deleted = [False, False, False, False]  # batch 0
+    deleted += [False, True, False, True]  # batch 1
+    deleted += [True, False, False, False]  # batch 2
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        files = []
+        for i in range(len(deleted)):
+            src = cfr_files[i % len(cfr_files)]
+            files.append(os.path.join(tmp_dir, f"{i}_{os.path.basename(src)}"))
+            shutil.copyfile(src, files[-1])
+        file_list = os.path.join(tmp_dir, "file_list.txt")
+        with open(file_list, "w") as f:
+            for i, filename in enumerate(files):
+                f.write(f"{filename} {i} 0 4\n")
 
-    @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
-    def pipe():
-        videos, _ = fn.experimental.readers.video(
-            file_list=file_list.name,
-            file_list_format="frames",
-            file_list_include_end=False,
-            device=device,
-            sequence_length=4,
-            num_decode_lanes=num_lanes,
-        )
-        return videos
+        @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0)
+        def pipe():
+            videos, _ = fn.experimental.readers.video(
+                file_list=file_list,
+                file_list_format="frames",
+                device=device,
+                sequence_length=4,
+                num_decode_lanes=num_lanes,
+            )
+            return videos
 
-    try:
         p = pipe()
+        p.build()  # indexes the files
+        for filename, delete in zip(files, deleted):
+            if delete:
+                os.remove(filename)
         p.run()  # batch 0
-        expected = rf"frame index {num_frames[0] + 10} .*\[0, {num_frames[0]}\)"
+        expected = f"Invalid decoder for filename {re.escape(files[5])}"
         with assert_raises(RuntimeError, regex=expected):
             p.run()
-    finally:
-        os.remove(file_list.name)
 
 
 @params("cpu", "gpu")
