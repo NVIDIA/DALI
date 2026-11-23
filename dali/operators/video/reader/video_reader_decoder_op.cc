@@ -315,14 +315,15 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       // (stride_ * sequence_len_, which is also the default step) fits, otherwise e.g. the
       // default step would wrap to 0 or a negative value and the sample loop in
       // PrepareMetadataImpl would never terminate.
-      int64_t full_seq_stride = static_cast<int64_t>(stride_) * sequence_len_;
-      DALI_ENFORCE(full_seq_stride <= std::numeric_limits<int>::max(),
+      int full_seq_stride;
+      const bool overflow = __builtin_mul_overflow(stride_, sequence_len_, &full_seq_stride);
+      DALI_ENFORCE(!overflow,
                    make_string("stride * sequence_length must not exceed ",
                                std::numeric_limits<int>::max(), ", got ", stride_, " * ",
-                               sequence_len_, " = ", full_seq_stride, "."));
+                               sequence_len_, "."));
       // `step` <= 0 (including the default, -1) means "use stride * sequence_length".
       if (step_ <= 0) {
-        step_ = static_cast<int>(full_seq_stride);
+        step_ = full_seq_stride;
       }
     }
     if (uniform_sample_) {
