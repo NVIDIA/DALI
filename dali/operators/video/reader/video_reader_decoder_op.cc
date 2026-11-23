@@ -995,11 +995,12 @@ class VideoReaderDecoder
              << (lane.decoder ? lane.decoder->Filename() : "no file") << ", frame "
              << (lane.decoder ? lane.decoder->NextFrameIdx() : -1) << "; planned: "
              << start.filename << ", frame " << start.next_frame << std::endl;
-    DALI_ENFORCE(!strict_plans_, make_string(
-        "Internal error: a video decoder is not where the plan expects it, at frame ",
-        start.next_frame, " of \"", start.filename, "\"; it is at frame ",
-        lane.decoder ? lane.decoder->NextFrameIdx() : -1, " of \"",
-        lane.decoder ? lane.decoder->Filename() : "", "\"."));
+    if (strict_plans_)
+      throw std::logic_error(make_string(
+          "Internal error: a video decoder is not where the plan expects it, at frame ",
+          start.next_frame, " of \"", start.filename, "\"; it is at frame ",
+          lane.decoder ? lane.decoder->NextFrameIdx() : -1, " of \"",
+          lane.decoder ? lane.decoder->Filename() : "", "\"."));
   }
 
   /**
