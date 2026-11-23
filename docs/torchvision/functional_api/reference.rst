@@ -9,7 +9,8 @@ drop-in replacements for their counterparts in :mod:`torchvision.transforms.v2.f
 For a general introduction, see :doc:`../overview`. To add an operator that is not listed here,
 see :doc:`../custom_operators`. For the operator classes, see :doc:`../object_api/index`.
 
-Every function accepts the additional ``device`` argument (``"cpu"`` or ``"gpu"``).
+All functions except the PIL and tensor conversion functions and the image metadata functions accept
+the additional ``device`` argument (``"cpu"`` or ``"gpu"``).
 
 .. currentmodule:: nvidia.dali.experimental.torchvision.v2.functional
 
