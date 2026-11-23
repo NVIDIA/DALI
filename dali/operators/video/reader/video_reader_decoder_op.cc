@@ -538,23 +538,16 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
                  << " with " << sequence_len_ << " frames" << std::endl;
         samples_.emplace_back(std::move(s));
       } else {
-        // Computed in int64: start + step_ / start + full_seq_stride can exceed INT_MAX even
-        // though each term fits in int (the constructor guarantees stride_ * sequence_len_ and
-        // step_ do).
-        int64_t full_seq_stride = static_cast<int64_t>(stride_) * sequence_len_;
-        auto add_sample = [&](int64_t start) {
-          int64_t end = start + full_seq_stride;
-          DALI_ENFORCE(end <= std::numeric_limits<int>::max(),
-                       make_string("Sequence starting at frame ", start, " of \"", entry.filename,
-                                   "\" would end at frame ", end, ", which exceeds the supported "
-                                   "frame index range. Reduce stride or sequence_length."));
-          samples_.emplace_back(&entry, static_cast<int>(start), static_cast<int>(end), stride_);
-        };
+        // The constructor checked that stride_ * sequence_len_ fits in int.
+        const int full_seq_stride = stride_ * sequence_len_;
+        // int64: after the last sample, start + step_ can exceed INT_MAX.
         int64_t start = entry.start_frame;
         for (; start + full_seq_stride <= entry.end_frame; start += step_) {
           LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
                    << ", stride=" << stride_ << std::endl;
-          add_sample(start);
+          // the sample ends at or before entry.end_frame, so its frame indices fit in int
+          samples_.emplace_back(&entry, static_cast<int>(start),
+                                static_cast<int>(start + full_seq_stride), stride_);
         }
 
         // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last
@@ -562,7 +555,17 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         if (boundary_type_ != boundary::BoundaryType::ISOLATED && start < entry.end_frame) {
           LOG_LINE << "Adding padded tail sample starting at frame " << start
                    << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
-          add_sample(start);
+          // Unlike the samples above, the padded one ends past entry.end_frame, possibly past
+          // INT_MAX (start < entry.end_frame, so start itself fits in int).
+          int end;
+          const bool overflow =
+              __builtin_add_overflow(static_cast<int>(start), full_seq_stride, &end);
+          DALI_ENFORCE(!overflow,
+                       make_string("Sequence starting at frame ", start, " of \"", entry.filename,
+                                   "\" would end past frame ", std::numeric_limits<int>::max(),
+                                   ", which exceeds the supported frame index range. Reduce "
+                                   "stride or sequence_length."));
+          samples_.emplace_back(&entry, static_cast<int>(start), end, stride_);
         }
       }
     }
