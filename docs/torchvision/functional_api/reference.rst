@@ -1,15 +1,16 @@
-Functional API
-==============
+Functional API reference
+========================
 
 .. warning::
    The DALI TorchVision API is an experimental feature and is subject to change.
 
 This page documents the functions currently implemented in the DALI TorchVision API. They are
 drop-in replacements for their counterparts in :mod:`torchvision.transforms.v2.functional`.
-For a general introduction, see :doc:`overview`. To add an operator that is not listed here,
-see :doc:`custom_operators`. For the operator classes, see :doc:`object_api`.
+For a general introduction, see :doc:`../overview`. To add an operator that is not listed here,
+see :doc:`../custom_operators`. For the operator classes, see :doc:`../object_api/index`.
 
-Every function accepts the additional ``device`` argument (``"cpu"`` or ``"gpu"``).
+All functions except the PIL and tensor conversion functions and the image metadata functions accept
+the additional ``device`` argument (``"cpu"`` or ``"gpu"``).
 
 .. currentmodule:: nvidia.dali.experimental.torchvision.v2.functional
 
