@@ -2168,20 +2168,6 @@ def test_reader_pad_last_batch_repeats_last_sample(device, shard_id, reader_dept
         _assert_frames_match_file(video, range(start, start + 4), files[label % len(files)])
 
 
-def _num_frames(filename, device):
-    """The frames of a file, as the reader counts them."""
-
-    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
-    def pipe():
-        return fn.experimental.readers.video(
-            filenames=[filename], sequence_length=1, device=device, name="Reader"
-        )
-
-    p = pipe()
-    p.build()
-    return p.reader_meta("Reader")["epoch_size"]
-
-
 @cartesian_params(("cpu", "gpu"), (1, 4), (1, 2))
 @_strict_plans()
 def test_reader_reports_first_error_of_batch(device, num_lanes, reader_depth):
@@ -2244,7 +2230,7 @@ def test_reader_destroyed_while_decoding(device):
             device=device,
             sequence_length=5,
             lazy_init=lazy_init,
-            num_decode_lanes=4,
+            num_decoders=4,
         )
 
     for i in range(30):

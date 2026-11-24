@@ -884,6 +884,8 @@ class VideoReaderDecoder
     // Guarded by lanes_mutex_: the lanes that have yet to do their part, and the errors
     int lanes_left = 0;
     std::vector<SampleError> errors;
+    // The batch index of the first sample that failed so far, in any lane (max: none)
+    std::atomic<int> first_error_idx{std::numeric_limits<int>::max()};
   };
 
   /**
@@ -1310,14 +1312,30 @@ class VideoReaderDecoder
   }
 
   /**
+   * @brief Records that the sample at `batch_idx` of `batch` failed, for the lanes to skip the
+   * samples after it (see DecodeLanePart).
+   */
+  static void NoteFailure(PendingBatch &batch, int batch_idx) {
+    int first = batch.first_error_idx.load(std::memory_order_relaxed);
+    while (batch_idx < first &&
+           !batch.first_error_idx.compare_exchange_weak(first, batch_idx,
+                                                        std::memory_order_relaxed)) {}
+  }
+
+  /**
    * @brief Decodes a lane's runs of a batch. A sample that fails is recorded in `errors`.
+   *
+   * Once a sample of the batch has failed, in any lane, the samples after it in the batch are not
+   * decoded: the batch fails, and none of them can be its first failing sample. The samples
+   * before it still are, since one of them may fail too and is then the error reported.
    */
   void DecodeLanePart(int lane_id, PendingBatch &batch, std::vector<SampleError> &errors) {
     auto &lane = lanes_[lane_id];
     const auto &plan = batch.plans[lane_id];
     if (plan.runs.empty()) {
       if (lanes_.size() > 1)
-        lane.decoder.reset();  // do not keep its frame buffers and NVDEC decoder idle
+        lane.decoder.reset();  // frees its frame buffers (an NVDEC decoder goes back to the
+                               // NVDECCache, where any lane can reuse it)
       return;
     }
     DomainTimeRange tr(make_string("[DALI][VideoReaderDecoder] lane ", lane_id),
@@ -1327,6 +1345,7 @@ class VideoReaderDecoder
     } catch (...) {
       int first_task = batch.runs[plan.runs[0]].tasks[0];
       errors.push_back({batch.tasks[first_task].batch_idx, lane_id, std::current_exception()});
+      NoteFailure(batch, batch.tasks[first_task].batch_idx);
     }
     bool cancelled = false;
     for (size_t i = 0; i < plan.runs.size() && !cancelled; i++) {
@@ -1334,12 +1353,18 @@ class VideoReaderDecoder
         if ((cancelled = cancel_))
           break;
         auto &task = batch.tasks[t];
+        if (task.batch_idx > batch.first_error_idx.load(std::memory_order_relaxed)) {
+          task.sample->planned = false;  // not decoded: decode it if it is read again
+          lane.failed = true;  // the decoder is not where the plan expects it
+          continue;
+        }
         try {
-          DecodeSample(*task.sample, lane, *runs_[r].index);
+          DecodeSample(*task.sample, lane, *batch.runs[plan.runs[i]].index);
         } catch (...) {
           lane.decoder.reset();  // in an unknown state; its destructor waits for its stream
           lane.failed = true;
           errors.push_back({task.batch_idx, lane_id, std::current_exception()});
+          NoteFailure(batch, task.batch_idx);
         }
       }
     }
@@ -1477,12 +1502,12 @@ The following codecs are supported by the GPU backend only:
 * H.264/AVC
 * H.265/HEVC
 
-The samples of a batch are decoded in parallel by several decoders (decode lanes), see
-`num_decoders`. Consecutive samples of one file that can be decoded without seeking are
-decoded by the same decoder, one after another. Every decoder has its own frame buffers, so the
-memory used grows with the number of decoders. With more than one decoder, the decoders that are
-done with their part of a batch start on the next batch, so up to one more batch of decoded
-samples is held in memory (host memory for the CPU backend).
+The samples of a batch are decoded in parallel by several decoders, see `num_decoders`.
+Consecutive samples of one file that can be decoded without seeking are decoded by the same
+decoder, one after another. Every decoder has its own frame buffers, so the memory used grows with
+the number of decoders. With more than one decoder, the decoders that are done with their part
+of a batch start on the next batch, so up to one more batch of decoded samples is held in memory
+(host memory for the CPU backend).
 
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
