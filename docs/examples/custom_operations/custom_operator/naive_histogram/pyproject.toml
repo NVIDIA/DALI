@@ -1,0 +1,21 @@
+[build-system]
+requires = ["scikit-build-core>=0.10"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "dali-naive-histogram"
+version = "0.1.0"
+description = "Example DALI plugin providing the NaiveHistogram operator"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+# DALI is intentionally not listed in the dependencies: the plugin must be built against the DALI
+# already installed in the target environment, so install it with `pip install --no-build-isolation`.
+# The name of the DALI distribution depends on its flavor (e.g. `nvidia-dali-cuda120`,
+# `nvidia-dali-nightly-cuda130`, or none at all for DALI built from source), so it can't be pinned
+# here. Instead, the exact DALI version and flavor are checked when the package is imported.
+
+[tool.scikit-build]
+cmake.version = ">=3.25.2"
+wheel.packages = ["dali_naive_histogram"]
+sdist.exclude = ["build", "dist"]
