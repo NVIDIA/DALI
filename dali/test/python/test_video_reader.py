@@ -1152,21 +1152,29 @@ def _file_list_reader_pipeline(device, entries, **kwargs):
 
 
 @cartesian_params(devices)
-def test_file_list_range_after_the_video_is_skipped(device):
-    # '60 70' is entirely after the 50 frames of the video: it is empty once clamped, so it is
-    # skipped (with a warning), and the reader only has the samples of the other entry
+def test_file_list_range_after_the_video_raises(device):
+    # '60 70' starts after the 50 frames of the video: that is an error, also beside a valid entry
     p = _file_list_reader_pipeline(device, ["0 60 70", "1 10 14"])
-    p.build()
-    assert p.reader_meta("reader")["epoch_size"] == 1
-    (frame_num,) = p.run()
-    assert [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()] == [10, 11, 12, 13]
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
+        p.build()
 
 
 @cartesian_params(devices)
 def test_file_list_with_only_ranges_after_the_video_raises(device):
     p = _file_list_reader_pipeline(device, ["0 60 70"])
-    with assert_raises(RuntimeError, glob="*number of input samples: 0*"):
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
         p.build()
+
+
+@cartesian_params(devices)
+def test_file_list_empty_range_is_skipped(device):
+    # '50 70' starts at the end of the 50 frames of the video: it is empty once clamped, so it is
+    # skipped (with a warning), and the reader only has the samples of the other entry
+    p = _file_list_reader_pipeline(device, ["0 50 70", "1 10 14"])
+    p.build()
+    assert p.reader_meta("reader")["epoch_size"] == 1
+    (frame_num,) = p.run()
+    assert [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()] == [10, 11, 12, 13]
 
 
 # Builds an experimental.readers.video pipeline in a child process. For the CPU reader the
