@@ -157,7 +157,11 @@ struct NvDecodeState {
   // and the stream waits for it before the picture is mapped. Recorded then, and not when the
   // picture is mapped, the stream doesn't also wait for the work queued on the legacy default
   // stream in between. Kept here so that the destructor can wait for the last one.
-  std::vector<CUDAEvent> jpeg_decoded_events;
+  struct JpegDecodeEvent {
+    CUDAEvent event;        // created before the first decode of the surface, kept from then on
+    bool recorded = false;  // whether `event` was recorded after the latest decode of the surface
+  };
+  std::vector<JpegDecodeEvent> jpeg_decoded_events;
 
   /**
    * @brief Waits for the pictures that were sent to the decoder, before it goes back to the cache.
@@ -304,8 +308,8 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    *        IsCodecSupported plus, for MJPEG, whether NVDEC on this device supports the stream's
    *        pixel format (YCbCr or grayscale, chroma format and bit depth). It warns if it does not.
    *
-   * With ProbeMjpegPixelFormat called first (for MJPEG, the container usually gives no pixel
-   * format, and the stream is then reported as unsupported), it is what the stream selection
+   * With CanDetermineMjpegPixelFormat called first (for MJPEG, the container usually gives no
+   * pixel format, and the stream is then reported as unsupported), it is what the stream selection
    * checks, so it can be used to skip the files that the decoder would reject.
    */
   static bool IsStreamSupported(const AVCodecParameters &params) {
@@ -533,9 +537,10 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   cudaStream_t stream_ = 0;
 
   /// Creates the event of the surface whose JPEG picture is about to be submitted for decoding,
-  /// unless it exists (see NvDecodeState::jpeg_decoded_events)
+  /// unless it exists, and marks it as not recorded (see NvDecodeState::jpeg_decoded_events)
   void CreateJpegEvent(int surface_idx);
-  /// Records the event of the surface whose JPEG picture was just submitted for decoding
+  /// Records the event of the surface whose JPEG picture was just submitted for decoding, and
+  /// marks it as recorded
   void RecordJpegDecoded(int surface_idx);
   /// Makes stream_ wait for the decoding of the JPEG picture of the surface, before it is mapped
   void WaitForJpegDecoded(int surface_idx);

@@ -802,29 +802,30 @@ void FramesDecoderGpu::CreateJpegEvent(int surface_idx) {
   auto &events = nvdecode_state_->jpeg_decoded_events;
   if (surface_idx >= static_cast<int>(events.size()))
     events.resize(surface_idx + 1);
-  CUDAEvent &event = events[surface_idx];
-  if (!event)
-    event = CUDAEvent::CreateWithFlags(cudaEventDisableTiming);
+  auto &jpeg_event = events[surface_idx];
+  if (!jpeg_event.event)
+    jpeg_event.event = CUDAEvent::CreateWithFlags(cudaEventDisableTiming);
+  // until it is recorded for this decode, it does not tell when the decode is done
+  jpeg_event.recorded = false;
 }
 
 void FramesDecoderGpu::RecordJpegDecoded(int surface_idx) {
-  CUDAEvent &event = nvdecode_state_->jpeg_decoded_events[surface_idx];
+  auto &jpeg_event = nvdecode_state_->jpeg_decoded_events[surface_idx];
   // Recorded right after cuvidDecodePicture, it completes once the work queued so far on the
   // legacy default stream (and on the blocking streams) is done, that of this picture included.
-  cudaError_t err = cudaEventRecord(event, cudaStreamLegacy);
-  if (err != cudaSuccess) {
-    event.reset();  // not an earlier record: nothing tells when this decode is done
-    CUDA_CALL(err);
-  }
+  // If the record fails, `recorded` stays false: an earlier record does not tell when this decode
+  // is done.
+  CUDA_CALL(cudaEventRecord(jpeg_event.event, cudaStreamLegacy));
+  jpeg_event.recorded = true;
 }
 
 void FramesDecoderGpu::WaitForJpegDecoded(int surface_idx) {
   // Every JPEG picture is decoded, and only decoded pictures are mapped
   auto &events = nvdecode_state_->jpeg_decoded_events;
-  DALI_ENFORCE(surface_idx < static_cast<int>(events.size()) && events[surface_idx],
+  DALI_ENFORCE(surface_idx < static_cast<int>(events.size()) && events[surface_idx].recorded,
                make_string("Internal error: picture ", surface_idx, " of \"", Filename(),
                            "\" is mapped, but it was not decoded."));
-  CUDA_CALL(cudaStreamWaitEvent(stream_, events[surface_idx], 0));
+  CUDA_CALL(cudaStreamWaitEvent(stream_, events[surface_idx].event, 0));
 }
 
 int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
@@ -1597,13 +1598,13 @@ NvDecodeState::~NvDecodeState() {
     // the stream waits for the event recorded right after the last picture was submitted. The JPEG
     // decodes are all on that one stream, so the last one is enough. Only the work queued there
     // before that decode is waited for, not what was queued since (e.g. by a training loop).
-    // A JPEG decoder (one with events) whose last picture has no event can't be waited for.
+    // A JPEG decoder (one with events) whose last decode was not recorded can't be waited for.
     if (!jpeg_decoded_events.empty()) {
-      bool has_event = last_decoded < static_cast<int>(jpeg_decoded_events.size()) &&
-                       jpeg_decoded_events[last_decoded];
-      cudaError_t err = has_event
-                            ? cudaStreamWaitEvent(stream, jpeg_decoded_events[last_decoded], 0)
-                            : cudaErrorInvalidResourceHandle;
+      bool recorded = last_decoded < static_cast<int>(jpeg_decoded_events.size()) &&
+                      jpeg_decoded_events[last_decoded].recorded;
+      cudaError_t err =
+          recorded ? cudaStreamWaitEvent(stream, jpeg_decoded_events[last_decoded].event, 0)
+                   : cudaErrorInvalidResourceHandle;
       if (err != cudaSuccess) {
         cudaGetLastError();  // clear the error
         if (err != cudaErrorCudartUnloading) {
@@ -1764,7 +1765,7 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
   assert(codec_params_);
   // For MJPEG, NVDEC's support depends on the pixel format, and the color conversion on the color
   // range: the container often has neither
-  if (!ProbeMjpegPixelFormat() || !IsStreamSupported(*codec_params_)) {
+  if (!CanDetermineMjpegPixelFormat() || !IsStreamSupported(*codec_params_)) {
     return false;
   }
 
