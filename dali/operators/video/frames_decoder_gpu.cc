@@ -1515,6 +1515,30 @@ FramesDecoderGpu::~FramesDecoderGpu() {
   bsfc_.reset();
 }
 
+int FramesDecoderGpu::NumEngines(int device_id) {
+  if (!cuvidInitChecked())
+    return 0;
+  try {
+    DeviceGuard guard(device_id);
+    auto decoder_caps = frame_dec_gpu_impl::GetDecoderCaps(cudaVideoCodec_H264,
+                                                           cudaVideoChromaFormat_420, 0);
+    if (!decoder_caps.bIsSupported || decoder_caps.nNumNVDECs <= 0) {
+      DALI_WARN("Could not query the number of NVDEC engines of device ", device_id,
+                ": the driver reports ",
+                decoder_caps.bIsSupported ? "no engines." : "no H.264 support.");
+      return 0;  // unknown
+    }
+    return decoder_caps.nNumNVDECs;
+  } catch (const std::exception &e) {
+    DALI_WARN("Could not query the number of NVDEC engines of device ", device_id, ": ",
+              e.what());
+    return 0;  // unknown
+  } catch (...) {
+    DALI_WARN("Could not query the number of NVDEC engines of device ", device_id, ".");
+    return 0;  // unknown
+  }
+}
+
 bool FramesDecoderGpu::SupportsHevc() {
   CUVIDDECODECAPS decoder_caps = {};
   decoder_caps.eCodecType = cudaVideoCodec_HEVC;
