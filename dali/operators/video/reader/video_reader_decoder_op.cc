@@ -1379,7 +1379,7 @@ class VideoReaderDecoder
     if constexpr (std::is_same_v<Backend, GPUBackend>) {
       // the samples are read on the workspace stream once the batch is consumed
       cudaStream_t stream = lane.stream ? lane.stream.get() : 0;
-      if (lane.errors.empty()) {
+      if (errors.empty()) {
         try {
           CUDA_CALL(cudaStreamSynchronize(stream));
         } catch (...) {
