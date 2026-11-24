@@ -742,6 +742,7 @@ void FramesDecoderBase::BuildIndex() {
   index_.filename = Filename();
   index_.timebase = ctx_->streams[stream_id_]->time_base;
   index_.decode_order_timestamps = HasDecodeOrderTimestamps();
+  index_.may_have_frames_without_pictures = false;
 
   // Track the position of the last keyframe seen
   int last_keyframe = -1;
@@ -858,6 +859,15 @@ void FramesDecoderBase::BuildIndex() {
     index_.index.push_back(entry);
     ++num_frames_;
 
+    bool has_picture = packet->size > 0;
+    if (read_vops) {
+      // Unknown without the size of vop_time_increment (no video object layer header yet)
+      auto is_coded = [](const auto &vop) { return vop.coded; };
+      has_picture = time_increment_bits > 0 && std::any_of(vops.begin(), vops.end(), is_coded);
+    }
+    if (!has_picture)
+      index_.may_have_frames_without_pictures = true;
+
     if (read_vops) {
       size_t first = 0;
       if (entry.is_keyframe) {
@@ -875,6 +885,12 @@ void FramesDecoderBase::BuildIndex() {
   }
 
   LOG_LINE << "Index building complete. Total frames: " << index_.size() << std::endl;
+
+  // A decoder that starts at a keyframe drops the leading pictures that need the pictures before it
+  for (const auto &entry : index_.index) {
+    if (entry.is_keyframe && entry.leading_pictures != 0)
+      index_.may_have_frames_without_pictures = true;
+  }
 
   DALI_ENFORCE(index_.index.size() > 0,
                make_string("No valid frames found in video file \"", Filename(), "\""));
