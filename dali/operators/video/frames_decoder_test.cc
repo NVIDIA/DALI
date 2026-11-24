@@ -1807,6 +1807,11 @@ TEST_F(FramesDecoderGpuTest, IndexerIsValidForTheSameFilesAsTheDecoder) {
   }
 }
 
+// The video reader picks its number of decoders from this; 0 (unknown) would make it use one
+TEST_F(FramesDecoderGpuTest, NumEnginesIsKnown) {
+  EXPECT_GE(FramesDecoderGpu::NumEngines(0), 1);
+}
+
 TEST_F(FramesDecoderGpuTest, ConstantFrameRateHevc) {
   if (!FramesDecoderGpu::SupportsHevc()) {
     GTEST_SKIP();
