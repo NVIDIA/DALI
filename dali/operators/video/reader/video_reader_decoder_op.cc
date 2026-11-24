@@ -304,12 +304,29 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       file_list_opts_.include_end = spec.GetArgument<bool>("file_list_include_end");
     }
 
-    if (step_ <= 0) {
-      step_ = stride_ * sequence_len_;
+    // Both feed the default step (stride_ * sequence_len_); zero would make the sample loop in
+    // PrepareMetadataImpl never advance.
+    DALI_ENFORCE(sequence_len_ >= 1,
+                 make_string("sequence_length must be at least 1, got ", sequence_len_, "."));
+    if (!uniform_sample_) {
+      DALI_ENFORCE(stride_ > 0,
+                   make_string("stride must be greater than 0, got ", stride_, "."));
+      // Frame indices (and the sample's start_/end_) are int: make sure the sequence extent
+      // (stride_ * sequence_len_, which is also the default step) fits, otherwise e.g. the
+      // default step would wrap to 0 or a negative value and the sample loop in
+      // PrepareMetadataImpl would never terminate.
+      int full_seq_stride;
+      const bool overflow = __builtin_mul_overflow(stride_, sequence_len_, &full_seq_stride);
+      DALI_ENFORCE(!overflow,
+                   make_string("stride * sequence_length must not exceed ",
+                               std::numeric_limits<int>::max(), ", got ", stride_, " * ",
+                               sequence_len_, "."));
+      // `step` <= 0 (including the default, -1) means "use stride * sequence_length".
+      if (step_ <= 0) {
+        step_ = full_seq_stride;
+      }
     }
     if (uniform_sample_) {
-      DALI_ENFORCE(sequence_len_ >= 1,
-                   "sequence_length must be at least 1 when uniform_sample=True.");
       if (spec.HasArgument("stride")) {
         DALI_WARN("uniform_sample=True: the `stride` argument is ignored.");
       }
@@ -521,12 +538,16 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
                  << " with " << sequence_len_ << " frames" << std::endl;
         samples_.emplace_back(std::move(s));
       } else {
-        int start = entry.start_frame;
-        int full_seq_stride = stride_ * sequence_len_;
+        // The constructor checked that stride_ * sequence_len_ fits in int.
+        const int full_seq_stride = stride_ * sequence_len_;
+        // int64: after the last sample, start + step_ can exceed INT_MAX.
+        int64_t start = entry.start_frame;
         for (; start + full_seq_stride <= entry.end_frame; start += step_) {
           LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
                    << ", stride=" << stride_ << std::endl;
-          samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
+          // the sample ends at or before entry.end_frame, so its frame indices fit in int
+          samples_.emplace_back(&entry, static_cast<int>(start),
+                                static_cast<int>(start + full_seq_stride), stride_);
         }
 
         // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last
@@ -534,7 +555,17 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         if (boundary_type_ != boundary::BoundaryType::ISOLATED && start < entry.end_frame) {
           LOG_LINE << "Adding padded tail sample starting at frame " << start
                    << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
-          samples_.emplace_back(&entry, start, start + full_seq_stride, stride_);
+          // Unlike the samples above, the padded one ends past entry.end_frame, possibly past
+          // INT_MAX (start < entry.end_frame, so start itself fits in int).
+          int end;
+          const bool overflow =
+              __builtin_add_overflow(static_cast<int>(start), full_seq_stride, &end);
+          DALI_ENFORCE(!overflow,
+                       make_string("Sequence starting at frame ", start, " of \"", entry.filename,
+                                   "\" would end past frame ", std::numeric_limits<int>::max(),
+                                   ", which exceeds the supported frame index range. Reduce "
+                                   "stride or sequence_length."));
+          samples_.emplace_back(&entry, static_cast<int>(start), end, stride_);
         }
       }
     }
@@ -1265,7 +1296,8 @@ Default: ``timestamps``.)code",
 This argument is valid only together with `filenames`. `file_root` and `file_list` provide
 their own labels, so combining either of them with `labels` is an error.)",
                                  nullptr)
-    .AddArg("sequence_length", R"code(Frames to load per sequence.)code", DALI_INT32)
+    .AddArg("sequence_length", R"code(Frames to load per sequence. Must be at least 1.)code",
+            DALI_INT32)
     .AddOptionalArg("enable_frame_num",
                     R"code(Determines what frame number information is returned as an additional output.
 
@@ -1283,7 +1315,10 @@ as an additional output.)code",
 
 When the value is less than or equal to 0, `step` is set to `stride * sequence_length`.)code",
                     -1)
-    .AddOptionalArg("stride", R"code(Distance between consecutive frames in the sequence.)code", 1u,
+    .AddOptionalArg("stride", R"code(Distance between consecutive frames in the sequence.
+
+Must be at least 1, and ``stride * sequence_length`` must not exceed ``2**31 - 1``. Both
+conditions are not checked when ``uniform_sample`` is True, which ignores the stride.)code", 1u,
                     false)
     .AddOptionalArg("uniform_sample",
         R"code(If set to True, uniformly samples ``sequence_length`` frames from the full video
