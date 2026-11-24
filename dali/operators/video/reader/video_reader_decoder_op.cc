@@ -329,6 +329,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
 
   void ReadSample(Sample &sample) override {
     sample = Sample(samples_[current_index_]);
+    sample.planned = false;  // PlanBatch skips planned samples: also if refilled in place
     MoveToNextShard(++current_index_);
   }
 
@@ -626,9 +627,9 @@ class VideoReaderDecoder
         boundary_type_(GetBoundaryType(spec)),
         image_type_(spec.GetArgument<DALIImageType>("image_type")) {
     // before InitLoader, which indexes every file unless lazy_init is set
-    int num_decode_lanes = spec.GetArgument<int>("num_decode_lanes");
-    DALI_ENFORCE(num_decode_lanes >= 0,
-                 make_string("num_decode_lanes must not be negative, got ", num_decode_lanes));
+    int num_decoders = spec.GetArgument<int>("num_decoders");
+    DALI_ENFORCE(num_decoders >= 0,
+                 make_string("num_decoders must not be negative, got ", num_decoders));
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
 
@@ -644,7 +645,7 @@ class VideoReaderDecoder
     DALI_ENFORCE(fill_value_.size() >= 1, "fill_value must contain at least one value");
 
     if constexpr (std::is_same_v<Backend, GPUBackend>)
-      use_streams_ = DriverSupportsStreams();
+      use_streams_ = CanUseDecoderStreams();
     DALI_ENFORCE(image_type_ == DALI_RGB || image_type_ == DALI_YCbCr,
                  make_string("Invalid image_type: ", image_type_));
 
@@ -661,7 +662,7 @@ class VideoReaderDecoder
    * @brief Whether the GPU decoders decode on streams of their own: not with the driver versions
    * checked here, with which they decode on the default stream (with a warning, once).
    */
-  static bool DriverSupportsStreams() {
+  static bool CanUseDecoderStreams() {
 #if NVML_ENABLED
     auto nvml_handle = nvml::NvmlInstance::CreateNvmlInstance();
     static float driver_version = nvml::GetDriverVersion();
@@ -850,12 +851,12 @@ class VideoReaderDecoder
   static constexpr int kMaxAutoLanesCPU = 4;
 
   /**
-   * @brief Number of decode lanes: num_decode_lanes or, when it is 0, num_threads capped at
+   * @brief Number of decode lanes: num_decoders or, when it is 0, num_threads capped at
    * kLanesPerEngine per NVDEC engine on the GPU (one lane if the number of engines is unknown) and
    * at kMaxAutoLanesCPU on the CPU; never more than the batch size, since extra lanes are idle.
    */
   int NumLanes(const OpSpec &spec) {
-    int lanes = spec.GetArgument<int>("num_decode_lanes");
+    int lanes = spec.GetArgument<int>("num_decoders");
     if (lanes == 0) {
       lanes = spec.GetArgument<int>("num_threads");
       if constexpr (std::is_same_v<Backend, GPUBackend>) {
@@ -984,7 +985,8 @@ class VideoReaderDecoder
     PlanLanes(plans_, make_cspan(runs), make_cspan(starts), kOpenCost);
     for (size_t l = 0; l < lanes_.size(); l++) {
       if (plans_[l].runs.empty() && lanes_.size() > 1)
-        lanes_[l].decoder.reset();  // do not keep its frame buffers and NVDEC decoder idle
+        lanes_[l].decoder.reset();  // frees its frame buffers (an NVDEC decoder goes back to the
+                                    // NVDECCache, where any lane can reuse it)
     }
   }
 
@@ -994,6 +996,7 @@ class VideoReaderDecoder
    * An error is reported for the first failing sample in the batch, whatever the lanes' timing.
    */
   void DecodeBatch() {
+    first_error_idx_ = std::numeric_limits<int>::max();
     std::vector<int> active;
     for (int l = 0; l < static_cast<int>(lanes_.size()); l++) {
       if (!plans_[l].runs.empty())
@@ -1027,6 +1030,10 @@ class VideoReaderDecoder
   /**
    * @brief Decodes a lane's runs of the batch. A sample that fails is recorded in the lane's
    * errors.
+   *
+   * Once a sample of the batch has failed, in any lane, the samples after it in the batch are not
+   * decoded: the batch fails, and none of them can be its first failing sample. The samples
+   * before it still are, since one of them may fail too and is then the error reported.
    */
   void DecodeLanePart(int lane_id) {
     auto &lane = lanes_[lane_id];
@@ -1035,11 +1042,19 @@ class VideoReaderDecoder
     for (int r : plan.runs) {
       for (int t : runs_[r].tasks) {
         auto &task = tasks_[t];
+        if (task.batch_idx > first_error_idx_.load(std::memory_order_relaxed)) {
+          task.sample->planned = false;  // not decoded: decode it if it is read again
+          continue;
+        }
         try {
-          DecodeSample(*task.sample, lane);
+          DecodeSample(*task.sample, lane, *runs_[r].index);
         } catch (...) {
           lane.decoder.reset();  // in an unknown state; its destructor waits for its stream
           lane.errors.emplace_back(task.batch_idx, std::current_exception());
+          int first = first_error_idx_.load(std::memory_order_relaxed);
+          while (task.batch_idx < first &&
+                 !first_error_idx_.compare_exchange_weak(first, task.batch_idx,
+                                                         std::memory_order_relaxed)) {}
         }
       }
     }
@@ -1062,8 +1077,10 @@ class VideoReaderDecoder
 
   /**
    * @brief Decodes one sample on a lane, reusing the lane's decoder if it has the same file.
+   *
+   * @param index the frame index of the sample's file that the batch was planned with
    */
-  void DecodeSample(VideoSample<Backend> &sample, DecodeLane &lane) {
+  void DecodeSample(VideoSample<Backend> &sample, DecodeLane &lane, const FrameIndex &index) {
     const auto &filename = sample.video_file_meta_->filename;
     LOG_LINE << "Processing sample with filename " << filename << " and previous decoder "
              << lane.decoder.get() << " filename "
@@ -1079,12 +1096,8 @@ class VideoReaderDecoder
       LOG_LINE << "Initialized decoder to " << decoder.Filename() << " ptr: " << &decoder
                << " num_frames: " << decoder.NumFrames() << std::endl;
       // the index the batch was planned with (the file is not indexed again, even if it changed)
-      auto *index = FileIndex(filename);
-      if (!index)
-        throw std::logic_error(
-            make_string("Internal error: no frame index for \"", filename, "\"."));
       if (!decoder.HasIndex())
-        decoder.SetIndex(*index);
+        decoder.SetIndex(index);
     } else {
       LOG_LINE << "Reusing decoder for " << lane.decoder->Filename() << " ptr: "
                << lane.decoder.get() << " num_frames: " << lane.decoder->NumFrames()
@@ -1144,6 +1157,8 @@ class VideoReaderDecoder
   std::vector<DecodeRun> runs_;  // of the current batch
   std::vector<DecodeLane> lanes_;
   std::vector<LanePlan> plans_;  // the runs of each lane in the current batch, in decoding order
+  // the batch index of the first sample that failed in DecodeBatch so far (max: none)
+  std::atomic<int> first_error_idx_{std::numeric_limits<int>::max()};
   std::unique_ptr<NewThreadPool> thread_pool_;  // with more than one lane; destroyed first
 };
 
@@ -1168,10 +1183,10 @@ The following codecs are supported by the GPU backend only:
 * H.264/AVC
 * H.265/HEVC
 
-The samples of a batch are decoded in parallel by several decoders (decode lanes), see
-`num_decode_lanes`. Consecutive samples of one file that can be decoded without seeking are
-decoded by the same decoder, one after another. Every decoder has its own frame buffers, so the
-memory used grows with the number of decoders.
+The samples of a batch are decoded in parallel by several decoders, see `num_decoders`.
+Consecutive samples of one file that can be decoded without seeking are decoded by the same
+decoder, one after another. Every decoder has its own frame buffers, so the memory used grows with
+the number of decoders.
 
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
@@ -1305,18 +1320,17 @@ Otherwise, the number of values must match the number of channels in the video.)
                     std::vector<int>{
                         0,
                     })
-    .AddOptionalArg("num_decode_lanes",
-                    R"code(Number of decode lanes: decoders that decode the samples of a batch in
-parallel.
+    .AddOptionalArg("num_decoders",
+                    R"code(Number of decoders that decode the samples of a batch in parallel.
 
-* ``0`` (default): Picked automatically: on the GPU, one lane per NVDEC engine of the device (one
-  lane if the number of engines is unknown), on the CPU, up to 4 lanes; in both cases, no more
-  than ``num_threads``.
-* A positive value sets the number of lanes.
+* ``0`` (default): Picked automatically: on the GPU, one decoder per NVDEC engine of the device
+  (one decoder if the number of engines is unknown), on the CPU, up to 4 decoders; in both cases,
+  no more than ``num_threads``.
+* A positive value sets the number of decoders.
 
-The number of lanes is never more than ``max_batch_size``, since extra lanes would be idle.
-Every lane has its own decoder and frame buffers, so the memory used grows with the number of
-lanes.)code",
+The number of decoders is never more than ``max_batch_size``, since extra decoders would be idle.
+Every decoder has its own frame buffers, so the memory used grows with the number of
+decoders.)code",
                     0)
     .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).
 

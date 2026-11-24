@@ -1994,7 +1994,7 @@ def _check_reader_output_independent_of_num_lanes(
                 labels=list(range(len(files))),
                 device=device,
                 enable_frame_num="sequence",
-                num_decode_lanes=num_lanes,
+                num_decoders=num_lanes,
                 **kwargs,
             )
         )
@@ -2099,7 +2099,7 @@ def test_reader_pad_last_batch_repeats_last_sample(device, shard_id):
             pad_last_batch=True,
             num_shards=3,
             shard_id=shard_id,
-            num_decode_lanes=4,
+            num_decoders=4,
         )
         return videos, labels
 
@@ -2123,20 +2123,6 @@ def test_reader_pad_last_batch_repeats_last_sample(device, shard_id):
     for video, label in samples[:num_read]:
         start = (label // len(files)) * 4
         _assert_frames_match_file(video, range(start, start + 4), files[label % len(files)])
-
-
-def _num_frames(filename, device):
-    """The frames of a file, as the reader counts them."""
-
-    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
-    def pipe():
-        return fn.experimental.readers.video(
-            filenames=[filename], sequence_length=1, device=device, name="Reader"
-        )
-
-    p = pipe()
-    p.build()
-    return p.reader_meta("Reader")["epoch_size"]
 
 
 @cartesian_params(("cpu", "gpu"), (1, 4))
@@ -2168,7 +2154,7 @@ def test_reader_reports_first_error_of_batch(device, num_lanes):
                 file_list_format="frames",
                 device=device,
                 sequence_length=4,
-                num_decode_lanes=num_lanes,
+                num_decoders=num_lanes,
             )
             return videos
 
@@ -2184,14 +2170,14 @@ def test_reader_reports_first_error_of_batch(device, num_lanes):
 
 
 @params("cpu", "gpu")
-def test_reader_negative_num_decode_lanes(device):
+def test_reader_negative_num_decoders(device):
     skip_if_m60()
 
     @pipeline_def(batch_size=2, num_threads=2, device_id=0)
     def pipe():
         return fn.experimental.readers.video(
-            filenames=cfr_files, device=device, sequence_length=3, num_decode_lanes=-1
+            filenames=cfr_files, device=device, sequence_length=3, num_decoders=-1
         )
 
-    with assert_raises(RuntimeError, glob="num_decode_lanes must not be negative, got -1"):
+    with assert_raises(RuntimeError, glob="num_decoders must not be negative, got -1"):
         pipe().build()
