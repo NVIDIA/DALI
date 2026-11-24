@@ -729,20 +729,18 @@ MPEG4_OPEN_GOP_AVI = "/tmp/avi_video_files/mpeg4_open_gop.avi"
 
 
 def _frame_number(frame):
-    """The number that a frame of MPEG4_OPEN_GOP_AVI shows: the index of its bright cell."""
+    """The number that a frame of MPEG4_OPEN_GOP_AVI (or H264_IDR_GOPS_AVI) shows: the index of
+    its bright cell."""
     cells = np.float32(frame).mean(-1)[:126, :160].reshape(9, 14, 10, 16).mean((1, 3))
     return int(cells.argmax())
 
 
-@params("reader", "decoder")
-def test_avi_open_gop_seeks_show_requested_frames(op):
-    """The keyframes of an open GOP have leading pictures: shown before the keyframe, but decoded
-    after it from the pictures before it. In AVI, whose timestamps follow the decoding order, they
-    take the frames right after the keyframe, so a seek to one of them has to start at the keyframe
-    before. Every frame is read once, in a shuffled order, so that most reads seek, also to the
-    leading pictures and to the keyframes."""
-    if not os.path.isfile(MPEG4_OPEN_GOP_AVI):
-        raise unittest.SkipTest(f"{MPEG4_OPEN_GOP_AVI} not found: made by the qa test script")
+def _check_shuffled_seeks_show_requested_frames(path, op):
+    """Reads every frame of an AVI whose frames show their number (see _frame_number) once, in a
+    shuffled order, with the reader or the decoder, so that most reads seek, and checks that each
+    frame shows the number that was requested."""
+    if not os.path.isfile(path):
+        raise unittest.SkipTest(f"{path} not found: made by the qa test script")
     num_frames = 90
     order = list(range(num_frames))
     random.Random(42).shuffle(order)
@@ -750,9 +748,7 @@ def test_avi_open_gop_seeks_show_requested_frames(op):
     if op == "reader":
         sequence_length = 3
         starts = [s for s in order if s + sequence_length <= num_frames]
-        list_file = _write_file_list(
-            [f"{MPEG4_OPEN_GOP_AVI} 0 {s} {s + sequence_length}" for s in starts]
-        )
+        list_file = _write_file_list([f"{path} 0 {s} {s + sequence_length}" for s in starts])
 
         @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
         def pipe():
@@ -771,7 +767,7 @@ def test_avi_open_gop_seeks_show_requested_frames(op):
         # One frame per iteration: the frames of one sample are decoded in order, without seeks
         @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
         def pipe():
-            encoded, _ = fn.readers.file(files=[MPEG4_OPEN_GOP_AVI])
+            encoded, _ = fn.readers.file(files=[path])
             frame = fn.external_source(
                 source=lambda info: np.array([order[info.iteration]], dtype=np.int32),
                 batch=False,
@@ -786,6 +782,38 @@ def test_avi_open_gop_seeks_show_requested_frames(op):
         for k, frame in enumerate(frames):
             shown = _frame_number(frame)
             assert shown == first + k, f"frame {first + k} shows frame {shown}"
+
+
+@params("reader", "decoder")
+def test_avi_open_gop_seeks_show_requested_frames(op):
+    """The keyframes of an open GOP have leading pictures: shown before the keyframe, but decoded
+    after it from the pictures before it. In AVI, whose timestamps follow the decoding order, they
+    take the frames right after the keyframe, so a seek to one of them has to start at the keyframe
+    before. Every frame is read once, in a shuffled order, so that most reads seek, also to the
+    leading pictures and to the keyframes."""
+    _check_shuffled_seeks_show_requested_frames(MPEG4_OPEN_GOP_AVI, op)
+
+
+# H.264 in AVI with B-frames and an IDR picture every 15 frames (more than one, unlike the AVI
+# files of DALI_extra), with the frames of MPEG4_OPEN_GOP_AVI. qa/TL0_videoreader_test/test.sh
+# makes it.
+H264_IDR_GOPS_AVI = "/tmp/avi_video_files/h264_idr_gops.avi"
+
+
+# The same without B-frames, and with three B-frames in a pyramid (qa/TL0_videoreader_test/test.sh)
+H264_IDR_GOPS_VARIANT_AVIS = [
+    f"/tmp/avi_video_files/h264_idr_gops_{variant}.avi" for variant in ("no_bframes", "pyramid")
+]
+
+
+@cartesian_params(("reader", "decoder"), [H264_IDR_GOPS_AVI] + H264_IDR_GOPS_VARIANT_AVIS)
+def test_h264_avi_with_several_idr_pictures_seeks_show_requested_frames(op, path):
+    """The NAL units of H.264 in AVI come after start codes, and each IDR picture is a keyframe
+    that a seek can start from. AVI has no presentation timestamps, so after a seek the pictures
+    must still be shown as the frames requested, not as the frames that follow the keyframe in the
+    order of the file. Every frame is read once, in a shuffled order, so that most reads seek, also
+    to the frames right after an IDR picture."""
+    _check_shuffled_seeks_show_requested_frames(path, op)
 
 
 class _Reader(enum.Enum):
