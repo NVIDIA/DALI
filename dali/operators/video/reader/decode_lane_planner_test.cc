@@ -625,6 +625,7 @@ TEST(DecodeLanePlannerTest, PlannedPicturesAreDecoded) {
   int n = indices[gops].size();
 
   for (int num_lanes : {1, 2}) {
+    SCOPED_TRACE(make_string(num_lanes, " lanes"));
     // the first lane holds a decoder of the first file, which decoded frames 20 to 29
     std::vector<ReaderLane> lanes(num_lanes);
     lanes[0].decoder = std::make_unique<FramesDecoderCpu>(gops);
@@ -634,18 +635,17 @@ TEST(DecodeLanePlannerTest, PlannedPicturesAreDecoded) {
 
     // continuing on that decoder, the last frame repeated (edge padding: the decoder resets), a
     // stride, uniform sampling, seeking forward and back, and continuing from the previous batch
-    std::string what = make_string(num_lanes, " lanes, batch ");
     ASSERT_NO_FATAL_FAILURE(CheckPlannedPictures({{gops, n - 6, n + 2, 1},
                                                   {gops, 30, 46, 2},
                                                   {gops, 0, 0, 1, {0, n / 3, 2 * n / 3, n - 1}},
                                                   {single_gop, 0, 16, 1},
                                                   {single_gop, 25, 41, 1}},
-                                                 lanes, indices, buffer, what + "1"));
+                                                 lanes, indices, buffer, "batch 1 (open decoder)"));
     ASSERT_NO_FATAL_FAILURE(CheckPlannedPictures({{gops, 30, 46, 1},
                                                   {gops, 5, 21, 1},
                                                   {single_gop, 16, 32, 1},
                                                   {single_gop, 34, 50, 1}},
-                                                 lanes, indices, buffer, what + "2"));
+                                                 lanes, indices, buffer, "batch 2 (continuing)"));
     // regions of the files (a file list), padded past their end
     ASSERT_NO_FATAL_FAILURE(CheckPlannedPictures(
         {{gops, 12, 28, 1, {}, boundary::BoundaryType::REFLECT_101, 12, 20},
@@ -653,7 +653,7 @@ TEST(DecodeLanePlannerTest, PlannedPicturesAreDecoded) {
          {gops, 50, 60, 1, {}, boundary::BoundaryType::CONSTANT, 50, 55},
          {single_gop, 32, 48, 2, {}, boundary::BoundaryType::REFLECT_1001, 32, 40},
          {single_gop, 0, 0, 1, {3, 6, 9}, boundary::BoundaryType::CLAMP, 2, 12}},
-        lanes, indices, buffer, what + "3"));
+        lanes, indices, buffer, "batch 3 (file regions)"));
   }
 }
 
