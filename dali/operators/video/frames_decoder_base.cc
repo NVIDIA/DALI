@@ -806,8 +806,8 @@ void FramesDecoderBase::BuildIndex() {
     bool has_picture = packet->size > 0;
     if (read_vops) {
       // Unknown without the size of vop_time_increment (no video object layer header yet)
-      has_picture = time_increment_bits > 0 &&
-                    std::any_of(vops.begin(), vops.end(), [](auto &vop) { return vop.coded; });
+      auto is_coded = [](const auto &vop) { return vop.coded; };
+      has_picture = time_increment_bits > 0 && std::any_of(vops.begin(), vops.end(), is_coded);
     }
     if (!has_picture)
       index_.may_have_frames_without_pictures = true;
@@ -831,7 +831,7 @@ void FramesDecoderBase::BuildIndex() {
   LOG_LINE << "Index building complete. Total frames: " << index_.size() << std::endl;
 
   // A decoder that starts at a keyframe drops the leading pictures that need the pictures before it
-  for (auto &entry : index_.index) {
+  for (const auto &entry : index_.index) {
     if (entry.is_keyframe && entry.leading_pictures != 0)
       index_.may_have_frames_without_pictures = true;
   }

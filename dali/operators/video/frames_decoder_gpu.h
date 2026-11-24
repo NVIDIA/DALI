@@ -317,7 +317,10 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @brief Number of pictures mapped and converted so far (for tests and diagnostics).
    *
    * Pictures that cannot be read with their data when they are displayed (ShouldBufferPixels is
-   * false), or that are displayed as the next frame while it is only skipped, are not.
+   * false), or that are displayed as the next frame while it is only skipped, are not. Except a
+   * picture that the frame being read takes its pixels from: a frame without a picture of its own
+   * and with no frame before it to repeat (e.g. at the start of the stream, or after a seek) is
+   * filled from the next picture displayed, which is then mapped whatever ShouldBufferPixels says.
    */
   int64_t MappedPictures() const {
     return mapped_pictures_;
