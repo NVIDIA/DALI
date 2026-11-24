@@ -572,6 +572,25 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
 
     LOG_LINE << "Created " << samples_.size() << " total samples" << std::endl;
 
+    // Without this check, the loader would report that there are fewer samples than shards,
+    // which does not say why there are none.
+    if (samples_.empty()) {
+      const char *skipped =
+          "skipped (not a valid video, an unsupported codec or an empty frame range; see the "
+          "warnings above)";
+      // Without padding, an entry gives no sample when its range is too short for a sequence.
+      // With uniform_sample, any non-empty range gives one.
+      if (!uniform_sample_ && boundary_type_ == boundary::BoundaryType::ISOLATED) {
+        throw std::runtime_error(make_string(
+            "No samples could be built from the input: every input file or frame range was either ",
+            skipped, ", or too short for a whole sequence with sequence_length=", sequence_len_,
+            " and stride=", stride_, " (pad_mode='none' drops incomplete sequences)."));
+      }
+      throw std::runtime_error(make_string(
+          "No samples could be built from the input: every input file or frame range was ",
+          skipped, "."));
+    }
+
     if (shuffle_) {
       LOG_LINE << "Shuffling samples" << std::endl;
       // seeded with hardcoded value to get

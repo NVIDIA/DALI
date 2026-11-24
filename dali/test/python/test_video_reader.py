@@ -1166,7 +1166,7 @@ def test_file_list_range_after_the_video_is_skipped(device):
 @cartesian_params(devices)
 def test_file_list_with_only_ranges_after_the_video_raises(device):
     p = _file_list_reader_pipeline(device, ["0 60 70"])
-    with assert_raises(RuntimeError, glob="*number of input samples: 0*"):
+    with assert_raises(RuntimeError, glob="*No samples could be built from the input*"):
         p.build()
 
 
@@ -1285,6 +1285,19 @@ def test_padded_tail_past_int_max_raises(device):
 
 
 @cartesian_params(devices)
+def test_file_list_with_only_ranges_too_short_for_a_sequence_raises(device):
+    # '10 13' is inside the video, but its 3 frames do not fit a sequence of 4; with
+    # pad_mode='none' (the default) it gives no sample, and neither does the reader
+    p = _file_list_reader_pipeline(device, ["0 10 13"])
+    with assert_raises(
+        RuntimeError,
+        glob="*No samples could be built from the input*too short for a whole sequence"
+        " with sequence_length=4 and stride=1*",
+    ):
+        p.build()
+
+
+@cartesian_params(devices)
 def test_huge_stride_and_step_decode_one_frame(device):
     """stride and step of INT_MAX are valid: one single-frame sample per file, padded from the
     video, must be decoded without integer overflow in the frame count arithmetic."""
@@ -1331,6 +1344,33 @@ def test_huge_stride_and_step_decode_one_frame(device):
     compare_frames(out[0, 0], ref_frame, 0, 0, 0)
 
 
+@cartesian_params(devices)
+def test_file_list_range_too_short_for_a_sequence_is_padded(device):
+    # The same range as above gives one (padded) sample when padding is enabled
+    p = _file_list_reader_pipeline(device, ["0 10 13"], pad_mode="edge")
+    p.build()
+    assert p.reader_meta("reader")["epoch_size"] == 1
+    (frame_num,) = p.run()
+    assert [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()] == [10, 11, 12, 12]
+
+
+@cartesian_params(devices)
+def test_filenames_too_short_for_a_sequence_raises(device):
+    # CFR_VP9_60FPS_FILE has 50 frames: too few for one sequence of 51, without padding
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device=device, filenames=[CFR_VP9_60FPS_FILE], sequence_length=51
+        )
+
+    with assert_raises(
+        RuntimeError,
+        glob="*No samples could be built from the input*too short for a whole sequence"
+        " with sequence_length=51 and stride=1*",
+    ):
+        pipe().build()
+
+
 def test_mpeg_program_stream_is_skipped():
     """MPEG program streams are not supported: the reader skips them (with a warning that names
     the container). A file list that mixes one with a supported file only has the latter."""
@@ -1343,7 +1383,7 @@ def test_mpeg_program_stream_is_skipped():
             device="gpu", filenames=[mpeg_ps_file], sequence_length=1
         )
 
-    with assert_raises(RuntimeError, glob="*number of input samples: 0*"):
+    with assert_raises(RuntimeError, glob="*No samples could be built from the input*"):
         alone_pipe().build()
 
     @pipeline_def(batch_size=1, num_threads=2, device_id=0)
@@ -1610,5 +1650,5 @@ def test_labels_are_rejected_without_filenames(device, source, labels):
 @cartesian_params(devices)
 def test_file_list_timestamps_no_frames_in_any_range(device):
     list_file = _write_file_list([f"{VIDEO_0} 0 11.0 12.0"])  # after the end of the stream (10 s)
-    with assert_raises(RuntimeError, glob="The number of input samples: 0, needs to be at least*"):
+    with assert_raises(RuntimeError, glob="*No samples could be built from the input*"):
         _file_list_frame_selection(_experimental_reader(device), list_file)
