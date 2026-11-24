@@ -37,8 +37,11 @@ enum VideoColorSpaceConversionType {
  * @brief Converts an NV12 frame (`height` rows of luma, then the interleaved chroma) to RGB or
  *        upsampled YCbCr.
  *
+ * Odd sizes are as NVDEC lays them out: the chroma plane starts after the luma rows rounded up to
+ * an even number, and it has ceil(width / 2) samples per row and ceil(height / 2) rows.
+ *
  * @param chroma_height The rows of the chroma plane that hold data, -1 for all of them
- *                      (height / 2). The ones below are taken as copies of the last one.
+ *                      (ceil(height / 2)). The ones below are taken as copies of the last one.
  */
 DLL_PUBLIC void ConvertVideoColorSpace(uint8_t *out, int out_pitch, const uint8_t* yuv, int yuv_pitch, int height, int width,
                                        VideoColorSpaceConversionType conversion_type,

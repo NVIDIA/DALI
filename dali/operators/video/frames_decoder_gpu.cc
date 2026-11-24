@@ -689,13 +689,18 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
                       ") in ", Filename(), "."));
     }
   }
-  // NVDEC doesn't write the last row of the NV12 chroma of a 4:2:2 or 4:4:4 JPEG whose height is
-  // 2 more than a multiple of 4 (an odd number of chroma rows), as observed; the 4:2:0 ones are
-  // complete. The conversion takes it as a copy of the row above it instead.
+  // NVDEC outputs every picture as NV12 (4:2:0), whose chroma plane has ceil(Height() / 2) rows.
+  // For a 4:2:2 or 4:4:4 JPEG, it halves the chroma vertically to get them, and it writes that
+  // plane in pairs of rows: when the plane has an odd number of rows (Height() % 4 is 1 or 2), the
+  // last one is left unwritten (as observed; the API doesn't say). A 4:2:0 JPEG already has that
+  // many chroma rows, and they are all written. The conversion takes the missing row as a copy of
+  // the one above it: exact for smooth chroma, an approximation where the chroma of the last two
+  // rows of the picture differs from that of the two rows above.
   bool jpeg_chroma_downsampled = video_format->codec == cudaVideoCodec_JPEG &&
                                  (video_format->chroma_format == cudaVideoChromaFormat_422 ||
                                   video_format->chroma_format == cudaVideoChromaFormat_444);
-  chroma_height_ = Height() / 2 - (jpeg_chroma_downsampled && Height() % 4 == 2 ? 1 : 0);
+  int nv12_chroma_rows = (Height() + 1) / 2;
+  chroma_height_ = nv12_chroma_rows - (jpeg_chroma_downsampled && nv12_chroma_rows % 2 ? 1 : 0);
 
   if (!nvdecode_state_->decoder) {
     if (image_type_ == DALI_RGB) {

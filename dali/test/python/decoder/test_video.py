@@ -179,12 +179,19 @@ def test_video_reader_matching_frame_dimensions(width, image_type):
         np.testing.assert_allclose(output, mjpeg_reference(data, image_type), atol=2, rtol=0)
 
 
-@cartesian_params(["yuvj420p", "yuvj422p", "yuvj444p"], [(150, 110), (160, 96), (64, 104)])
+@cartesian_params(
+    ["yuvj420p", "yuvj422p", "yuvj444p"],
+    [(150, 110), (160, 96), (64, 104), (150, 109), (152, 111)],
+)
 def test_mjpeg_mixed_matches_cpu(pix_fmt, size):
     """The Mixed backend decodes MJPEG in the usual JPEG chroma formats as the CPU backend does,
-    also at a size that is not a multiple of the JPEG blocks (150x110, whose height is also not a
-    multiple of 4, which NVDEC doesn't fully convert to 4:2:0 for 4:2:2 and 4:4:4), and reads the
-    right frames after a seek and when the last frame is read again after the end of the stream."""
+    also at sizes that are not a multiple of the JPEG blocks, and reads the right frames after a
+    seek and when the last frame is read again after the end of the stream.
+
+    For 4:2:2 and 4:4:4, NVDEC leaves the last row of its 4:2:0 chroma unwritten when that plane
+    has an odd number of rows: heights 110 and 109 (% 4 is 2 and 1), not 111 (% 4 is 3). The odd
+    heights also check the layout of NVDEC's odd-height surfaces (the chroma plane starts after an
+    even number of rows) and that the conversion writes no row outside the frame."""
     skip_if_m60()
     width, height = size
     data = np.frombuffer(
