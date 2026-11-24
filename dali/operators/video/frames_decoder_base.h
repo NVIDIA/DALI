@@ -670,10 +670,10 @@ class DLL_PUBLIC FramesDecoderBase {
    *        size that the container declares. Does nothing for the other streams.
    *
    * Only the backends that need these (the GPU decoder: the formats of NVDEC depend on the GPU)
-   * call it: it opens a decoder and reads at least a packet. Returns false if the probe fails.
-   * Requires a selected stream.
+   * call it: it opens a decoder and reads at least a packet. Returns whether the pixel format is
+   * known afterwards: false if the probe fails. Requires a selected stream.
    */
-  bool ProbeMjpegPixelFormat();
+  bool CanDetermineMjpegPixelFormat();
 
   AVUniquePtr<AVFormatContext> ctx_;
   AVUniquePtr<AVCodecContext> codec_ctx_;
@@ -787,13 +787,13 @@ class DLL_PUBLIC FramesDecoderBase {
  * cheaper to create than a decoder. It is valid for the files whose container has a video stream.
  * Whether a backend can decode the codec of that stream is up to the caller to check, for example
  * with `Decoder::IsStreamSupported(indexer.CodecParameters())`. For the GPU decoder, call
- * `ProbeMjpegPixelFormat()` first, as the decoder does.
+ * `CanDetermineMjpegPixelFormat()` first, as the decoder does.
  */
 class DLL_PUBLIC FramesIndexer : public FramesDecoderBase {
  public:
   explicit FramesIndexer(const std::string &filename, DALIImageType image_type = DALI_RGB);
 
-  using FramesDecoderBase::ProbeMjpegPixelFormat;
+  using FramesDecoderBase::CanDetermineMjpegPixelFormat;
 
   /**
    * @brief Codec of the selected video stream. Only valid when IsValid().

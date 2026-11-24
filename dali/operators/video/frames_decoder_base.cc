@@ -330,7 +330,7 @@ bool FramesDecoderBase::CheckDimensions() {
   return true;
 }
 
-bool FramesDecoderBase::ProbeMjpegPixelFormat() {
+bool FramesDecoderBase::CanDetermineMjpegPixelFormat() {
   assert(codec_params_);
   if (codec_params_->codec_id != AV_CODEC_ID_MJPEG || codec_params_->format != AV_PIX_FMT_NONE)
     return true;

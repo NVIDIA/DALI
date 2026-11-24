@@ -1288,7 +1288,7 @@ TEST_F(FramesDecoderGpuTest, SameFramesAsMappingAll) {
                            make_string(video_dir, "/mjpeg/mjpeg.avi")}) {
     FramesIndexer indexer(path);
     ASSERT_TRUE(indexer.IsValid()) << path;
-    if (indexer.ProbeMjpegPixelFormat() &&
+    if (indexer.CanDetermineMjpegPixelFormat() &&
         FramesDecoderGpu::IsStreamSupported(indexer.CodecParameters())) {
       paths.push_back(path);
     } else {
@@ -1958,7 +1958,8 @@ class TempVideoFile {
     std::string path = (std::filesystem::temp_directory_path() /
                         make_string("dali_video_XXXXXX", extension)).string();
     int fd = mkstemps(path.data(), extension.size());
-    DALI_ENFORCE(fd >= 0, "Could not create a temporary file");
+    if (fd < 0)
+      throw std::runtime_error("Could not create a temporary file");
     close(fd);
     path_ = path;
     std::ofstream(path_, std::ios::binary).write(contents.data(), contents.size());
@@ -1993,7 +1994,8 @@ std::vector<char> Flv1Tagged(std::vector<char> avi) {
     it += 4;
     count++;
   }
-  DALI_ENFORCE(count == 2, "Unexpected AVI header");
+  if (count != 2)
+    throw std::runtime_error("Unexpected AVI header");
   return avi;
 }
 
@@ -2004,7 +2006,8 @@ std::vector<char> Flv1Tagged(std::vector<char> avi) {
 std::pair<int, int> DeclareAviFrameSize(std::vector<char> &avi, int width, int height) {
   const std::string strf = "strf";
   auto it = std::search(avi.begin(), avi.end(), strf.begin(), strf.end());
-  DALI_ENFORCE(it != avi.end(), "Unexpected AVI header");
+  if (it == avi.end())
+    throw std::runtime_error("Unexpected AVI header");
   int32_t *size = reinterpret_cast<int32_t *>(&*it + 12);
   std::pair<int, int> declared = {size[0], size[1]};
   size[0] = width;
@@ -2029,7 +2032,7 @@ TEST_F(FramesDecoderGpuTest, IndexerIsValidForTheSameFilesAsTheDecoder) {
     SCOPED_TRACE(path);
     FramesDecoderGpu decoder(path);
     FramesIndexer indexer(path);
-    bool indexer_valid = indexer.IsValid() && indexer.ProbeMjpegPixelFormat() &&
+    bool indexer_valid = indexer.IsValid() && indexer.CanDetermineMjpegPixelFormat() &&
                          FramesDecoderGpu::IsStreamSupported(indexer.CodecParameters());
     EXPECT_EQ(indexer_valid, decoder.IsValid());
   }
@@ -2146,7 +2149,7 @@ TEST_F(FramesDecoderGpuTest, ReadsTheLastFrameOfCodecsWithoutDecodeLag) {
     SCOPED_TRACE(path);
     FramesIndexer indexer(path);
     ASSERT_TRUE(indexer.IsValid());
-    if (!indexer.ProbeMjpegPixelFormat() ||
+    if (!indexer.CanDetermineMjpegPixelFormat() ||
         !FramesDecoderGpu::IsStreamSupported(indexer.CodecParameters())) {
       GTEST_LOG_(WARNING) << "Skipping " << path << ": its format is not supported by this GPU";
       continue;
@@ -2218,7 +2221,7 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, IndexerProbesMjpegPixelFormatOnRequest) {
 
   FramesIndexer probed(file.path());
   ASSERT_TRUE(probed.IsValid());
-  ASSERT_TRUE(probed.ProbeMjpegPixelFormat());
+  ASSERT_TRUE(probed.CanDetermineMjpegPixelFormat());
   auto pix_fmt = static_cast<AVPixelFormat>(probed.CodecParameters().format);
   const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
   ASSERT_NE(desc, nullptr);

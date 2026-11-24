@@ -78,8 +78,8 @@ struct VideoFileIndex {
  * files whose codec is not in `supported_codecs` (made by the decoder's `SupportedCodecs`), which
  * are skipped, as with the decoder. It does not warn about them: the caller does, in the order of
  * the file list. With `probe_pixel_format` (for the GPU decoder), the pixel format of MJPEG
- * streams is probed, as the decoder does (see FramesDecoderBase::ProbeMjpegPixelFormat), and a
- * file whose probe fails is not valid. It does not touch CUDA, so it can run on any thread.
+ * streams is probed, as the decoder does (see
+ * FramesDecoderBase::CanDetermineMjpegPixelFormat), and a file whose probe fails is not valid. It does not touch CUDA, so it can run on any thread.
  */
 static VideoFileIndex IndexVideoFile(const std::string &filename, DALIImageType image_type,
                                      span<const AVCodecID> supported_codecs,
@@ -102,7 +102,7 @@ static VideoFileIndex IndexVideoFile(const std::string &filename, DALIImageType 
       LOG_LINE << "Unsupported codec in video file: " << filename << std::endl;
       return result;
     }
-    if (probe_pixel_format && !indexer.ProbeMjpegPixelFormat()) {
+    if (probe_pixel_format && !indexer.CanDetermineMjpegPixelFormat()) {
       result.valid = false;  // as the decoder, whose stream selection fails then
       return result;
     }
