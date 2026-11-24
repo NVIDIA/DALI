@@ -1924,7 +1924,7 @@ def _reference_frames(filename):
     """All frames of the file, decoded with PyAV, in presentation order, subsampled"""
     k = _reference_subsample
     with av.open(filename) as container:
-        return [f.to_ndarray(format="rgb24")[::k, ::k] for f in container.decode(video=0)]
+        return [f.to_ndarray(format="rgb24")[::k, ::k].copy() for f in container.decode(video=0)]
 
 
 def _assert_frames_match_file(frames, frame_nums, filename, window=32):
