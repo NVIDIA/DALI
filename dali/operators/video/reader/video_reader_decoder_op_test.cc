@@ -48,11 +48,12 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
   template<typename Backend>
   int GetFrameIdx(dali::TensorList<Backend> &device_frame_idx);
 
-  // A huge (but valid) step and stride must not overflow the frame arithmetic of the sample loop,
-  // of Prefetch or of the full-video decoding path (FramesDecoderBase::DecodeFrames): exactly one
-  // sample (starting at frame 0, with a single frame) fits per file, and it is the first frame of
-  // the video. Without the decoding fix, the frame count wraps to 0 and nothing is decoded, so the
-  // pixels are compared too, not just the shape.
+  // A huge (but valid) step and stride must not overflow the frame arithmetic of the sample loop
+  // or of the reader's decoding: exactly one sample (starting at frame 0, with a single frame) fits
+  // per file, and it is the first frame of the video. The pixels are compared too, not just the
+  // shape, so a sample that is not decoded fails. The reader decodes a list of frames: the range
+  // overload of FramesDecoderBase::DecodeFrames is tested in frames_decoder_test.cc
+  // (RangeWithHugeStride).
   template<typename Backend>
   void RunHugeStrideAndStepTest(
         const std::string &filename,

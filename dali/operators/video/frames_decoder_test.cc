@@ -1551,6 +1551,21 @@ TEST_F(FramesDecoderTest_CpuOnlyTests, ConstantFrameRate) {
   RunTest(decoder, cfr_videos_[0]);
 }
 
+// DecodeFrames(start, end, stride) with a huge stride (as fn.experimental.decoders.video passes
+// it): end - start + stride - 1 does not fit in int, and the frame count used to wrap to 0, so
+// nothing was decoded and the output was left as it was. The output is filled with a sentinel
+// first, so a frame that is not decoded fails the comparison.
+TEST_F(FramesDecoderTest_CpuOnlyTests, RangeWithHugeStride) {
+  constexpr int kIntMax = std::numeric_limits<int>::max();
+  FramesDecoderCpu decoder(cfr_videos_paths_[0]);
+  decoder.BuildIndex();
+  for (int start : {0, 25}) {
+    std::fill(FrameData(), FrameData() + decoder.FrameSize(), 0xAB);
+    decoder.DecodeFrames(FrameData(), start, kIntMax, kIntMax - start);
+    AssertFrame(FrameData(), start, cfr_videos_[0], 10.0);
+  }
+}
+
 TEST_F(FramesDecoderTest_CpuOnlyTests, VariableFrameRate) {
   FramesDecoderCpu decoder(vfr_videos_paths_[1]);
   decoder.BuildIndex();
@@ -1663,6 +1678,18 @@ TEST_F(FramesDecoderGpuTest, ConstantFrameRate) {
   FramesDecoderGpu decoder(cfr_videos_paths_[0]);
   decoder.BuildIndex();
   RunTest(decoder, cfr_videos_[0]);
+}
+
+// See FramesDecoderTest_CpuOnlyTests.RangeWithHugeStride
+TEST_F(FramesDecoderGpuTest, RangeWithHugeStride) {
+  constexpr int kIntMax = std::numeric_limits<int>::max();
+  FramesDecoderGpu decoder(cfr_videos_paths_[0]);
+  decoder.BuildIndex();
+  for (int start : {0, 25}) {
+    CUDA_CALL(cudaMemset(FrameData(), 0xAB, decoder.FrameSize()));
+    decoder.DecodeFrames(FrameData(), start, kIntMax, kIntMax - start);
+    AssertFrame(FrameData(), start, cfr_videos_[0], 1.5);
+  }
 }
 
 TEST_F(FramesDecoderGpuTest, VariableFrameRate) {

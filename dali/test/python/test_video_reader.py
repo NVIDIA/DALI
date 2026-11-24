@@ -1291,8 +1291,7 @@ def test_huge_stride_and_step_decode_one_frame(device):
     int_max = 2**31 - 1
 
     # The first frame of this file is not black (unlike the first frames of VIDEO_0), so a sample
-    # that was never decoded cannot match it. No file_list ROI either: it would take the explicit
-    # frame index path and bypass the full-video decoding that this test is about.
+    # that was never decoded cannot match it.
     @pipeline_def(batch_size=1, num_threads=1, device_id=0)
     def pipe():
         return _experimental_reader(device)(
