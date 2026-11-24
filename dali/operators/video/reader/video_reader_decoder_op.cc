@@ -1426,7 +1426,9 @@ class VideoReaderDecoder
           break;
         auto &task = batch.tasks[t];
         if (task.batch_idx > batch.first_error_idx.load(std::memory_order_relaxed)) {
-          task.sample->planned = false;  // not decoded: decode it if it is read again
+          // Not decoded, but never read either: the batch fails, and no batch is published after
+          // it. `planned` is left as it is: only the prefetch thread touches it, also while a
+          // batch read ahead is planned with a sample that pad_last_batch repeats from this one.
           lane.failed = true;  // the decoder is not where the plan expects it
           continue;
         }
