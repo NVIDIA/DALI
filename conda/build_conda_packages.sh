@@ -65,9 +65,10 @@ sed -i '/path: \/opt\/dali/a\    use_gitignore: false' "${RECIPE}"
 grep -q 'use_gitignore: false' "${RECIPE}" || \
   { echo "Recipe patch failed: use_gitignore: false not found" >&2; exit 1; }
 
-# The builder has no GPU, so the __cuda virtual package is provided through
-# CONDA_OVERRIDE_CUDA (set per CUDA variant above); packages depending on cuda-arch
-# (e.g. libcvcuda >= 0.19) need it.
+# The builder has no GPU, so set the __cuda (per CUDA variant above) and __cuda_arch virtual
+# packages the way conda-forge-ci-setup does. libcvcuda >= 0.19 depends on cuda-arch; without
+# __cuda_arch only the CUDA 13 cuda-arch variant is installable, so CUDA 12 builds fail to solve.
+export CONDA_OVERRIDE_CUDA_ARCH="${CONDA_OVERRIDE_CUDA_ARCH:-999.0}"
 
 rattler-build build --recipe $(pwd)/recipe -m  $(pwd)/.ci_support/${METAL_YAML} \
                     --target-platform linux-64 --extra-meta flow_run_id=${NVIDIA_BUILD_ID:-0} \
