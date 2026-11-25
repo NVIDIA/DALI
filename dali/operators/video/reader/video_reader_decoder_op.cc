@@ -542,14 +542,19 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     std::vector<VideoFileIndex> file_indices = BuildFileIndices(filenames);
 
     // Phase 2: build the samples, in the order of the list.
+    // For the error message when there are no samples: the entries that were skipped (with a
+    // warning) and those that were too short for a whole sequence (without a warning).
+    int64_t num_skipped = 0, num_too_short = 0;
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
       auto& entry = video_files_info_[i];
       LOG_LINE << "Processing video file " << i << ": " << entry.filename << std::endl;
       const VideoFileIndex &file_index = file_indices[file_slot[i]];
       if (file_index.error)
         std::rethrow_exception(file_index.error);  // the first failing file, in the list order
-      if (!file_index.valid)
+      if (!file_index.valid) {
+        ++num_skipped;
         continue;
+      }
       // A stream that the decoder can't decode is skipped, as the decoder would reject it: its
       // codec is not supported (then it is not indexed) or, for MJPEG on the GPU, NVDEC doesn't
       // support its pixel format on this device. That is checked here, and not by the indexing
@@ -559,6 +564,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
           FramesDecoderImpl::UnsupportedStreamReason(file_index.codec_id, file_index.pix_fmt);
       if (!unsupported.empty() || !file_index.index) {
         DALI_WARN(make_string(unsupported, " Skipping ", entry.filename, "."));
+        ++num_skipped;
         continue;
       }
       const FrameIndex &index = *file_index.index;
@@ -654,6 +660,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       if (entry.start_frame >= entry.end_frame) {
         DALI_WARN(make_string("Empty frame range [", entry.start_frame, ", ", entry.end_frame,
                               ") for file ", entry.filename, ". Skipping."));
+        ++num_skipped;
         continue;
       }
 
@@ -695,6 +702,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         const int64_t seq_span = static_cast<int64_t>(sequence_len_ - 1) * stride_ + 1;
         // int64: after the last sample, start + step_ can exceed INT_MAX.
         int64_t start = entry.start_frame;
+        const size_t num_samples_before = samples_.size();
         for (; start + seq_span <= entry.end_frame; start += step_) {
           LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
                    << ", stride=" << stride_ << std::endl;
@@ -711,6 +719,10 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             add_sample(start);
           }
         }
+        // Only possible with pad_mode='none': the range is shorter than the seq_span frames that a
+        // sequence spans.
+        if (samples_.size() == num_samples_before)
+          ++num_too_short;
       }
     }
 
@@ -719,20 +731,23 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     // Without this check, the loader would report that there are fewer samples than shards,
     // which does not say why there are none.
     if (samples_.empty()) {
-      const char *skipped =
-          "skipped (not a valid video, an unsupported codec or an empty frame range; see the "
-          "warnings above)";
-      // Without padding, an entry gives no sample when its range is too short for a sequence.
-      // With uniform_sample, any non-empty range gives one.
-      if (!uniform_sample_ && boundary_type_ == boundary::BoundaryType::ISOLATED) {
-        throw std::runtime_error(make_string(
-            "No samples could be built from the input: every input file or frame range was either ",
-            skipped, ", or too short for a whole sequence with sequence_length=", sequence_len_,
-            " and stride=", stride_, " (pad_mode='none' drops incomplete sequences)."));
-      }
-      throw std::runtime_error(make_string(
-          "No samples could be built from the input: every input file or frame range was ",
-          skipped, "."));
+      auto entries = [](int64_t n) {
+        return n == 1 ? make_string(n, " input file or frame range was")
+                      : make_string(n, " input files or frame ranges were");
+      };
+      std::stringstream why;
+      if (num_skipped > 0)
+        why << entries(num_skipped) << " skipped (not a valid video, an unsupported codec or an "
+            << "empty frame range; see the warnings above)";
+      if (num_too_short > 0)
+        why << (num_skipped > 0 ? "; " : "") << entries(num_too_short)
+            << " too short for a whole sequence: with pad_mode='none', sequence_length="
+            << sequence_len_ << " and stride=" << stride_ << " need at least "
+            << (int64_t{sequence_len_} - 1) * stride_ + 1 << " frames";
+      if (num_skipped == 0 && num_too_short == 0)
+        why << "there are no input files";
+      throw std::runtime_error(
+          make_string("No samples could be built from the input: ", why.str(), "."));
     }
 
     if (shuffle_) {

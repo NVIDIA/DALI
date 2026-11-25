@@ -1356,6 +1356,26 @@ def test_uniform_sample_with_range_before_the_video(device):
     assert frame_nums == [0, 3, 6, 9]
 
 
+# The error when the only input entry was skipped, up to the end of the message
+SKIPPED_ONE_ENTRY = (
+    "*No samples could be built from the input: 1 input file or frame range was skipped (not a"
+    " valid video, an unsupported codec or an empty frame range; see the warnings above).*"
+)
+
+
+def _too_short_error(num_entries, sequence_length, stride):
+    entries = (
+        "1 input file or frame range was"
+        if num_entries == 1
+        else f"{num_entries} input files or frame ranges were"
+    )
+    return (
+        f"{entries} too short for a whole sequence: with pad_mode='none',"
+        f" sequence_length={sequence_length} and stride={stride} need at least"
+        f" {(sequence_length - 1) * stride + 1} frames.*"
+    )
+
+
 def _file_list_reader_pipeline(device, entries, **kwargs):
     """A pipeline with the reader over file_list `entries` (label, start, end in frames) of
     CFR_VP9_60FPS_FILE (50 frames), which returns the frame indices of the sequences."""
@@ -1385,9 +1405,10 @@ def test_file_list_range_after_the_video_raises(device):
         p.build()
 
 
-@cartesian_params(devices)
-def test_file_list_with_only_ranges_after_the_video_raises(device):
-    p = _file_list_reader_pipeline(device, ["0 60 70"])
+@cartesian_params(devices, [{}, {"pad_mode": "edge"}, {"uniform_sample": True}])
+def test_file_list_with_only_ranges_after_the_video_raises(device, kwargs):
+    # a start past the end of the video is an error, whatever the padding
+    p = _file_list_reader_pipeline(device, ["0 60 70"], **kwargs)
     with assert_raises(RuntimeError, glob="*past the end of the video*"):
         p.build()
 
@@ -1524,8 +1545,41 @@ def test_file_list_with_only_ranges_too_short_for_a_sequence_raises(device):
     p = _file_list_reader_pipeline(device, ["0 10 13"])
     with assert_raises(
         RuntimeError,
-        glob="*No samples could be built from the input*too short for a whole sequence"
-        " with sequence_length=4 and stride=1*",
+        glob="*No samples could be built from the input: " + _too_short_error(1, 4, 1),
+    ):
+        p.build()
+
+
+@cartesian_params(devices)
+def test_file_list_strided_range_too_short_for_a_sequence_raises(device):
+    # '0 9' holds frames 0, 3 and 6, but a sequence of 4 with stride 3 spans 10 frames (0 to 9)
+    p = _file_list_reader_pipeline(device, ["0 0 9"], stride=3)
+    with assert_raises(
+        RuntimeError,
+        glob="*No samples could be built from the input: " + _too_short_error(1, 4, 3),
+    ):
+        p.build()
+
+
+@cartesian_params(devices)
+def test_file_list_strided_range_of_a_whole_sequence(device):
+    # 10 frames are enough for the sequence above
+    p = _file_list_reader_pipeline(device, ["0 0 10"], stride=3)
+    p.build()
+    assert p.reader_meta("reader")["epoch_size"] == 1
+    (frame_num,) = p.run()
+    assert [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()] == [0, 3, 6, 9]
+
+
+@cartesian_params(devices)
+def test_file_list_skipped_and_too_short_ranges_raises(device):
+    # one range at the end of the video (empty, skipped) and two too short: the message counts
+    # both causes
+    p = _file_list_reader_pipeline(device, ["0 50 60", "1 10 13", "2 20 22"])
+    with assert_raises(
+        RuntimeError,
+        glob="*No samples could be built from the input: 1 input file or frame range was skipped"
+        " (*see the warnings above); " + _too_short_error(2, 4, 1),
     ):
         p.build()
 
@@ -1598,8 +1652,7 @@ def test_filenames_too_short_for_a_sequence_raises(device):
 
     with assert_raises(
         RuntimeError,
-        glob="*No samples could be built from the input*too short for a whole sequence"
-        " with sequence_length=51 and stride=1*",
+        glob="*No samples could be built from the input: " + _too_short_error(1, 51, 1),
     ):
         pipe().build()
 
@@ -1616,7 +1669,7 @@ def test_mpeg_program_stream_is_skipped():
             device="gpu", filenames=[mpeg_ps_file], sequence_length=1
         )
 
-    with assert_raises(RuntimeError, glob="*No samples could be built from the input*"):
+    with assert_raises(RuntimeError, glob=SKIPPED_ONE_ENTRY):
         alone_pipe().build()
 
     @pipeline_def(batch_size=1, num_threads=2, device_id=0)
@@ -1884,7 +1937,7 @@ def test_labels_are_rejected_without_filenames(device, source, labels):
 def test_file_list_timestamps_no_frames_in_any_range(device):
     # a start at the end of the stream (10 s) is an empty range (a start past it is an error)
     list_file = _write_file_list([f"{VIDEO_0} 0 10.0 12.0"])
-    with assert_raises(RuntimeError, glob="*No samples could be built from the input*"):
+    with assert_raises(RuntimeError, glob=SKIPPED_ONE_ENTRY):
         _file_list_frame_selection(_experimental_reader(device), list_file)
 
 
