@@ -24,6 +24,8 @@ Configurations (a group is one set of samples, read with different num_threads /
 
   lanes          256 distinct files, one sequence each: every sample is a new file, so the cost
                  of opening a file and the parallelism of decoding dominate
+  lanes_noedit   the same with 3 files whose MP4 edit list hides no lead-in frames (the reader
+                 decodes about as many pictures as it outputs; lanes' clips hide 2-190 each)
   cpu            the same on the CPU backend (VP8/VP9 files)
   seq, random    the 15 H.264 clips as they are, read in order or shuffled
   random_hevc    the HEVC trailer, shuffled (keyframe seeks, open GOPs)
@@ -33,6 +35,12 @@ Configurations (a group is one set of samples, read with different num_threads /
 
 The GPU configurations also run through torchcodec on the GPU (groups *_torchcodec, FFmpeg's
 NVDEC), on the same samples: for reference only, never checked, skipped if it is not installed.
+
+The result also has pics_per_s, an estimate (not a measured count) of the pictures NVDEC decodes per
+second: frames/s times the pictures per frame that the packet order of the files implies (see
+pictures_per_sample). Only for the GPU "lanes" groups, where every sample is the start of a file,
+and only with PyAV installed. The DALI reader and torchcodec apply the MP4 edit list and decode the
+frames it hides before the first shown one too.
 
 Every configuration runs in a fresh process, so the frame index and NVDEC decoder caches do not
 carry over, and is repeated --repeat times: the median is reported. The first batches (those
@@ -66,6 +74,12 @@ CLIPS = ["sintel/video_files/*.mp4", "sintel/labelled_videos/*/*.mp4"]  # 15 H.2
 H264_LONG = ["sintel/sintel_trailer-720p.mp4"]  # 1253 frames, GOP 250
 HEVC_LONG = ["hevc/sintel_trailer-720p.mp4"]  # the same clip as HEVC, a keyframe every ~9 frames
 VPX = ["vp9/vp9_0.mp4", "vp9/vp9_2.mp4", "vp8/vp8.webm", "cfr/test_1_vp9.mp4", "vfr/test_1_vp9.mp4"]
+# 3 H.264 files with no hidden lead-in (an edit list that only delays by the B-frame reorder)
+NOEDIT = [
+    "sintel/sintel_trailer-720p.mp4",
+    "sintel/video_files/sintel_trailer-720p_0.mp4",
+    "sintel/labelled_videos/0/sintel_trailer-720p_0.mp4",
+]
 HASH_MIN_SAMPLES = 40
 PIPELINE_DEPTH = 2  # the pipeline's own prefetch queue, set explicitly
 
@@ -81,6 +95,7 @@ def dali_configs(threads):
     t_max = max(threads)
     for t in threads:
         yield "lanes", dict(base, files=CLIPS, many=256, t=t)
+        yield "lanes_noedit", dict(base, files=NOEDIT, many=256, t=t)
         yield "cpu", dict(base, files=VPX, many=128, t=t, device="cpu", batch=8, seq=16)
     for name, files in (("seq", CLIPS), ("random", CLIPS), ("random_hevc", HEVC_LONG)):
         for t in sorted({1, t_max}):
@@ -149,6 +164,35 @@ def torchcodec_step(cfg, samples):
     return run_batch
 
 
+def pictures_per_sample(packets, seq):
+    """Estimate of the pictures sent to NVDEC to output the first `seq` frames of a file.
+
+    `packets`: (pts, keyframe) in decoding order, with the MP4 edit list applied (the frames it
+    hides have pts < 0). The decoder starts at the first packet and stops after the one of the
+    last frame needed: that includes the hidden frames, and the B-frames decoded ahead of the
+    shown ones. None if the file is too short."""
+    shown = sorted((pts, i) for i, (pts, _) in enumerate(packets) if pts >= 0)
+    return max(i for _, i in shown[:seq]) + 1 if len(shown) >= seq else None
+
+
+def pictures_per_frame(files, seq, many):
+    """pictures_per_sample / seq, averaged over the `many` samples of a configuration, each
+    frames [0, seq) of the files in turn (None without PyAV). Only modelled for samples that
+    start a file: mid-file samples depend on the keyframes and on what was decoded before."""
+    try:
+        import av
+    except ImportError:
+        return None
+    cache = {}
+    for f in files:
+        with av.open(f) as c:
+            cache[f] = [
+                (p.pts, p.is_keyframe) for p in c.demux(c.streams.video[0]) if p.pts is not None
+            ]
+    counts = [pictures_per_sample(cache[files[i % len(files)]], seq) for i in range(many)]
+    return None if None in counts else sum(counts) / len(counts) / seq
+
+
 def child(cfg, root, hash_out):
     """Runs one configuration in this process: {"fps", "build_s"}, or {"hash"}."""
     with tempfile.TemporaryDirectory() as tmp:
@@ -215,6 +259,10 @@ def run_config(cfg, root, hash_out, tmp):
         run_batch = p.run
         epoch_size = sum(p.epoch_size().values())
     build_s = time.perf_counter() - t0
+    # NVDEC backends, one sample per file only; before the clock starts
+    ppf = None
+    if not hash_out and cfg["device"] == "gpu" and cfg.get("many"):
+        ppf = pictures_per_frame(files, cfg["seq"], cfg["many"])
 
     if hash_out:  # from batch 0: the same samples whatever the queue depths
         h = hashlib.sha1()
@@ -233,7 +281,10 @@ def run_config(cfg, root, hash_out, tmp):
     while n < 20 or time.perf_counter() - t0 < 5:  # >= 20 batches and >= 5 s
         run_batch()
         n += 1
-    return dict(fps=n * cfg["batch"] * cfg["seq"] / (time.perf_counter() - t0), build_s=build_s)
+    out = dict(fps=n * cfg["batch"] * cfg["seq"] / (time.perf_counter() - t0), build_s=build_s)
+    if ppf:
+        out["pics_per_s"] = out["fps"] * ppf  # an estimate, see pictures_per_frame
+    return out
 
 
 def check_scaling(out, tolerance=0.10):
