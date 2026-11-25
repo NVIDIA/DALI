@@ -17,10 +17,12 @@
 #include <cmath>
 #include <exception>
 #include <functional>
+#include <iomanip>
 #include <limits>
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -550,6 +552,16 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             // the end of the video.
             double start = entry.start;
             double end = entry.end;
+            if (start != std::trunc(start) || end != std::trunc(end)) {
+              // Most likely a mistake of whatever wrote the list (e.g. 119.99999999 for 120). The
+              // legacy reader truncated such values without a message.
+              std::ostringstream msg;
+              msg << std::setprecision(12) << "The file_list entry for \"" << entry.filename
+                  << "\" has a fractional frame number (" << start << " " << end
+                  << "): it is rounded with file_list_rounding='"
+                  << make_string(file_list_opts_.rounding) << "'.";
+              DALI_WARN(msg.str());
+            }
             if (start < 0)
               start += num_frames;
             if (end <= 0)
@@ -1399,7 +1411,8 @@ This option is mutually exclusive with `filenames` and `file_root`.)code",
     .AddOptionalArg("file_list_format",
         R"code(How to interpret start/end values in file_list:
 
-* ``frames``: Use exact frame numbers (0-based).
+* ``frames``: Use exact frame numbers (0-based). A fractional frame number is rounded according
+  to `file_list_rounding`, with a warning.
 * ``timestamps``: Use timestamps in seconds, relative to the first frame of the video.
   The legacy `readers.video` measured them from the start time of the stream instead, and from 0
   in AVI, MKV and WebM files. The two differ for MKV and WebM files whose first frame is not at
@@ -1513,9 +1526,9 @@ timestamps.)code", false)
 ``file_list_format='frames', file_list_rounding='all_down'`` (as the legacy reader, it truncates
 fractional frame numbers, unless `file_list_rounding` is given), and ``False`` is
 ``file_list_format='timestamps'``.)code")
-    .AddOptionalArg("file_list_include_preceding_frame",
+    .AddOptionalArg<bool>("file_list_include_preceding_frame",
         R"code(Changes how the start and end timestamps of `file_list` are translated to frame
-numbers.)code", false)
+numbers.)code", nullptr)
     .DeprecateArg("file_list_include_preceding_frame", "2.5", false,
         R"code(Use `file_list_rounding` instead: ``file_list_include_preceding_frame=True`` is
 ``file_list_rounding='start_down_end_up'``, and ``False`` is ``'start_up_end_down'``. It applies to
