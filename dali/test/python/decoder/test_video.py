@@ -2529,7 +2529,10 @@ def test_reader_reports_first_error_of_batch(device, num_lanes, reader_depth):
         with assert_raises(RuntimeError, regex=expected):
             p.run()  # batch 0
             p.run()  # batch 1
-        del p  # destroyed right after the error, while lanes may still be decoding batch 2
+        # Destroyed right after the error, while the lanes may still be decoding batch 2, and
+        # before the files of tmp_dir are removed. Left to the function's return, the pipeline
+        # would be destroyed only after the `with` block has removed the directory.
+        del p
 
 
 @params("cpu", "gpu")
