@@ -670,8 +670,9 @@ class DLL_PUBLIC FramesDecoderBase {
    *        size that the container declares. Does nothing for the other streams.
    *
    * Only the backends that need these (the GPU decoder: the formats of NVDEC depend on the GPU)
-   * call it: it opens a decoder and reads at least a packet. Returns whether the pixel format is
-   * known afterwards: false if the probe fails. Requires a selected stream.
+   * call it: it opens a decoder and reads at least a packet. Returns false if the probe fails.
+   * After a probe that succeeds, the pixel format can still be unknown (FFmpeg only warns then),
+   * which IsStreamSupported rejects. Requires a selected stream.
    */
   bool CanDetermineMjpegPixelFormat();
 
