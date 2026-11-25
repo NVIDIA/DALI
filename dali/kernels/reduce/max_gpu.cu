@@ -1,4 +1,4 @@
-// Copyright (c) 2020, NVIDIA CORPORATION. All rights reserved.
+// Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -45,6 +45,7 @@ void MaxGPU<Out, In>::Run(KernelContext &ctx, const OutListGPU<Out> &out, const 
   impl_->Run(ctx, out, in);
 }
 
+template class MaxGPU<bool, bool>;
 template class MaxGPU<uint8_t, uint8_t>;
 template class MaxGPU<int8_t, int8_t>;
 template class MaxGPU<uint16_t, uint16_t>;

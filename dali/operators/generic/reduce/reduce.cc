@@ -135,16 +135,16 @@ DALI_REGISTER_OPERATOR(reductions__Sum, SumCPU, CPU);
 using SumGPU = SumOp<kernels::SumGPU, GPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Sum, SumGPU, GPU);
 
-using MinCPU = ReduceOp<kernels::MinCPU, CPUBackend>;
+using MinCPU = MinMaxOp<kernels::MinCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Min, MinCPU, CPU);
 
-using MinGPU = ReduceOp<kernels::MinGPU, GPUBackend>;
+using MinGPU = MinMaxOp<kernels::MinGPU, GPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Min, MinGPU, GPU);
 
-using MaxCPU = ReduceOp<kernels::MaxCPU, CPUBackend>;
+using MaxCPU = MinMaxOp<kernels::MaxCPU, CPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Max, MaxCPU, CPU);
 
-using MaxGPU = ReduceOp<kernels::MaxGPU, GPUBackend>;
+using MaxGPU = MinMaxOp<kernels::MaxGPU, GPUBackend>;
 DALI_REGISTER_OPERATOR(reductions__Max, MaxGPU, GPU);
 
 using StdCPU = ReduceWithMeanInput<kernels::StdDevCPU, CPUBackend>;

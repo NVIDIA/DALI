@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# Copyright (c) 2020-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -726,3 +726,37 @@ def test_sum_degenerate_data(device, axes):
     o = o.as_cpu()
     assert np.array_equal(o[0], np.sum(data[0], axis=axes))
     assert np.array_equal(o[1], np.sum(data[1], axis=axes))
+
+
+@params(
+    ("cpu", None),
+    ("cpu", (0,)),
+    ("cpu", (1,)),
+    ("cpu", (2,)),
+    ("cpu", (0, 2)),
+    ("gpu", None),
+    ("gpu", (0,)),
+    ("gpu", (1,)),
+    ("gpu", (2,)),
+    ("gpu", (0, 2)),
+)
+def test_reduce_bool(device, axes):
+    # min and max of bool are equivalent to logical "all" and "any", respectively
+    rng = np.random.default_rng(1234)
+    shapes = [(1, 1, 0), (1, 1, 1), (7, 0, 3), (1000, 3, 1), (2, 1, 5), (1, 1, 300007)]
+    data = [rng.random(shape) < p for shape in shapes for p in (0.0, 0.001, 0.5, 0.999, 1.0)]
+
+    @pipeline_def(batch_size=len(data), num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        x = fn.external_source(lambda: data, batch=True, device=device)
+        return fn.reductions.min(x, axes=axes), fn.reductions.max(x, axes=axes)
+
+    p = pipe()
+    out_min, out_max = p.run()
+    if device == "gpu":
+        out_min, out_max = out_min.as_cpu(), out_max.as_cpu()
+    for i, sample in enumerate(data):
+        ref_min, ref_max = np.all(sample, axis=axes), np.any(sample, axis=axes)
+        assert out_min.at(i).dtype == np.bool_ and out_max.at(i).dtype == np.bool_
+        assert np.array_equal(out_min.at(i), ref_min), f"min mismatch in sample {i}"
+        assert np.array_equal(out_max.at(i), ref_max), f"max mismatch in sample {i}"

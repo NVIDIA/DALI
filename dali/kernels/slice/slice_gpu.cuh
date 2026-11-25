@@ -1,4 +1,4 @@
-// Copyright (c) 2019-2025, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// Copyright (c) 2019-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@
 #include "dali/core/common.h"
 #include "dali/core/convert.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/cuda_utils.h"
 #include "dali/core/cuda_rt_utils.h"
 #include "dali/core/dev_array.h"
 #include "dali/core/error_handling.h"
@@ -32,10 +33,6 @@
 #include "dali/kernels/kernel.h"
 #include "dali/kernels/slice/slice_kernel_utils.h"
 #include "dali/core/boundary.h"
-
-__device__ DALI_FORCEINLINE bool __ldg(const bool *ptr) {
-  return __ldg(reinterpret_cast<const dali::kernels::type_of_size<sizeof(bool)> *>(ptr));
-}
 
 namespace dali {
 namespace kernels {
