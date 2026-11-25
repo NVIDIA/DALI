@@ -876,8 +876,9 @@ class VideoReaderDecoder
   static constexpr int64_t kOpenCost = 16;
 
   // GPU: the most decode lanes picked automatically per NVDEC engine. An engine decodes for several
-  // sessions at once, and one session alone leaves it idle while its lane parses, maps and converts
-  // the pictures; each lane adds a decoder's surfaces to the memory used.
+  // sessions at once, so there can be more lanes than engines, which lets a batch be split evenly
+  // (e.g. 8 lanes for 16 samples on 7 engines): no engine waits at the end of the batch while a few
+  // lanes decode their extra samples. Each lane adds a decoder's surfaces to the memory used.
   static constexpr int kLanesPerEngine = 2;
 
   /**
