@@ -43,7 +43,7 @@ __global__ static void ConvertVideoColorSpaceKernel(
 
     // An odd width or height has a chroma sample for its last, single column or row too
     Y_surf  = { yuv,    width,     height,     1, 1, yuv_pitch, 1 };
-    UV_surf = { chroma, (width + 1) / 2, chroma_height, 2, 2, yuv_pitch, 1 };
+    UV_surf = { chroma, div_ceil(width, 2), chroma_height, 2, 2, yuv_pitch, 1 };
 
     output = { out, width, height, 3, 3, out_pitch, 1 };
 
@@ -121,7 +121,7 @@ void ConvertVideoColorSpaceImpl(Out *out, int out_pitch, const uint8_t *yuv, int
                                 VideoColorSpaceConversionType conversion_type,
                                 bool normalized_range, cudaStream_t stream, int chroma_height) {
     if (chroma_height < 0)
-      chroma_height = (height + 1) / 2;
+      chroma_height = div_ceil(height, 2);
     // A thread converts a 2x2 quad, so a block of 32x2 threads covers 64x4 pixels
     auto grid_layout = dim3(div_ceil(width, 64), div_ceil(height, 4));
     auto block_layout = dim3(32, 2);

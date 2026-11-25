@@ -32,6 +32,7 @@ extern "C" {
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
 #include "dali/core/device_guard.h"
+#include "dali/core/util.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/video/color_space.h"
@@ -699,7 +700,7 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   bool jpeg_chroma_downsampled = video_format->codec == cudaVideoCodec_JPEG &&
                                  (video_format->chroma_format == cudaVideoChromaFormat_422 ||
                                   video_format->chroma_format == cudaVideoChromaFormat_444);
-  int nv12_chroma_rows = (Height() + 1) / 2;
+  int nv12_chroma_rows = div_ceil(Height(), 2);
   chroma_height_ = nv12_chroma_rows - (jpeg_chroma_downsampled && nv12_chroma_rows % 2 ? 1 : 0);
 
   if (!nvdecode_state_->decoder) {
