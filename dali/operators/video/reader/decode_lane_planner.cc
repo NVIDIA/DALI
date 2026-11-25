@@ -20,7 +20,17 @@
 #include <tuple>
 #include <utility>
 
+#include "dali/core/util.h"
+
 namespace dali {
+
+int EvenSplitLanes(int max_lanes, int batch_size) {
+  int lanes = std::max(1, std::min(max_lanes, batch_size));
+  if (batch_size <= 0)
+    return lanes;
+  int rounds = div_ceil(batch_size, lanes);  // samples on the busiest lane
+  return div_ceil(batch_size, rounds);       // the fewest lanes that need no more rounds
+}
 
 bool CanReachWithoutSeek(const FrameIndex &index, int next, int frame) {
   int size = index.size();

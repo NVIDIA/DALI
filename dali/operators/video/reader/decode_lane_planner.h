@@ -111,6 +111,20 @@ DLL_PUBLIC void SampleFrames(SmallVector<int, 32> &frames, span<const int> frame
 DLL_PUBLIC bool CanReachWithoutSeek(const FrameIndex &index, int next, int frame);
 
 /**
+ * @brief The number of decode lanes picked automatically for a batch of `batch_size` samples: up
+ * to `max_lanes`, then as few as decode a full batch in as many rounds.
+ *
+ * A lane decodes its samples one after another, so a batch takes as many rounds as the lane with
+ * the most samples has: ceil(batch_size / lanes). 16 samples on 7 lanes take 3 rounds, as on 6
+ * lanes, which use less memory; 16 samples on 14 lanes take 2 rounds, as on 8 lanes.
+ *
+ * @param max_lanes   the most lanes to use (e.g. num_threads, capped per NVDEC engine)
+ * @param batch_size  the number of samples in a batch
+ * @return            at least 1, at most min(max_lanes, batch_size)
+ */
+DLL_PUBLIC int EvenSplitLanes(int max_lanes, int batch_size);
+
+/**
  * @brief Assigns the runs to lanes: longest first, each to the lane that would finish it first.
  * On a tie, it prefers a lane whose decoder no run left in the batch needs, then the lane with the
  * least backlog, then the lowest lane.
