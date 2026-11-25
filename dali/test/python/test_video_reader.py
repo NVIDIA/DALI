@@ -31,6 +31,7 @@ import sys
 import tempfile
 import unittest
 import uuid
+import warnings
 from nose_utils import assert_raises
 from test_utils import check_output_pattern, get_dali_extra_path
 from nose2.tools import cartesian_params, params
@@ -67,13 +68,9 @@ FULL_RANGE_VP9_FILE = os.path.join(
 )
 
 devices = ["cpu", "gpu"]
-sequence_lengths = [3]
-batch_sizes = [1, 10]
 file_list_formats = ["frames", "timestamps"]
 file_list_roundings = ["start_down_end_up", "start_up_end_down"]
 pad_modes = ["none", "constant", "edge", "reflect_1001", "reflect_101"]
-pad_modes_supported_by_legacy_reader = ["none", "constant"]
-image_type_supported_by_legacy_reader = [types.RGB]  # TODO(janton): Add types.YCbCr
 
 
 def compare_frames(
@@ -104,82 +101,109 @@ def compare_frames(
         )
 
 
-def compare_experimental_to_legacy_reader(device, batch_size, **kwargs):
+def _legacy_reader_kwargs(kwargs):
+    """The arguments of the legacy `fn.readers.video` that select the same samples as `kwargs` do
+    in `fn.experimental.readers.video`. Raises ValueError for what the legacy reader cannot express,
+    instead of silently comparing something else."""
+    legacy = dict(kwargs)
+    file_list_format = legacy.pop("file_list_format", None)
+    file_list_rounding = legacy.pop("file_list_rounding", None)
+    if file_list_format is not None:
+        legacy["file_list_frame_num"] = file_list_format == "frames"
+    if "file_list" in kwargs and file_list_format != "frames":
+        # (the legacy reader truncates frame numbers, whatever the rounding: the cases with the
+        # frames format use whole frame numbers, which no rounding changes)
+        if file_list_rounding is None:
+            file_list_rounding = "start_down_end_up"  # the default, which is not the legacy one
+        if file_list_rounding not in ("start_down_end_up", "start_up_end_down"):
+            raise ValueError(f"The legacy reader has no file_list_rounding={file_list_rounding!r}")
+        legacy["file_list_include_preceding_frame"] = file_list_rounding == "start_down_end_up"
+    pad_mode = legacy.pop("pad_mode", None)
+    if pad_mode is not None:
+        if pad_mode not in ("none", "constant"):
+            raise ValueError(f"The legacy reader has no pad_mode={pad_mode!r}")
+        legacy["pad_sequences"] = pad_mode == "constant"
+    return legacy
+
+
+def _assert_video_matches(experimental, legacy, iteration_idx, sample_idx):
+    """The criterion of compare_frames, for all the frames of a sample at once."""
+    differs = np.abs(experimental.astype(np.int16) - legacy.astype(np.int16)) > 2
+    fraction = differs.reshape(differs.shape[0], -1).mean(axis=1)
+    for k in np.nonzero(fraction > 0.03)[0]:  # compare_frames fails with the message and the PNGs
+        compare_frames(experimental[k], legacy[k], iteration_idx, sample_idx, int(k))
+
+
+def compare_experimental_to_legacy_reader(
+    device, batch_size, legacy_arguments=False, experimental_only_kwargs=None, **kwargs
+):
+    """Runs the legacy and the experimental reader side by side for a whole epoch, and checks that
+    the epoch sizes are equal and that every sample of the epoch has the same outputs: the frames
+    (see compare_frames), the labels, frame_num and timestamps.
+
+    `kwargs` are the arguments of the experimental reader; _legacy_reader_kwargs translates them for
+    the legacy one. With `legacy_arguments=True`, `kwargs` are legacy arguments instead, and both
+    readers get them as they are (the experimental reader accepts the legacy ones).
+    `experimental_only_kwargs` go to the experimental reader only (for the self-tests).
+    """
+    experimental_kwargs = dict(kwargs, **(experimental_only_kwargs or {}))
+    legacy_kwargs = dict(kwargs) if legacy_arguments else _legacy_reader_kwargs(kwargs)
+
     @pipeline_def(batch_size=batch_size, num_threads=3, device_id=0, prefetch_queue_depth=1)
     def video_reader_pipeline():
-        kwargs_legacy = dict(kwargs)  # Make a copy to avoid modifying the original
-        if "file_list_format" in kwargs:
-            file_list_format = kwargs["file_list_format"]
-            del kwargs_legacy["file_list_format"]
-            if file_list_format == "frames":
-                kwargs_legacy["file_list_frame_num"] = True
-            elif file_list_format == "timestamps":
-                kwargs_legacy["file_list_frame_num"] = False
-            file_list_rounding = kwargs.get("file_list_rounding", "start_down_end_up")
-            del kwargs_legacy["file_list_rounding"]
-            kwargs_legacy["file_list_include_preceding_frame"] = (
-                file_list_rounding == "start_down_end_up"
-            )
-        if "pad_mode" in kwargs:
-            pad_mode = kwargs["pad_mode"]
-            del kwargs_legacy["pad_mode"]
-            if pad_mode == "constant":
-                kwargs_legacy["pad_sequences"] = True
-            elif pad_mode == "none":
-                kwargs_legacy["pad_sequences"] = False
-            else:
-                raise ValueError(f"Unsupported pad_mode {pad_mode} in legacy reader")
-
-        outs0 = fn.readers.video(
-            device="gpu",
-            name="legacy_reader",
-            **kwargs_legacy,
+        outs_legacy = fn.readers.video(device="gpu", name="legacy_reader", **legacy_kwargs)
+        if isinstance(outs_legacy, DataNode):
+            outs_legacy = (outs_legacy,)
+        outs_experimental = fn.experimental.readers.video(
+            device=device, name="experimental_reader", **experimental_kwargs
         )
-        if isinstance(outs0, DataNode):
-            outs0 = (outs0,)
-
-        outs1 = fn.experimental.readers.video(
-            device=device,
-            name="experimental_reader",
-            **kwargs,
-        )
-        if isinstance(outs1, DataNode):
-            outs1 = (outs1,)
-
-        return tuple(list(outs0) + list(outs1))
+        if isinstance(outs_experimental, DataNode):
+            outs_experimental = (outs_experimental,)
+        assert len(outs_legacy) == len(outs_experimental)
+        return tuple(outs_legacy) + tuple(outs_experimental)
 
     pipe = video_reader_pipeline()
     pipe.build()
-    legacy_epoch_size = pipe.reader_meta("legacy_reader")["epoch_size"]
+    epoch_size = pipe.reader_meta("legacy_reader")["epoch_size"]
     experimental_epoch_size = pipe.reader_meta("experimental_reader")["epoch_size"]
-    # The readers calculate the number of frames in the epoch differently,
-    # so we need to take the minimum of the two.
-    epoch_size = min(legacy_epoch_size, experimental_epoch_size)
-    for i in range(epoch_size):
+    assert (
+        epoch_size == experimental_epoch_size
+    ), f"Different epoch size: legacy {epoch_size}, experimental {experimental_epoch_size}"
+    output_names = ["video"]
+    if "labels" in kwargs or "file_list" in kwargs or "file_root" in kwargs:
+        output_names.append("labels")
+    if kwargs.get("enable_frame_num", False) not in (False, "none"):
+        output_names.append("frame_num")
+    if kwargs.get("enable_timestamps", False):
+        output_names.append("timestamps")
+
+    for i in range((epoch_size + batch_size - 1) // batch_size):
         outs = pipe.run()
-        n = len(outs)
-        assert n % 2 == 0
-        outs_legacy = outs[: n // 2]
-        outs_experimental = outs[n // 2 :]
-        assert len(outs_legacy) == len(outs_experimental)
-        for _, (out_legacy, out_experimental) in enumerate(zip(outs_legacy, outs_experimental)):
-            for j, (sample_legacy, sample_experimental) in enumerate(
-                zip(out_legacy, out_experimental)
-            ):
-                sample_legacy = np.array(sample_legacy.as_cpu())
-                sample_experimental = np.array(sample_experimental.as_cpu())
-                num_frames = sample_legacy.shape[0]
-                assert (
-                    num_frames == sample_experimental.shape[0]
-                ), f"Number of frames mismatch: {num_frames} != {sample_experimental.shape[0]}"
-                if i == 0:
-                    for k in range(num_frames):
-                        compare_frames(sample_experimental[k], sample_legacy[k], i, j, k)
+        assert len(outs) == 2 * len(output_names), f"{len(outs)} outputs for {output_names}"
+        outs_legacy = outs[: len(output_names)]
+        outs_experimental = outs[len(output_names) :]
+        # the last batch can go past the end of the epoch
+        num_samples = min(batch_size, epoch_size - i * batch_size)
+        for name, out_legacy, out_experimental in zip(output_names, outs_legacy, outs_experimental):
+            out_legacy, out_experimental = out_legacy.as_cpu(), out_experimental.as_cpu()
+            for j in range(num_samples):
+                legacy = np.array(out_legacy[j])
+                experimental = np.array(out_experimental[j])
+                where = f"iteration {i}, sample {j}, output {name}"
+                assert legacy.shape == experimental.shape, (
+                    f"Different shape at {where}: legacy {legacy.shape}, "
+                    f"experimental {experimental.shape}"
+                )
+                if name == "video":
+                    _assert_video_matches(experimental, legacy, i, j)
+                elif name == "timestamps":
+                    np.testing.assert_allclose(
+                        np.float64(experimental), np.float64(legacy), atol=1e-3, err_msg=where
+                    )
                 else:
-                    assert np.array_equal(sample_legacy, sample_experimental)
-                break
-            break
-        break
+                    np.testing.assert_array_equal(
+                        experimental.flatten(), legacy.flatten(), err_msg=where
+                    )
 
 
 _legacy_gpu_reader = functools.partial(fn.readers.video, device="gpu")
@@ -239,99 +263,210 @@ def _file_list_frame_selection(reader_fn, file_list, **kwargs):
     return epoch_size, sorted(frame_num for _, frame_num, _ in samples)
 
 
-@cartesian_params(
-    devices,
-    batch_sizes,
-    sequence_lengths,
-    pad_modes_supported_by_legacy_reader,
-    image_type_supported_by_legacy_reader,
+# The fixtures of the comparisons with the legacy reader (VIDEO_FILES, MULTIPLE_RESOLUTION_ROOT) are
+# not tagged as BT.709, so both readers convert them to RGB with the same matrix.
+
+
+# Every sample of 5 clips of 240 frames. 240 frames are 80 sequences of 3 frames, so these cases
+# do not pad; with 7 frames, the last sample of every clip is padded (240 = 34 * 7 + 2).
+@params(
+    ("cpu", types.RGB, 3, "none"),
+    ("cpu", types.YCbCr, 3, "none"),
+    ("gpu", types.RGB, 3, "none"),
+    ("gpu", types.YCbCr, 3, "none"),
+    ("cpu", types.RGB, 7, "constant"),
+    ("gpu", types.RGB, 7, "constant"),
 )
 def test_compare_experimental_to_legacy_reader_filenames(
-    device, batch_size, sequence_length, pad_mode, image_type
+    device, image_type, sequence_length, pad_mode
 ):
     labels = [np.random.randint(0, 100) for _ in range(len(VIDEO_FILES))]
-    files = VIDEO_FILES
     compare_experimental_to_legacy_reader(
         device=device,
-        batch_size=batch_size,
-        filenames=files,
-        sequence_length=sequence_length,
-        enable_timestamps=True,
-        enable_frame_num=True,
+        batch_size=4,
+        filenames=VIDEO_FILES,
         labels=labels,
+        sequence_length=sequence_length,
         pad_mode=pad_mode,
         image_type=image_type,
+        enable_frame_num=True,
+        enable_timestamps=True,
     )
 
 
-@cartesian_params(
-    devices,
-    batch_sizes,
-    sequence_lengths,
-    file_list_formats,
-    file_list_roundings,
-    pad_modes_supported_by_legacy_reader,
-    image_type_supported_by_legacy_reader,
-)
-def test_compare_experimental_to_legacy_reader_file_list(
-    device, batch_size, sequence_length, file_list_format, file_list_rounding, pad_mode, image_type
-):
-    files = VIDEO_FILES
+def _random_file_list(file_list_format, fractional_frames=False):
+    """One entry per file of VIDEO_FILES (240 frames at 24 fps), with a random range of the whole
+    clip (its first frames are almost black, so an off-by-one there would go unnoticed). The
+    ranges are long enough for a sequence of 3 frames with every rounding, and end inside the
+    video, where the legacy reader requires it.
+
+    The values have few decimals: the legacy reader reads them in single precision, so a value
+    within about 1e-5 of a frame (or of a frame's time) could select another frame there."""
     lines = []
-    for i, file in enumerate(files):
+    for file in VIDEO_FILES:
         label = np.random.randint(0, 20)
-        start = end = 0
-        while start >= end:
-            if file_list_format == "frames":
-                start = np.random.randint(0, 20)
-                end = np.random.randint(0, 20)
-            else:
-                start = np.random.random() * 0.4  # Range [0, 0.4)
-                end = 0.6 + np.random.random() * 0.4  # Range [0.6, 1.0)
-        lines.append(f"{file} {label} {start} {end}")
-    list_file = _write_file_list(lines)
-
+        if file_list_format == "frames":
+            start = np.random.randint(0, 225)
+            end = start + np.random.randint(3, 16)
+            if fractional_frames:  # truncated: at least 3 frames, as above
+                start += np.random.randint(0, 1000) / 1000
+                end += np.random.randint(0, 1000) / 1000
+            lines.append(f"{file} {label} {start:.3f} {end:.3f}")
+        else:
+            # at least 0.17 s (4.08 frames): 3 whole frames even with the start rounded up and the
+            # end rounded down
+            start = np.random.random() * 9.3
+            end = start + 0.17 + np.random.random() * 0.5
+            lines.append(f"{file} {label} {start:.4f} {end:.4f}")
     if debug:
-        print("File list contents:")
-        print("\n".join(lines))
+        print("File list contents:\n" + "\n".join(lines))
+    return _write_file_list(lines)
 
+
+@cartesian_params(devices, file_list_formats, file_list_roundings, ["none", "constant"])
+def test_compare_experimental_to_legacy_reader_file_list(
+    device, file_list_format, file_list_rounding, pad_mode
+):
     compare_experimental_to_legacy_reader(
         device=device,
-        batch_size=batch_size,
-        file_list=list_file,
-        sequence_length=sequence_length,
-        enable_timestamps=True,
-        enable_frame_num=True,
+        batch_size=4,
+        file_list=_random_file_list(file_list_format),
         file_list_format=file_list_format,
         file_list_rounding=file_list_rounding,
+        sequence_length=3,
         pad_mode=pad_mode,
-        image_type=image_type,
+        enable_frame_num=True,
+        enable_timestamps=True,
     )
 
 
-@cartesian_params(
-    devices,
-    batch_sizes,
-    sequence_lengths,
-    pad_modes_supported_by_legacy_reader,
-    image_type_supported_by_legacy_reader,
-)
-def test_compare_experimental_to_legacy_reader_file_root(
-    device, batch_size, sequence_length, pad_mode, image_type
-):
-    if debug:
-        print("MULTIPLE_RESOLUTION_ROOT contents:")
-        for root, dirs, files in os.walk(MULTIPLE_RESOLUTION_ROOT):
-            for dir in dirs:
-                print(f"Label={dir}, files=[{', '.join(os.listdir(os.path.join(root, dir)))}]")
+def test_compare_experimental_to_legacy_reader_file_list_ycbcr_padded():
+    compare_experimental_to_legacy_reader(
+        device="gpu",
+        batch_size=4,
+        file_list=_random_file_list("frames"),
+        file_list_format="frames",
+        sequence_length=7,
+        pad_mode="constant",
+        image_type=types.YCbCr,
+        enable_frame_num=True,
+        enable_timestamps=True,
+    )
+
+
+@cartesian_params(devices, [1, 3], [-1, 1, 4], ["none", "constant"])
+def test_compare_experimental_to_legacy_reader_stride_step(device, stride, step, pad_mode):
+    # Ranges of 20 and 12 frames: with these strides and steps, the last samples of a range either
+    # do not fit (dropped, or padded) or fit only because a sequence ends at its last frame
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 20", f"{VIDEO_0} 1 5 17"])
     compare_experimental_to_legacy_reader(
         device=device,
-        batch_size=batch_size,
+        batch_size=4,
+        file_list=list_file,
+        file_list_format="frames",
+        sequence_length=3,
+        stride=stride,
+        step=step,
+        pad_mode=pad_mode,
+        enable_frame_num=True,
+        enable_timestamps=True,
+    )
+
+
+@cartesian_params(devices)
+def test_compare_experimental_to_legacy_reader_file_list_timestamp_edges(device):
+    # An omitted end, an end at the end of the video, and negative times: all of them are times of
+    # frames (24 fps), which no rounding changes
+    list_file = _write_file_list(
+        [f"{VIDEO_0} 0 9.0", f"{VIDEO_0} 1 8.5 10.0", f"{VIDEO_0} 2 -1.0 -0.5"]
+    )
+    compare_experimental_to_legacy_reader(
+        device=device,
+        batch_size=4,
+        file_list=list_file,
+        file_list_format="timestamps",
+        sequence_length=3,
+        enable_frame_num=True,
+        enable_timestamps=True,
+    )
+
+
+# A step of 30 or 49 frames makes both readers seek between the samples; with 7 frames and
+# padding, a sample that starts fewer than 7 frames before the end of a video is padded.
+@params(("cpu", 3, 30, "none"), ("gpu", 3, 30, "none"), ("gpu", 7, 49, "constant"))
+def test_compare_experimental_to_legacy_reader_file_root(device, sequence_length, step, pad_mode):
+    compare_experimental_to_legacy_reader(
+        device=device,
+        batch_size=4,
         file_root=MULTIPLE_RESOLUTION_ROOT,
         sequence_length=sequence_length,
+        step=step,
         pad_mode=pad_mode,
-        image_type=image_type,
     )
+
+
+# The legacy arguments, passed as they are to both readers: the drop-in replacement
+@cartesian_params(devices, [True, False])
+def test_compare_experimental_to_legacy_reader_legacy_arguments_timestamps(
+    device, include_preceding_frame
+):
+    compare_experimental_to_legacy_reader(
+        device=device,
+        batch_size=4,
+        legacy_arguments=True,
+        file_list=_random_file_list("timestamps"),
+        file_list_frame_num=False,
+        file_list_include_preceding_frame=include_preceding_frame,
+        sequence_length=3,
+        pad_sequences=True,
+        enable_frame_num=True,
+        enable_timestamps=True,
+    )
+
+
+@cartesian_params(devices)
+def test_compare_experimental_to_legacy_reader_legacy_arguments_frames(device):
+    compare_experimental_to_legacy_reader(
+        device=device,
+        batch_size=4,
+        legacy_arguments=True,
+        file_list=_random_file_list("frames", fractional_frames=True),
+        file_list_frame_num=True,
+        sequence_length=3,
+        pad_sequences=False,
+        enable_frame_num=True,
+        enable_timestamps=True,
+    )
+
+
+# The comparison itself: it must look past the first sample, and at the epoch size
+def test_compare_experimental_to_legacy_reader_checks_every_sample():
+    # 7 frames are one full sequence of 5 and a padded one: only the second sample differs, which
+    # is the sample of the second iteration (batch_size=1)
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 7"])
+    with assert_raises(AssertionError, glob="*of sample 0 in iteration 1 differs from reference*"):
+        compare_experimental_to_legacy_reader(
+            device="gpu",
+            batch_size=1,
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=5,
+            pad_mode="constant",
+            experimental_only_kwargs=dict(fill_value=[255]),
+        )
+
+
+def test_compare_experimental_to_legacy_reader_checks_the_epoch_size():
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 10"])
+    with assert_raises(AssertionError, glob="*epoch size*"):
+        compare_experimental_to_legacy_reader(
+            device="gpu",
+            batch_size=1,
+            file_list=list_file,
+            file_list_format="frames",
+            sequence_length=1,
+            experimental_only_kwargs=dict(step=2),
+        )
 
 
 @cartesian_params(
@@ -1026,8 +1161,7 @@ def test_reflect_padding_stays_within_file_list_roi(device, pad_mode):
         # (file_list entry, stride, file_list_include_end, effective range)
         ("45 60", 6, False, (45, 50)),  # end past the last frame
         ("-60 10", 5, False, (0, 10)),  # start before the first frame (after wrapping)
-        # file_list_include_end does not add the end frame yet: once it does, this is (0, 11)
-        ("-60 10", 5, True, (0, 10)),
+        ("-60 10", 5, True, (0, 11)),  # the end frame is included
     ],
 )
 def test_reflect_padding_with_range_beyond_the_video(device, pad_mode, case):
@@ -1153,21 +1287,29 @@ def _file_list_reader_pipeline(device, entries, **kwargs):
 
 
 @cartesian_params(devices)
-def test_file_list_range_after_the_video_is_skipped(device):
-    # '60 70' is entirely after the 50 frames of the video: it is empty once clamped, so it is
-    # skipped (with a warning), and the reader only has the samples of the other entry
+def test_file_list_range_after_the_video_raises(device):
+    # '60 70' starts after the 50 frames of the video: that is an error, also beside a valid entry
     p = _file_list_reader_pipeline(device, ["0 60 70", "1 10 14"])
-    p.build()
-    assert p.reader_meta("reader")["epoch_size"] == 1
-    (frame_num,) = p.run()
-    assert [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()] == [10, 11, 12, 13]
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
+        p.build()
 
 
 @cartesian_params(devices)
 def test_file_list_with_only_ranges_after_the_video_raises(device):
     p = _file_list_reader_pipeline(device, ["0 60 70"])
-    with assert_raises(RuntimeError, glob="*number of input samples: 0*"):
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
         p.build()
+
+
+@cartesian_params(devices)
+def test_file_list_empty_range_is_skipped(device):
+    # '50 70' starts at the end of the 50 frames of the video: it is empty once clamped, so it is
+    # skipped (with a warning), and the reader only has the samples of the other entry
+    p = _file_list_reader_pipeline(device, ["0 50 70", "1 10 14"])
+    p.build()
+    assert p.reader_meta("reader")["epoch_size"] == 1
+    (frame_num,) = p.run()
+    assert [int(x) for x in np.array(frame_num.as_cpu()[0]).flatten()] == [10, 11, 12, 13]
 
 
 # Builds an experimental.readers.video pipeline in a child process. For the CPU reader the
@@ -1261,8 +1403,8 @@ def test_huge_stride_times_sequence_length_raises_instead_of_hanging(device):
 
 @cartesian_params(devices)
 def test_padded_tail_past_int_max_raises(device):
-    # stride * sequence_length fits in int, but the padded tail sample of the range [10, 20)
-    # starts at frame 10 and would end at frame 10 + INT_MAX.
+    # stride * sequence_length fits in int, but the sample of the range [10, 20) that starts at
+    # frame 10 would end at frame 10 + INT_MAX.
     int_max = 2**31 - 1
     list_file = _write_file_list([f"{CFR_VP9_60FPS_FILE} 0 10 20"])
 
@@ -1449,7 +1591,7 @@ def test_file_list_timestamps_short_and_empty_ranges(device, case):
     lines = [
         f"{VIDEO_0} 0 1.01 1.03",  # inside frame 24 (1.0 s to 1.0417 s)
         f"{VIDEO_0} 0 1.51 1.56",  # from inside frame 36 to inside frame 37 (1.5417 s to 1.5833 s)
-        f"{VIDEO_0} 0 11.0 12.0",  # after the end of the stream (10 s): always empty
+        f"{VIDEO_0} 0 10.0 12.0",  # at the end of the stream (10 s): always empty
         f"{VIDEO_0} 0 2.0 3.0",  # frames 48 to 71, with any rounding
     ]
     with check_output_pattern(r"Empty frame range \[240, 240\)"):
@@ -1609,6 +1751,501 @@ def test_labels_are_rejected_without_filenames(device, source, labels):
 
 @cartesian_params(devices)
 def test_file_list_timestamps_no_frames_in_any_range(device):
-    list_file = _write_file_list([f"{VIDEO_0} 0 11.0 12.0"])  # after the end of the stream (10 s)
+    # a start at the end of the stream (10 s) is an empty range (a start past it is an error)
+    list_file = _write_file_list([f"{VIDEO_0} 0 10.0 12.0"])
     with assert_raises(RuntimeError, glob="The number of input samples: 0, needs to be at least*"):
         _file_list_frame_selection(_experimental_reader(device), list_file)
+
+
+@cartesian_params(devices)
+def test_strided_sequence_fits_when_its_last_frame_exists(device):
+    # sequence_length=3, stride=4 uses the frames s, s+4 and s+8: a span of 9 frames. A 9-frame
+    # range holds exactly one sequence, as for the legacy reader. The second, longer entry keeps
+    # the dataset non-empty without the change.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 9", f"{VIDEO_0} 1 0 30"])
+    kwargs = dict(file_list=list_file, sequence_length=3, stride=4)
+    experimental = _collect_samples(
+        functools.partial(fn.experimental.readers.video, device=device, file_list_format="frames"),
+        **kwargs,
+    )
+    legacy = _collect_samples(
+        functools.partial(fn.readers.video, device="gpu", file_list_frame_num=True), **kwargs
+    )
+    expected = (3, [(0, 0, 3), (1, 0, 3), (1, 12, 3)])
+    assert legacy == expected, f"legacy: {legacy}"
+    assert experimental == expected, f"experimental: {experimental}, legacy: {legacy}"
+
+
+@cartesian_params(devices, [1, 3, 7])
+def test_epoch_size_with_sequences_of_one_frame_does_not_depend_on_the_stride(device, stride):
+    # a sequence of one frame spans one frame, whatever the stride is: every frame of the video
+    # starts a sample (the epoch depended on the stride, and lost stride - 1 frames at the end)
+    list_file = _write_file_list([f"{CFR_VP9_60FPS_FILE} 0 0 50"])
+    epoch_size, samples = _collect_samples(
+        functools.partial(fn.experimental.readers.video, device=device, file_list_format="frames"),
+        file_list=list_file,
+        sequence_length=1,
+        stride=stride,
+        step=1,
+    )
+    assert epoch_size == 50, f"stride {stride}: {epoch_size} samples"
+    assert [first for _, first, _ in samples] == list(range(50))
+
+
+@cartesian_params(devices, [1, 2], ["constant", "edge"])
+def test_padding_emits_a_sample_at_every_remaining_step(device, stride, pad_mode):
+    # a 10-frame range, sequence_length=3, step=1: the sequences that fit start at 0..7 (stride 1)
+    # or at 0..5 (stride 2). With padding, the legacy reader also has a padded sample at every
+    # start that remains: one per frame of the range.
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 10"])
+    kwargs = dict(file_list=list_file, sequence_length=3, stride=stride, step=1)
+    expected = (10, [(0, s, 3) for s in range(10)])
+    experimental = _collect_samples(
+        functools.partial(
+            fn.experimental.readers.video,
+            device=device,
+            file_list_format="frames",
+            pad_mode=pad_mode,
+        ),
+        **kwargs,
+    )
+    assert experimental == expected, f"experimental: {experimental}"
+    if pad_mode == "constant":
+        legacy = _collect_samples(
+            functools.partial(
+                fn.readers.video, device="gpu", file_list_frame_num=True, pad_sequences=True
+            ),
+            **kwargs,
+        )
+        assert legacy == expected, f"legacy: {legacy}"
+
+
+def _frames_selection(device, *entries, **kwargs):
+    """The frame selection of VIDEO_0 (240 frames, 24 fps, 10 s) for file_list entries in the
+    `frames` format (one entry per line: "start end")."""
+    list_file = _write_file_list([f"{VIDEO_0} {i} {entry}" for i, entry in enumerate(entries)])
+    return _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_format="frames", **kwargs
+    )
+
+
+def _timestamps_selection(device, *entries, **kwargs):
+    """The same for entries in the `timestamps` format, in seconds."""
+    list_file = _write_file_list([f"{VIDEO_0} {i} {entry}" for i, entry in enumerate(entries)])
+    return _file_list_frame_selection(_experimental_reader(device), list_file, **kwargs)
+
+
+@cartesian_params(devices)
+def test_file_list_frames_include_end(device):
+    # the end is exclusive by default
+    assert _frames_selection(device, "5 15") == (10, list(range(5, 15)))
+    assert _frames_selection(device, "5 15", file_list_include_end=True) == (11, list(range(5, 16)))
+
+
+@cartesian_params(devices)
+def test_file_list_frames_omitted_or_zero_end_is_the_end_of_the_video(device):
+    expected = (235, list(range(5, 240)))
+    assert _frames_selection(device, "5") == expected
+    assert _frames_selection(device, "5 0") == expected
+
+
+@cartesian_params(devices)
+def test_file_list_frames_negative_end_counts_from_the_end(device):
+    assert _frames_selection(device, "5 -5") == (230, list(range(5, 235)))
+    assert _frames_selection(device, "-10 -5") == (5, list(range(230, 235)))
+
+
+@cartesian_params(devices)
+def test_file_list_frames_range_beyond_the_video_is_clamped(device):
+    # an end past the last frame, with and without the end frame, and values that do not fit in an
+    # int (they used to make the entry empty or to allocate memory until the process was killed)
+    expected = (10, list(range(230, 240)))
+    assert _frames_selection(device, "230 300") == expected
+    assert _frames_selection(device, "230 240", file_list_include_end=True) == expected
+    assert _frames_selection(device, "230 3000000000") == expected
+    # a start before the first frame
+    assert _frames_selection(device, "-100000 30") == (30, list(range(30)))
+
+
+@cartesian_params(devices)
+def test_file_list_frames_start_past_the_end_of_the_video(device):
+    # the valid first entry keeps the dataset non-empty: the second one is what fails
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
+        _frames_selection(device, "0 24", "300 400")
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
+        _frames_selection(device, "0 24", "241 300")
+    # starts that do not fit in 32 bits must not wrap around to a frame inside the video
+    # (4294967300 is 2^32 + 4)
+    for start in (3000000000, 4294967300):
+        with assert_raises(RuntimeError, glob="*past the end of the video*"):
+            _frames_selection(device, "0 24", f"{start} {start + 10}")
+    # a start at the end of the video is an empty range: it is skipped, as the others
+    assert _frames_selection(device, "0 24", "240 300") == (24, list(range(24)))
+    assert _frames_selection(device, "0 24", "100 100") == (24, list(range(24)))
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_include_end(device):
+    # 1.0 s and 2.0 s are the frames 24 and 48: the frame at the end is included on request
+    assert _timestamps_selection(device, "1.0 2.0") == (24, list(range(24, 48)))
+    assert _timestamps_selection(device, "1.0 2.0", file_list_include_end=True) == (
+        25,
+        list(range(24, 49)),
+    )
+    # 2.02 s is between the frames 48 and 49: there is no frame at the end, and the end is rounded
+    # up, as without file_list_include_end
+    expected = (25, list(range(24, 49)))
+    assert _timestamps_selection(device, "1.0 2.02") == expected
+    assert _timestamps_selection(device, "1.0 2.02", file_list_include_end=True) == expected
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_omitted_end_is_the_end_of_the_video(device):
+    # 2.5 s is the frame 60, exactly: legacy gives the same
+    list_file = _write_file_list([f"{VIDEO_0} 0 2.5"])
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert experimental == legacy == (180, list(range(60, 240)))
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_negative_values_count_from_the_end(device):
+    # 2 s and 1 s before the end of the video: the frames 192 to 215 (exactly: same as legacy)
+    list_file = _write_file_list([f"{VIDEO_0} 0 -2.0 -1.0"])
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert experimental == legacy == (24, list(range(192, 216)))
+    # a negative end, from the start of the video
+    assert _timestamps_selection(device, "0 -9.0") == (24, list(range(24)))
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_start_past_the_end_of_the_video(device):
+    # `end` is given too, so that the legacy reader checks the start against the duration, which
+    # is what this test compares with (with the end omitted, it checks the start against the
+    # end, and reports another error)
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 1.0", f"{VIDEO_0} 1 10.5 20"])
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
+        _file_list_frame_selection(_experimental_reader(device), list_file)
+    with assert_raises(RuntimeError, glob="*greater than video duration*"):
+        _file_list_frame_selection(_legacy_gpu_reader, list_file)
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_start_at_the_end_of_the_video_is_skipped(device):
+    # the legacy reader also accepts a start equal to the duration, and gives no samples for it
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 1.0", f"{VIDEO_0} 1 10.0"])
+    experimental = _file_list_frame_selection(_experimental_reader(device), list_file)
+    legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+    assert experimental == legacy == (24, list(range(24)))
+
+
+def _import_av_or_skip():
+    try:
+        import av
+    except ImportError:
+        raise unittest.SkipTest("PyAV (`av`) is required to build the shifted-pts fixture")
+    return av
+
+
+def _make_pts_shifted_copy(src, offset_seconds, tmp_dir):
+    """Remuxes (without encoding) the video stream of `src` into an MP4 file in `tmp_dir`, with
+    all the timestamps shifted by `offset_seconds`; returns the path of the new file."""
+    av = _import_av_or_skip()
+    dst = os.path.join(tmp_dir, "shifted.mp4")
+    with av.open(src) as inp, av.open(dst, mode="w", format="mp4") as out:
+        in_stream = inp.streams.video[0]
+        out_stream = out.add_stream(
+            codec_name=in_stream.codec_context.name, rate=in_stream.average_rate
+        )
+        out_stream.codec_context.extradata = in_stream.codec_context.extradata
+        out_stream.codec_context.width = in_stream.codec_context.width
+        out_stream.codec_context.height = in_stream.codec_context.height
+        out_stream.codec_context.pix_fmt = in_stream.codec_context.pix_fmt
+        out_stream.codec_context.time_base = in_stream.time_base
+        offset = int(round(offset_seconds / in_stream.time_base))
+        for packet in inp.demux(in_stream):
+            if packet.dts is None:  # the flush packet of the demuxer
+                continue
+            packet.pts += offset
+            packet.dts += offset
+            packet.stream = out_stream
+            out.mux(packet)
+    with av.open(dst) as check:
+        stream = check.streams.video[0]
+        first_pts = min(p.pts for p in check.demux(stream) if p.pts is not None)
+        assert float(first_pts * stream.time_base) >= offset_seconds - 0.01, "no shifted pts"
+    return dst
+
+
+@cartesian_params(devices)
+def test_file_list_timestamps_are_relative_to_the_first_frame(device):
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        shifted = _make_pts_shifted_copy(CFR_VP9_60FPS_FILE, 1.0, tmp_dir)
+        # 0.21 s and 0.49 s after the first frame are between frames (12.6 and 29.4 at 60 fps):
+        # with the end rounded down and the start up, the frames 13 to 28. The legacy reader
+        # rounds like that.
+        list_file = _write_file_list([f"{shifted} 0 0.21 0.49"])
+        experimental = _file_list_frame_selection(
+            _experimental_reader(device), list_file, file_list_rounding="start_up_end_down"
+        )
+        legacy = _file_list_frame_selection(_legacy_gpu_reader, list_file)
+        assert experimental == legacy == (16, list(range(13, 29)))
+        # a negative start counts back from the end of the stream, whatever its first pts is:
+        # 0.29 s before the end of the 50 frames is the frame 32.6, rounded down for the default
+        # rounding (33 would be the result of rounding up)
+        negative_list = _write_file_list([f"{shifted} 0 -0.29"])
+        negative = _file_list_frame_selection(_experimental_reader(device), negative_list)
+        assert negative == (18, list(range(32, 50))), f"experimental: {negative}"
+
+
+def _quiet(call, *args, **kwargs):
+    """Calls `call`, without printing the deprecation warnings of the legacy arguments.
+
+    The warnings are recorded, not filtered: DALI emits them under its own "default" filter."""
+    with warnings.catch_warnings(record=True):
+        return call(*args, **kwargs)
+
+
+def _build_reader(device, **kwargs):
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0, prefetch_queue_depth=1)
+    def pipe():
+        return fn.experimental.readers.video(
+            device=device, filenames=[VIDEO_0], sequence_length=3, name="reader", **kwargs
+        )
+
+    p = pipe()
+    _quiet(p.build)
+    return p
+
+
+@cartesian_params(devices)
+def test_legacy_pad_sequences_maps_to_pad_mode(device):
+    # a 7-frame range with sequence_length=5: the second sample holds 2 frames and 3 padded ones.
+    # With a stride, the legacy reader has a sample at every remaining step (see the tests of the
+    # epoch size)
+    list_file = _write_file_list([f"{VIDEO_0} 0 0 7"])
+    for stride, step in ((1, -1), (2, 1)):
+        kwargs = dict(file_list=list_file, sequence_length=5, stride=stride, step=step)
+        experimental = _quiet(
+            _collect_samples,
+            _experimental_reader(device),
+            file_list_format="frames",
+            pad_sequences=True,
+            **kwargs,
+        )
+        explicit = _collect_samples(
+            _experimental_reader(device),
+            file_list_format="frames",
+            pad_mode="constant",
+            **kwargs,
+        )
+        legacy = _collect_samples(
+            functools.partial(
+                fn.readers.video, device="gpu", file_list_frame_num=True, pad_sequences=True
+            ),
+            **kwargs,
+        )
+        assert experimental == explicit == legacy, (
+            f"stride {stride}, step {step}: pad_sequences {experimental}, "
+            f"pad_mode {explicit}, legacy {legacy}"
+        )
+    # False is no padding: the incomplete sequence is dropped
+    no_padding = _quiet(
+        _collect_samples,
+        _experimental_reader(device),
+        file_list=list_file,
+        file_list_format="frames",
+        pad_sequences=False,
+        sequence_length=5,
+    )
+    assert no_padding == (1, [(0, 0, 5)]), f"{no_padding}"
+
+
+@cartesian_params(devices)
+def test_legacy_file_list_frame_num_maps_to_file_list_format(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 12 36"])
+    legacy_arg = _quiet(
+        _file_list_frame_selection,
+        _experimental_reader(device),
+        list_file,
+        file_list_frame_num=True,
+    )
+    explicit = _file_list_frame_selection(
+        _experimental_reader(device), list_file, file_list_format="frames"
+    )
+    legacy = _file_list_frame_selection(
+        functools.partial(fn.readers.video, device="gpu", file_list_frame_num=True), list_file
+    )
+    assert legacy_arg == explicit == legacy == (24, list(range(12, 36)))
+    # False is timestamps: 12 s is after the end of the 10 s of the video
+    with assert_raises(RuntimeError, glob="*past the end of the video*"):
+        _quiet(
+            _file_list_frame_selection,
+            _experimental_reader(device),
+            list_file,
+            file_list_frame_num=False,
+        )
+
+
+@cartesian_params(devices)
+def test_legacy_file_list_include_preceding_frame_maps_to_rounding(device):
+    # 0.21 s and 0.61 s are between the frames (5.04 and 14.64 at 24 fps)
+    list_file = _write_file_list([f"{VIDEO_0} 0 0.21 0.61"])
+    results = {}
+    for include_preceding, rounding in ((True, "start_down_end_up"), (False, "start_up_end_down")):
+        alias = _quiet(
+            _file_list_frame_selection,
+            _experimental_reader(device),
+            list_file,
+            file_list_include_preceding_frame=include_preceding,
+        )
+        explicit = _file_list_frame_selection(
+            _experimental_reader(device), list_file, file_list_rounding=rounding
+        )
+        legacy = _file_list_frame_selection(
+            functools.partial(
+                fn.readers.video,
+                device="gpu",
+                file_list_include_preceding_frame=include_preceding,
+            ),
+            list_file,
+        )
+        assert alias == explicit == legacy, f"{include_preceding}: {alias}, {explicit}, {legacy}"
+        results[include_preceding] = alias
+    # the argument does change the selection with these times
+    assert results[True][0] > results[False][0], results
+    # frame numbers are truncated (see test_legacy_file_list_frame_num_truncates_fractional_frames):
+    # whole ones are not changed by it
+    frames_list = _write_file_list([f"{VIDEO_0} 0 12 36"])
+    kwargs = dict(file_list_format="frames")
+    default = _file_list_frame_selection(_experimental_reader(device), frames_list, **kwargs)
+    ignored = _quiet(
+        _file_list_frame_selection,
+        _experimental_reader(device),
+        frames_list,
+        file_list_include_preceding_frame=False,
+        **kwargs,
+    )
+    assert ignored == default
+
+
+@cartesian_params(devices)
+def test_file_list_fractional_frame_numbers_warn(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 2.5 10.5"])
+    pattern = (
+        r"fractional frame number \(2\.5 10\.5\): it is rounded with file_list_rounding='all_down'"
+    )
+    with check_output_pattern(pattern):
+        selection = _file_list_frame_selection(
+            _experimental_reader(device),
+            list_file,
+            file_list_format="frames",
+            file_list_rounding="all_down",
+        )
+    assert selection == (8, list(range(2, 10))), f"{selection}"
+
+
+@cartesian_params(devices)
+def test_legacy_file_list_frame_num_truncates_fractional_frames(device):
+    # The legacy reader truncates fractional frame numbers (after adding the number of frames to a
+    # negative one): [2, 10) and [232, 237) of the 240 frames
+    list_file = _write_file_list([f"{VIDEO_0} 0 2.5 10.5", f"{VIDEO_0} 0 -7.5 -2.5"])
+    expected = (13, list(range(2, 10)) + list(range(232, 237)))
+    legacy = _file_list_frame_selection(
+        functools.partial(fn.readers.video, device="gpu", file_list_frame_num=True), list_file
+    )
+    assert legacy == expected, f"{legacy}"
+    experimental = _experimental_reader(device)
+    for legacy_kwargs in (
+        dict(file_list_frame_num=True),
+        dict(file_list_frame_num=True, file_list_include_preceding_frame=True),
+        dict(file_list_frame_num=True, file_list_include_preceding_frame=False),
+    ):
+        alias = _quiet(_file_list_frame_selection, experimental, list_file, **legacy_kwargs)
+        assert alias == expected, f"{legacy_kwargs}: {alias}"
+    explicit = _file_list_frame_selection(
+        experimental, list_file, file_list_format="frames", file_list_rounding="all_down"
+    )
+    assert explicit == expected, f"{explicit}"
+    # file_list_rounding, when given, applies to the frame numbers of file_list_frame_num too: the
+    # ends are rounded up, as with file_list_format="frames" and the default rounding
+    rounded_up = (15, list(range(2, 11)) + list(range(232, 238)))
+    default_frames = _file_list_frame_selection(experimental, list_file, file_list_format="frames")
+    alias_with_rounding = _quiet(
+        _file_list_frame_selection,
+        experimental,
+        list_file,
+        file_list_frame_num=True,
+        file_list_rounding="start_down_end_up",
+    )
+    assert default_frames == alias_with_rounding == rounded_up, f"{default_frames}"
+
+
+def test_uint8_output_divided_by_255_matches_legacy_normalized_float():
+    # The replacement of the legacy dtype=FLOAT, normalized=True (see the operator docs): it is
+    # equal up to the 8-bit rounding, once the legacy output (which is not clamped) is clamped to
+    # [0, 1]. The video is not tagged as BT.709, so both readers use the same color matrix.
+    batch_size, sequence_length = 2, 4
+
+    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0)
+    def pipe():
+        legacy = fn.readers.video(
+            device="gpu",
+            filenames=[VIDEO_0],
+            sequence_length=sequence_length,
+            dtype=types.FLOAT,
+            normalized=True,
+        )
+        experimental = fn.experimental.readers.video(
+            device="gpu", filenames=[VIDEO_0], sequence_length=sequence_length
+        )
+        return legacy, experimental
+
+    p = pipe()
+    p.build()
+    for _ in range(3):
+        legacy, experimental = p.run()
+        for i in range(batch_size):
+            legacy_sample = np.clip(np.array(legacy.as_cpu()[i]), 0, 1)
+            experimental_sample = np.array(experimental.as_cpu()[i])
+            assert experimental_sample.dtype == np.uint8
+            np.testing.assert_allclose(
+                experimental_sample / 255, legacy_sample, rtol=0, atol=0.5 / 255 + 1e-6
+            )
+
+
+@cartesian_params(
+    devices,
+    [
+        dict(pad_sequences=True, pad_mode="constant"),
+        dict(file_list_frame_num=True, file_list_format="frames"),
+        dict(file_list_include_preceding_frame=True, file_list_rounding="all_up"),
+    ],
+)
+def test_legacy_argument_conflicts_with_its_replacement(device, conflict):
+    # also without a file_list
+    with assert_raises(RuntimeError, glob="*cannot be used together*"):
+        _build_reader(device, **conflict)
+
+
+@cartesian_params(devices, ["file_list_format", "file_list_rounding"])
+def test_invalid_file_list_options_are_rejected_without_a_file_list(device, name):
+    with assert_raises(RuntimeError, glob=f"*Invalid {name}*"):
+        _build_reader(device, **{name: "bogus"})
+
+
+@cartesian_params(devices, [True, False])
+def test_legacy_skip_vfr_check_is_accepted_and_ignored(device, skip_vfr_check):
+    reference = _build_reader(device).reader_meta("reader")["epoch_size"]
+    p = _build_reader(device, skip_vfr_check=skip_vfr_check)
+    assert p.reader_meta("reader")["epoch_size"] == reference
+    _quiet(p.run)
+
+
+@cartesian_params(devices, [0, 1, 4])
+def test_legacy_channels_is_accepted_and_ignored(device, channels):
+    # the legacy reader ignores the value, and the output has 3 channels
+    p = _build_reader(device, channels=channels)
+    (video,) = _quiet(p.run)
+    assert video.as_cpu().at(0).shape[-1] == 3
