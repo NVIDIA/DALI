@@ -789,7 +789,9 @@ bool FramesDecoderGpu::RewindToFirstPacket(const AVPacket *first) {
   // negative timestamps). The restart is checked by reading the first packet again. The second
   // seek is the same call, issued from the same state as the first, so it lands in the same place.
   AVUniquePtr<AVPacket> again(av_packet_alloc());
-  DALI_ENFORCE(again, make_string("Could not allocate av packet for \"", Filename(), "\""));
+  if (!again)
+    throw std::runtime_error(
+        make_string("Could not allocate av packet for \"", Filename(), "\""));
   return av_seek_frame(ctx_, stream_id_, 0, AVSEEK_FLAG_BACKWARD) >= 0 &&
          ReadSelectedStreamPacket(again) && SamePacket(first, again) &&
          av_seek_frame(ctx_, stream_id_, 0, AVSEEK_FLAG_BACKWARD) >= 0;
@@ -804,8 +806,9 @@ void FramesDecoderGpu::ProbeDisplaySize() {
   AVUniquePtr<AVPacket> first(av_packet_alloc());
   AVUniquePtr<AVPacket> unfiltered(av_packet_alloc());
   AVUniquePtr<AVPacket> filtered(av_packet_alloc());
-  DALI_ENFORCE(first && unfiltered && filtered,
-               make_string("Could not allocate av packet for \"", Filename(), "\""));
+  if (!first || !unfiltered || !filtered)
+    throw std::runtime_error(
+        make_string("Could not allocate av packet for \"", Filename(), "\""));
 
   // The parser reports the format only after it gets the first picture.
   bool got_packet = ReadSelectedStreamPacket(first);
