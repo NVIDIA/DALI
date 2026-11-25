@@ -880,15 +880,14 @@ class VideoReaderDecoder
   // the pictures; each lane adds a decoder's surfaces to the memory used.
   static constexpr int kLanesPerEngine = 2;
 
-  // CPU: the most decode lanes picked automatically. Each lane keeps its own libavcodec decoder
-  // and frame buffers, so the memory used grows with the number of lanes.
-  static constexpr int kMaxAutoLanesCPU = 4;
-
   /**
-   * @brief Number of decode lanes: num_decoders or, when it is 0, num_threads capped at
-   * kLanesPerEngine per NVDEC engine on the GPU (one lane if the number of engines is unknown) and
-   * at kMaxAutoLanesCPU on the CPU, then lowered to as few as decode a full batch in as many rounds
-   * (see EvenSplitLanes); never more than the batch size, since extra lanes are idle.
+   * @brief Number of decode lanes: num_decoders or, when it is 0, num_threads, capped at
+   * kLanesPerEngine per NVDEC engine on the GPU (one lane if the number of engines is unknown),
+   * then lowered to as few as decode a full batch in as many rounds (see EvenSplitLanes); never
+   * more than the batch size, since extra lanes are idle.
+   *
+   * On the CPU, decoding is limited by the CPUs, which num_threads already sets: each lane decodes
+   * on a CPU, with its own libavcodec decoder and frame buffers.
    */
   int NumLanes(const OpSpec &spec) {
     int batch_size = spec.GetArgument<int>("max_batch_size");
@@ -898,8 +897,6 @@ class VideoReaderDecoder
       if constexpr (std::is_same_v<Backend, GPUBackend>) {
         int engines = FramesDecoderGpu::NumEngines(spec.GetArgument<int>("device_id"));
         lanes = std::min(lanes, engines > 0 ? kLanesPerEngine * engines : 1);
-      } else {
-        lanes = std::min(lanes, kMaxAutoLanesCPU);
       }
       return EvenSplitLanes(lanes, batch_size);
     }
@@ -1365,10 +1362,10 @@ Otherwise, the number of values must match the number of channels in the video.)
                     R"code(Number of decoders that decode the samples of a batch in parallel.
 
 * ``0`` (default): Picked automatically: on the GPU, up to two decoders per NVDEC engine of the
-  device (one decoder if the number of engines is unknown), on the CPU, up to 4 decoders; in both
-  cases, no more than ``num_threads``. The number is then lowered to the fewest decoders that
-  decode a full batch in as many rounds: for example, 16 samples take 3 rounds on 7 decoders, as
-  on 6.
+  device (one decoder if the number of engines is unknown), on the CPU, one decoder per thread;
+  in both cases, no more than ``num_threads``. The number is then lowered to the fewest decoders
+  that decode a full batch in as many rounds: for example, 16 samples take 3 rounds on 7
+  decoders, as on 6.
 * A positive value sets the number of decoders.
 
 The number of decoders is never more than ``max_batch_size``, since extra decoders would be idle.
