@@ -233,15 +233,24 @@ def decode_with_pyav(path):
         return np.stack([f.to_ndarray(format="rgb24") for f in container.decode(video=0)])
 
 
-def read_video_gpu(path, num_frames, reader):
+class GpuVideoOp(Enum):
+    READER = "reader"  # fn.experimental.readers.video
+    DECODER = "decoder"  # fn.decoders.video
+    INPUT = "input"  # fn.experimental.inputs.video
+
+
+def read_video_gpu(path, num_frames, op):
+    if not isinstance(op, GpuVideoOp):
+        raise ValueError(f"Unknown video operator: {op!r}")
+
     @pipeline_def(batch_size=1, num_threads=2, device_id=0)
     def pipeline():
-        if reader == "decoder":
+        if op == GpuVideoOp.DECODER:
             data = fn.external_source(
                 source=lambda: [np.fromfile(path, dtype=np.uint8)], dtype=types.UINT8
             )
             return fn.decoders.video(data, device="mixed")
-        if reader == "input":
+        if op == GpuVideoOp.INPUT:
             return fn.experimental.inputs.video(
                 name="video_input",
                 device="mixed",
@@ -253,7 +262,7 @@ def read_video_gpu(path, num_frames, reader):
         )
 
     pipe = pipeline()
-    if reader == "input":
+    if op == GpuVideoOp.INPUT:
         pipe.feed_input("video_input", [np.fromfile(path, dtype=np.uint8)])
     return np.array(pipe.run()[0].as_cpu().at(0))
 
@@ -265,7 +274,7 @@ def write_video(data, suffix):
     return path
 
 
-READERS = ("reader", "decoder", "input")
+READERS = tuple(GpuVideoOp)
 
 
 @params(
@@ -295,7 +304,7 @@ def test_video_container_size_differs_from_stream_size(codec, width, height, con
         os.remove(path)
 
 
-@params("reader", "decoder")
+@params(GpuVideoOp.READER, GpuVideoOp.DECODER)
 def test_video_probe_keeps_leading_frames(reader):
     """Guards that a file with negative timestamps in the first packets (the seek to 0 skips them)
     returns the same frames as the sequential decoding, once the probe has rewound the file.
@@ -330,7 +339,7 @@ def test_video_no_timestamps_in_first_packets_decoder():
     skip_if_m60()
     path = write_video(make_video_without_leading_timestamps(), ".mkv")
     try:
-        for reader in ("reader", "decoder"):
+        for reader in (GpuVideoOp.READER, GpuVideoOp.DECODER):
             with assert_raises(RuntimeError, regex="has no valid timestamps"):
                 read_video_gpu(path, 48, reader)
     finally:
@@ -344,7 +353,7 @@ def test_video_no_timestamps_in_first_packets_input():
     path = write_video(make_video_without_leading_timestamps(), ".mkv")
     try:
         reference = decode_with_pyav(path)
-        output = read_video_gpu(path, len(reference), "input")
+        output = read_video_gpu(path, len(reference), GpuVideoOp.INPUT)
         assert output.shape == reference.shape, (output.shape, reference.shape)
         assert np.abs(output[0].astype(int) - reference[0].astype(int)).mean() < 2.0
     finally:
@@ -358,14 +367,23 @@ def test_video_no_timestamps_in_first_packets_input():
     ("crop_left=16:crop_right=16:crop_top=8:crop_bottom=8", (232, 304)),
 )
 def test_video_left_top_crop_is_not_supported(crop_options, expected_size):
-    """Documents the limitation: NVDEC does not report the left and top crop of the stream."""
+    """Documents the limitation: NVDEC does not report the left and top crop of the stream.
+
+    The crop is rewritten in the SPS only, so the pictures are those of the original stream: the
+    output is the top-left part of its frames, of the expected size."""
     skip_if_m60()
-    data = recrop_with_ffmpeg(make_h264_video(320, 240), crop_options)
+    original = make_h264_video(320, 240)
+    full_frames = decode_with_pyav(io.BytesIO(bytes(original)))
+    assert full_frames.shape[1:] == (240, 320, 3), full_frames.shape
+    reference = full_frames[:, : expected_size[0], : expected_size[1]]
+    data = recrop_with_ffmpeg(original, crop_options)
     path = write_video(data, ".mp4")
     try:
         for reader in READERS:
-            output = read_video_gpu(path, 8, reader)
-            assert output.shape[1:3] == expected_size, (reader, output.shape)
+            output = read_video_gpu(path, len(reference), reader)
+            assert output.shape == reference.shape, (reader, output.shape, reference.shape)
+            diff = np.abs(output.astype(int) - reference.astype(int)).mean()
+            assert diff < 2.0, (reader, diff)
     finally:
         os.remove(path)
 
