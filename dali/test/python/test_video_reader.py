@@ -1884,9 +1884,10 @@ def test_file_list_timestamps_are_relative_to_the_first_frame(device):
 
 
 def _quiet(call, *args, **kwargs):
-    """Calls `call`, without the deprecation warnings of the legacy arguments."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
+    """Calls `call`, without printing the deprecation warnings of the legacy arguments.
+
+    The warnings are recorded, not filtered: DALI emits them under its own "default" filter."""
+    with warnings.catch_warnings(record=True):
         return call(*args, **kwargs)
 
 
@@ -1998,7 +1999,8 @@ def test_legacy_file_list_include_preceding_frame_maps_to_rounding(device):
         results[include_preceding] = alias
     # the argument does change the selection with these times
     assert results[True][0] > results[False][0], results
-    # it is ignored for frame numbers
+    # frame numbers are truncated (see test_legacy_file_list_frame_num_truncates_fractional_frames):
+    # whole ones are not changed by it
     frames_list = _write_file_list([f"{VIDEO_0} 0 12 36"])
     kwargs = dict(file_list_format="frames")
     default = _file_list_frame_selection(_experimental_reader(device), frames_list, **kwargs)
@@ -2010,6 +2012,75 @@ def test_legacy_file_list_include_preceding_frame_maps_to_rounding(device):
         **kwargs,
     )
     assert ignored == default
+
+
+@cartesian_params(devices)
+def test_legacy_file_list_frame_num_truncates_fractional_frames(device):
+    # The legacy reader truncates fractional frame numbers (after adding the number of frames to a
+    # negative one): [2, 10) and [232, 237) of the 240 frames
+    list_file = _write_file_list([f"{VIDEO_0} 0 2.5 10.5", f"{VIDEO_0} 0 -7.5 -2.5"])
+    expected = (13, list(range(2, 10)) + list(range(232, 237)))
+    legacy = _file_list_frame_selection(
+        functools.partial(fn.readers.video, device="gpu", file_list_frame_num=True), list_file
+    )
+    assert legacy == expected, f"{legacy}"
+    experimental = _experimental_reader(device)
+    for legacy_kwargs in (
+        dict(file_list_frame_num=True),
+        dict(file_list_frame_num=True, file_list_include_preceding_frame=True),
+        dict(file_list_frame_num=True, file_list_include_preceding_frame=False),
+    ):
+        alias = _quiet(_file_list_frame_selection, experimental, list_file, **legacy_kwargs)
+        assert alias == expected, f"{legacy_kwargs}: {alias}"
+    explicit = _file_list_frame_selection(
+        experimental, list_file, file_list_format="frames", file_list_rounding="all_down"
+    )
+    assert explicit == expected, f"{explicit}"
+    # file_list_rounding, when given, applies to the frame numbers of file_list_frame_num too: the
+    # ends are rounded up, as with file_list_format="frames" and the default rounding
+    rounded_up = (15, list(range(2, 11)) + list(range(232, 238)))
+    default_frames = _file_list_frame_selection(experimental, list_file, file_list_format="frames")
+    alias_with_rounding = _quiet(
+        _file_list_frame_selection,
+        experimental,
+        list_file,
+        file_list_frame_num=True,
+        file_list_rounding="start_down_end_up",
+    )
+    assert default_frames == alias_with_rounding == rounded_up, f"{default_frames}"
+
+
+def test_uint8_output_divided_by_255_matches_legacy_normalized_float():
+    # The replacement of the legacy dtype=FLOAT, normalized=True (see the operator docs): it is
+    # equal up to the 8-bit rounding, once the legacy output (which is not clamped) is clamped to
+    # [0, 1]. The video is not tagged as BT.709, so both readers use the same color matrix.
+    batch_size, sequence_length = 2, 4
+
+    @pipeline_def(batch_size=batch_size, num_threads=2, device_id=0)
+    def pipe():
+        legacy = fn.readers.video(
+            device="gpu",
+            filenames=[VIDEO_0],
+            sequence_length=sequence_length,
+            dtype=types.FLOAT,
+            normalized=True,
+        )
+        experimental = fn.experimental.readers.video(
+            device="gpu", filenames=[VIDEO_0], sequence_length=sequence_length
+        )
+        return legacy, experimental
+
+    p = pipe()
+    p.build()
+    for _ in range(3):
+        legacy, experimental = p.run()
+        for i in range(batch_size):
+            legacy_sample = np.clip(np.array(legacy.as_cpu()[i]), 0, 1)
+            experimental_sample = np.array(experimental.as_cpu()[i])
+            assert experimental_sample.dtype == np.uint8
+            np.testing.assert_allclose(
+                experimental_sample / 255, legacy_sample, rtol=0, atol=0.5 / 255 + 1e-6
+            )
 
 
 @cartesian_params(
