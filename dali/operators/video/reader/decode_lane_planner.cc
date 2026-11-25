@@ -22,6 +22,14 @@
 
 namespace dali {
 
+int EvenSplitLanes(int max_lanes, int batch_size) {
+  int lanes = std::max(1, std::min(max_lanes, batch_size));
+  if (batch_size <= 0)
+    return lanes;
+  int rounds = (batch_size + lanes - 1) / lanes;  // samples on the busiest lane
+  return (batch_size + rounds - 1) / rounds;      // the fewest lanes that need no more rounds
+}
+
 bool CanReachWithoutSeek(const FrameIndex &index, int next, int frame) {
   int size = index.size();
   if (next < 0 || next >= size || frame < next || frame >= size)

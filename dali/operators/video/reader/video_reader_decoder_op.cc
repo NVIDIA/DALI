@@ -875,9 +875,10 @@ class VideoReaderDecoder
   // file) costs about as much as decoding a few pictures
   static constexpr int64_t kOpenCost = 16;
 
-  // GPU: decode lanes per NVDEC engine. Lanes beyond the number of engines only compete for them,
-  // and each one adds a decoder's surfaces to the memory used.
-  static constexpr int kLanesPerEngine = 1;
+  // GPU: the most decode lanes picked automatically per NVDEC engine. An engine decodes for several
+  // sessions at once, and one session alone leaves it idle while its lane parses, maps and converts
+  // the pictures; each lane adds a decoder's surfaces to the memory used.
+  static constexpr int kLanesPerEngine = 2;
 
   // CPU: the most decode lanes picked automatically. Each lane keeps its own libavcodec decoder
   // and frame buffers, so the memory used grows with the number of lanes.
@@ -886,9 +887,11 @@ class VideoReaderDecoder
   /**
    * @brief Number of decode lanes: num_decoders or, when it is 0, num_threads capped at
    * kLanesPerEngine per NVDEC engine on the GPU (one lane if the number of engines is unknown) and
-   * at kMaxAutoLanesCPU on the CPU; never more than the batch size, since extra lanes are idle.
+   * at kMaxAutoLanesCPU on the CPU, then lowered to as few as decode a full batch in as many rounds
+   * (see EvenSplitLanes); never more than the batch size, since extra lanes are idle.
    */
   int NumLanes(const OpSpec &spec) {
+    int batch_size = spec.GetArgument<int>("max_batch_size");
     int lanes = spec.GetArgument<int>("num_decoders");
     if (lanes == 0) {
       lanes = spec.GetArgument<int>("num_threads");
@@ -898,8 +901,9 @@ class VideoReaderDecoder
       } else {
         lanes = std::min(lanes, kMaxAutoLanesCPU);
       }
+      return EvenSplitLanes(lanes, batch_size);
     }
-    lanes = std::min(lanes, spec.GetArgument<int>("max_batch_size"));
+    lanes = std::min(lanes, batch_size);
     return std::max(lanes, 1);
   }
 
@@ -1360,9 +1364,11 @@ Otherwise, the number of values must match the number of channels in the video.)
     .AddOptionalArg("num_decoders",
                     R"code(Number of decoders that decode the samples of a batch in parallel.
 
-* ``0`` (default): Picked automatically: on the GPU, one decoder per NVDEC engine of the device
-  (one decoder if the number of engines is unknown), on the CPU, up to 4 decoders; in both cases,
-  no more than ``num_threads``.
+* ``0`` (default): Picked automatically: on the GPU, up to two decoders per NVDEC engine of the
+  device (one decoder if the number of engines is unknown), on the CPU, up to 4 decoders; in both
+  cases, no more than ``num_threads``. The number is then lowered to the fewest decoders that
+  decode a full batch in as many rounds: for example, 16 samples take 3 rounds on 7 decoders, as
+  on 6.
 * A positive value sets the number of decoders.
 
 The number of decoders is never more than ``max_batch_size``, since extra decoders would be idle.
