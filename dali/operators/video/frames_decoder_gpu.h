@@ -32,6 +32,7 @@ extern "C" {
 #include "dali/operators/video/dynlink_nvcuvid/dynlink_nvcuvid.h"
 #include "dali/core/unique_handle.h"
 
+#include "dali/core/cuda_event.h"
 #include "dali/core/dev_buffer.h"
 
 namespace dali {
@@ -138,13 +139,29 @@ struct NvDecodeState {
   uint8_t *decoded_frame_yuv = nullptr;
 
   // The surface of the last picture that was sent to the decoder, and whether it was mapped (the
-  // map waits for the decode of the picture)
+  // map waits for the decode of the picture; for JPEG, as the map doesn't, the stream first waits
+  // for the event of the picture)
   int last_decoded = -1;
   bool last_mapped = true;
 
   // The stream that the pictures of the decoder are mapped on: a copy of FramesDecoderGpu::stream_,
   // which is destroyed before this is
   cudaStream_t stream = 0;
+
+  // JPEG only, one per decode surface (CUVIDPICPARAMS::CurrPicIdx). The GPU work of a JPEG decode
+  // is ordered with the legacy default stream, and neither cuvidMapVideoFrame nor
+  // cuvidGetDecodeStatus waits for it (as observed; the API doesn't say). The stream is
+  // non-blocking, so without a wait the color conversion can read a surface before it is written,
+  // and return a blank frame, e.g. when other work keeps the legacy default stream busy. Each event
+  // is recorded on the legacy default stream right after its picture is submitted for decoding,
+  // and the stream waits for it before the picture is mapped. Recorded then, and not when the
+  // picture is mapped, the stream doesn't also wait for the work queued on the legacy default
+  // stream in between. Kept here so that the destructor can wait for the last one.
+  struct JpegDecodeEvent {
+    CUDAEvent event;        // created before the first decode of the surface, kept from then on
+    bool recorded = false;  // whether `event` was recorded after the latest decode of the surface
+  };
+  std::vector<JpegDecodeEvent> jpeg_decoded_events;
 
   /**
    * @brief Waits for the pictures that were sent to the decoder, before it goes back to the cache.
@@ -154,7 +171,9 @@ struct NvDecodeState {
    * reconfigured for another stream right after, and the driver does not wait for the queue then:
    * cuvidReconfigureDecoder returns while pictures of the previous stream are in progress.
    * NVDEC decodes the pictures of a decoder in the order that they were sent, and the map of a
-   * picture waits for its decode, so mapping the last one is enough.
+   * picture waits for its decode, so mapping the last one is enough. Except for JPEG, whose map
+   * does not wait for the decode: the stream first waits for the event of the last picture (see
+   * jpeg_decoded_events).
    *
    * The map also post-processes the picture into an output surface, on `stream`, and neither the
    * map nor the unmap waits for that: the stream is synchronized before the unmap, as it is when a
@@ -253,9 +272,19 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   static bool SupportsHevc();
 
   /**
+   * @brief Whether NVDEC on the current device can decode `codec_type` with the given chroma
+   * format and bit depth. Safe to call before any CUDA context exists on the calling thread, and
+   * leaves the thread's current context as it was. Uses the per-process cache of
+   * cuvidGetDecoderCaps.
+   */
+  static bool CanNvdecDecode(cudaVideoCodec codec_type, cudaVideoChromaFormat chroma_format,
+                             int bit_depth = 8);
+
+  /**
    * @brief Checks if the codec can be decoded by this decoder, as it is done when the video stream
    *        is selected: it is supported by the decoder and by NVDEC on this platform
-   *        (8-bit 4:2:0). It warns if it is not, unless `warn` is false.
+   *        (8-bit 4:2:0). It warns if it is not, unless `warn` is false. MJPEG's actual chroma
+   *        format and bit depth are checked by IsStreamSupported.
    *
    * It queries NVDEC of the current device (once per codec, cached per process), so the calling
    * thread must have a current CUDA context.
@@ -273,6 +302,31 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
    * @brief Number of NVDEC engines of the device; 0 if unknown.
    */
   static int NumEngines(int device_id);
+
+  /**
+   * @brief Checks if the video stream with the given parameters can be decoded by this decoder:
+   *        IsCodecSupported plus, for MJPEG, whether NVDEC on this device supports the stream's
+   *        pixel format (YCbCr or grayscale, chroma format and bit depth). It warns if it does not.
+   *
+   * With CanDetermineMjpegPixelFormat called first (for MJPEG, the container usually gives no
+   * pixel format, and the stream is then reported as unsupported), it is what the stream selection
+   * checks, so it can be used to skip the files that the decoder would reject.
+   */
+  static bool IsStreamSupported(const AVCodecParameters &params) {
+    return IsStreamSupported(params.codec_id, static_cast<AVPixelFormat>(params.format));
+  }
+
+  /**
+   * @brief As above, from the codec and the pixel format of the stream (`AV_PIX_FMT_NONE` if
+   *        unknown). Same requirements as `IsCodecSupported`.
+   */
+  static bool IsStreamSupported(AVCodecID codec_id, AVPixelFormat pix_fmt);
+
+  /**
+   * @brief Why IsStreamSupported is false for the stream (the text of its warning), or an empty
+   *        string if it is true. It doesn't warn.
+   */
+  static std::string UnsupportedStreamReason(AVCodecID codec_id, AVPixelFormat pix_fmt);
 
   static bool SupportsCodec(AVCodecID codec_id, uint8_t bit_depth = 8);
 
@@ -305,6 +359,15 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   /** @brief Stores an exception thrown in a parser callback, to be rethrown by ParseVideoData. */
   void SetCallbackException(std::exception_ptr e) {
     callback_exception_ = std::move(e);
+  }
+
+  /**
+   * @brief Whether a parser callback has failed during the current ParseVideoData. The parser may
+   *        still call the other callbacks for the same packet, e.g. the decode callback after the
+   *        sequence callback failed and no decoder was created: they must do nothing then.
+   */
+  bool HasCallbackException() const {
+    return callback_exception_ != nullptr;
   }
 
   void CopyFrame(uint8_t *dst, const uint8_t *src) override;
@@ -484,7 +547,18 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
 
   cudaStream_t stream_ = 0;
 
+  /// Creates the event of the surface whose JPEG picture is about to be submitted for decoding,
+  /// unless it exists, and marks it as not recorded (see NvDecodeState::jpeg_decoded_events)
+  void CreateJpegEvent(int surface_idx);
+  /// Records the event of the surface whose JPEG picture was just submitted for decoding, and
+  /// marks it as recorded
+  void RecordJpegDecoded(int surface_idx);
+  /// Makes stream_ wait for the decoding of the JPEG picture of the surface, before it is mapped
+  void WaitForJpegDecoded(int surface_idx);
+
   VideoColorSpaceConversionType conversion_type_ = VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB;
+  // the rows of the NV12 chroma of the mapped pictures that hold data (see InitGpuDecoder)
+  int chroma_height_ = -1;
 
   void SendLastPacket(bool flush = false);
 
@@ -545,6 +619,9 @@ class DLL_PUBLIC FramesDecoderGpu : public FramesDecoderBase {
   bool RewindToFirstPacket(const AVPacket *first);
 
   static cudaVideoCodec GetCodecType(AVCodecID codec_id);
+
+  /// Why this decoder can't decode the codec (see IsCodecSupported), or an empty string if it can
+  static std::string UnsupportedCodecReason(AVCodecID codec_id);
 
   bool IsFullRange(CUVIDEOFORMAT *video_format) const;
   bool IsBT709(CUVIDEOFORMAT *video_format) const;

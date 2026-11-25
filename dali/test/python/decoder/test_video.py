@@ -18,6 +18,7 @@ import numpy as np
 import cv2
 import av
 import io
+import sys
 import struct
 import subprocess
 from fractions import Fraction
@@ -75,7 +76,7 @@ unsupported_cpu_codec_error = r"is not supported by the CPU variant of this oper
 unsupported_cpu_codecs = {"h264", "hevc", "mpeg4", "av1"}
 
 
-def make_mjpeg_video(width, height):
+def make_mjpeg_video(width, height, pix_fmt="yuvj444p", num_frames=2, step=16):
     y, x = np.mgrid[:height, :width]
     x = x * 64 // max(width - 1, 1)
     y = y * 48 // max(height - 1, 1)
@@ -83,15 +84,16 @@ def make_mjpeg_video(width, height):
     with av.open(encoded, mode="w", format="avi") as container:
         stream = container.add_stream("mjpeg", rate=1)
         stream.width, stream.height = width, height
-        # Avoid chroma upsampling differences between DALI's and PyAV's FFmpeg builds.
-        stream.pix_fmt = "yuvj444p"
-        for frame_idx in range(2):
+        # 4:4:4 by default: avoids chroma upsampling differences between DALI's and PyAV's FFmpeg
+        # builds.
+        stream.pix_fmt = pix_fmt
+        for frame_idx in range(num_frames):
             # Vary each channel along both axes so incorrect row/plane strides change pixels.
             pixels = np.stack(
                 (
-                    32 + x + y // 2 + 32 * frame_idx,
+                    32 + x + y // 2 + 2 * step * frame_idx,
                     64 + x // 2 + y,
-                    160 - x // 2 + y // 2 - 16 * frame_idx,
+                    160 - x // 2 + y // 2 - step * frame_idx,
                 ),
                 axis=-1,
             ).astype(np.uint8)
@@ -104,6 +106,24 @@ def make_mjpeg_video(width, height):
         for packet in stream.encode():
             container.mux(packet)
     return bytearray(encoded.getvalue())
+
+
+def run_capturing_stderr(function):
+    """Calls `function` and returns its result or None, the exception it raised or None, and what
+    was written to stderr meanwhile, by the C++ code too."""
+    sys.stderr.flush()
+    with tempfile.TemporaryFile(mode="w+") as captured:
+        saved = os.dup(2)
+        os.dup2(captured.fileno(), 2)
+        try:
+            result, error = function(), None
+        except Exception as e:
+            result, error = None, e
+        finally:
+            os.dup2(saved, 2)
+            os.close(saved)
+        captured.seek(0)
+        return result, error, captured.read()
 
 
 def mjpeg_reference(data, image_type=types.RGB):
@@ -368,6 +388,56 @@ def test_video_left_top_crop_is_not_supported(crop_options, expected_size):
             assert output.shape[1:3] == expected_size, (reader, output.shape)
     finally:
         os.remove(path)
+
+
+@cartesian_params(
+    ["yuvj420p", "yuvj422p", "yuvj444p"],
+    [(150, 110), (160, 96), (64, 104), (150, 109), (152, 111)],
+)
+def test_mjpeg_mixed_matches_cpu(pix_fmt, size):
+    """The Mixed backend decodes MJPEG in the usual JPEG chroma formats as the CPU backend does,
+    also at sizes that are not a multiple of the JPEG blocks, and reads the right frames after a
+    seek and when the last frame is read again after the end of the stream.
+
+    For 4:2:2 and 4:4:4, NVDEC leaves the last row of its 4:2:0 chroma unwritten when that plane
+    has an odd number of rows: heights 110 and 109 (% 4 is 2 and 1), not 111 (% 4 is 3). The odd
+    heights also check the layout of NVDEC's odd-height surfaces (the chroma plane starts after an
+    even number of rows) and that the conversion writes no row outside the frame."""
+    skip_if_m60()
+    width, height = size
+    data = np.frombuffer(
+        make_mjpeg_video(width, height, pix_fmt, num_frames=24, step=2), dtype=np.uint8
+    )
+    frames = [20, 3, 23, 23]  # read as 3, 20 (a seek), 23 and 23 again (back from the end)
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipeline():
+        video = fn.external_source(source=lambda: [data], dtype=types.UINT8)
+        return (
+            fn.decoders.video(video, device="mixed", frames=frames),
+            fn.decoders.video(video, device="mixed"),  # all the frames, in a row
+            fn.decoders.video(video, device="cpu", frames=frames),
+        )
+
+    outputs, error, stderr = run_capturing_stderr(pipeline().run)
+    sys.stderr.write(stderr)
+    if error is not None:
+        # NVDEC may not support JPEG in this chroma format (4:2:2 and 4:4:4 depend on the GPU), or
+        # at all: the decoder warns so, and then can't be created
+        if "is not supported by NVDEC on this platform" in stderr:
+            raise SkipTest(f"NVDEC does not support {pix_fmt} JPEG on this GPU")
+        raise error
+    selected, sequential, cpu = outputs
+    selected = np.array(selected.as_cpu()[0])
+    sequential = np.array(sequential.as_cpu()[0])
+    cpu = np.array(cpu[0])
+    assert selected.shape == cpu.shape == (len(frames), height, width, 3)
+    # The frames read after the seeks are those of a sequential read, exactly
+    np.testing.assert_array_equal(selected, sequential[frames])
+    # The two JPEG decoders differ a little, and the GPU output has 4:2:0 chroma: on this smooth
+    # pattern, that is a few levels at most
+    diff = np.abs(selected.astype(np.int16) - cpu.astype(np.int16))
+    assert diff.max() <= 6 and diff.mean() < 1, f"max {diff.max()}, mean {diff.mean():.3f}"
 
 
 def assert_unsupported_cpu_codec(run_pipeline):

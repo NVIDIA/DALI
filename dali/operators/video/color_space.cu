@@ -25,7 +25,8 @@ namespace dali {
 
 template <typename Out, VideoColorSpaceConversionType conversion_type, bool normalized_range = false>
 __global__ static void ConvertVideoColorSpaceKernel(
-    Out *out, int out_pitch, const uint8_t *yuv, int yuv_pitch, int height, int width) {
+    Out *out, int out_pitch, const uint8_t *yuv, int yuv_pitch, int height, int width,
+    int chroma_height) {
     int halfx = (threadIdx.x + blockIdx.x * blockDim.x);
     int halfy = (threadIdx.y + blockIdx.y * blockDim.y);
     int x = 2 * halfx;
@@ -36,10 +37,13 @@ __global__ static void ConvertVideoColorSpaceKernel(
 
     kernels::Surface2D<const uint8_t> Y_surf, UV_surf;
     kernels::Surface2D<Out> output;
-    const uint8_t *chroma = yuv + height * yuv_pitch;
+    // NVDEC aligns the luma height of its output surfaces to 2: with an odd height, the chroma
+    // plane starts a row after the last luma row
+    const uint8_t *chroma = yuv + ((height + 1) & ~1) * yuv_pitch;
 
+    // An odd width or height has a chroma sample for its last, single column or row too
     Y_surf  = { yuv,    width,     height,     1, 1, yuv_pitch, 1 };
-    UV_surf = { chroma, width / 2, height / 2, 2, 2, yuv_pitch, 1 };
+    UV_surf = { chroma, div_ceil(width, 2), chroma_height, 2, 2, yuv_pitch, 1 };
 
     output = { out, width, height, 3, 3, out_pitch, 1 };
 
@@ -64,6 +68,9 @@ __global__ static void ConvertVideoColorSpaceKernel(
         float cy = halfy + i * 0.5f + 0.25f;
         #pragma unroll
         for (int j = 0; j < 2; j++) {
+            // a thread converts a 2x2 quad: with an odd size, the last one is cut by the edge
+            if (x + j >= width || y + i >= height)
+              continue;
             float cx = halfx + j * 0.5f + 0.25f;
             vec3 yuv_val;
             yuv_val[0] = Y.at(ivec2{x + j, y + i}, 0, kernels::BorderClamp());
@@ -112,7 +119,9 @@ template <typename Out>
 void ConvertVideoColorSpaceImpl(Out *out, int out_pitch, const uint8_t *yuv, int yuv_pitch,
                                 int height, int width,
                                 VideoColorSpaceConversionType conversion_type,
-                                bool normalized_range, cudaStream_t stream) {
+                                bool normalized_range, cudaStream_t stream, int chroma_height) {
+    if (chroma_height < 0)
+      chroma_height = div_ceil(height, 2);
     // A thread converts a 2x2 quad, so a block of 32x2 threads covers 64x4 pixels
     auto grid_layout = dim3(div_ceil(width, 64), div_ceil(height, 4));
     auto block_layout = dim3(32, 2);
@@ -126,23 +135,24 @@ void ConvertVideoColorSpaceImpl(Out *out, int out_pitch, const uint8_t *yuv, int
       VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709,
       VIDEO_COLOR_SPACE_CONVERSION_TYPE_YUV_TO_RGB_BT709_FULL_RANGE), (
         ConvertVideoColorSpaceKernel<Out, static_conversion_type, static_normalized_range>
-        <<<grid_layout, block_layout, 0, stream>>>(out, out_pitch, yuv, yuv_pitch, height, width);
+        <<<grid_layout, block_layout, 0, stream>>>(out, out_pitch, yuv, yuv_pitch, height, width,
+                                                   chroma_height);
         ), (DALI_FAIL("wrong value")));));
     CUDA_CALL(cudaGetLastError());
 }
 
 void ConvertVideoColorSpace(uint8_t *out, int out_pitch, const uint8_t *yuv, int yuv_pitch,
                             int height, int width, VideoColorSpaceConversionType conversion_type,
-                            bool normalized_range, cudaStream_t stream) {
+                            bool normalized_range, cudaStream_t stream, int chroma_height) {
   ConvertVideoColorSpaceImpl(out, out_pitch, yuv, yuv_pitch, height, width, conversion_type,
-                             normalized_range, stream);
+                             normalized_range, stream, chroma_height);
 }
 
 void ConvertVideoColorSpace(float *out, int out_pitch, const uint8_t *yuv, int yuv_pitch,
                             int height, int width, VideoColorSpaceConversionType conversion_type,
-                            bool normalized_range, cudaStream_t stream) {
+                            bool normalized_range, cudaStream_t stream, int chroma_height) {
   ConvertVideoColorSpaceImpl(out, out_pitch, yuv, yuv_pitch, height, width, conversion_type,
-                             normalized_range, stream);
+                             normalized_range, stream, chroma_height);
 }
 
 }  // namespace dali
