@@ -258,7 +258,7 @@ TEST(DecodeLanePlannerTest, EvenSplitLanes) {
       ASSERT_GE(lanes, 1);
       ASSERT_LE(lanes, cap);
       // as many rounds as with `cap` lanes, and one lane fewer would need more
-      auto rounds = [&](int n) { return (batch + n - 1) / n; };
+      auto rounds = [&](int n) { return div_ceil(batch, n); };
       ASSERT_EQ(rounds(lanes), rounds(cap)) << batch << " " << max_lanes;
       if (lanes > 1) {
         ASSERT_GT(rounds(lanes - 1), rounds(cap)) << batch << " " << max_lanes;
