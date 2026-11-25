@@ -1604,13 +1604,18 @@ NvDecodeState::~NvDecodeState() {
     // the stream waits for the event recorded right after the last picture was submitted. The JPEG
     // decodes are all on that one stream, so the last one is enough. Only the work queued there
     // before that decode is waited for, not what was queued since (e.g. by a training loop).
-    // A JPEG decoder (one with events) whose last decode was not recorded can't be waited for.
+    // A JPEG decoder (one with events) whose last decode was not recorded can't be waited for:
+    // that only happens after an earlier error (e.g. of cudaEventRecord).
     if (!jpeg_decoded_events.empty()) {
       bool recorded = last_decoded < static_cast<int>(jpeg_decoded_events.size()) &&
                       jpeg_decoded_events[last_decoded].recorded;
-      cudaError_t err =
-          recorded ? cudaStreamWaitEvent(stream, jpeg_decoded_events[last_decoded].event, 0)
-                   : cudaErrorInvalidResourceHandle;
+      if (!recorded) {
+        DALI_WARN("The decode of the last JPEG picture of an NVDEC decoder was not recorded, so it "
+                  "can't be waited for; destroying the decoder.");
+        decoder.Discard();
+        return;
+      }
+      cudaError_t err = cudaStreamWaitEvent(stream, jpeg_decoded_events[last_decoded].event, 0);
       if (err != cudaSuccess) {
         cudaGetLastError();  // clear the error
         if (err != cudaErrorCudartUnloading) {
