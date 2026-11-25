@@ -88,18 +88,17 @@ def make_mjpeg_video(width, height, pix_fmt="yuvj444p", num_frames=2, step=16):
         # 4:4:4 by default: avoids chroma upsampling differences between DALI's and PyAV's FFmpeg
         # builds.
         stream.pix_fmt = "yuvj444p" if pix_fmt == "gray" else pix_fmt
-        if pix_fmt == "gray":
-            for frame_idx in range(num_frames):
-                pixels = (32 + x + y // 2 + 2 * step * frame_idx).astype(np.uint8)
-                ok, jpeg = cv2.imencode(".jpg", pixels)
-                assert ok, "Could not encode a grayscale JPEG"
-                packet = av.Packet(jpeg.tobytes())
-                packet.stream = stream
-                packet.pts = packet.dts = frame_idx
-                packet.time_base = Fraction(1, 1)  # that of the stream (rate=1)
-                container.mux(packet)
-            return bytearray(encoded.getvalue())
-        for frame_idx in range(num_frames):
+        for frame_idx in range(num_frames if pix_fmt == "gray" else 0):
+            pixels = (32 + x + y // 2 + 2 * step * frame_idx).astype(np.uint8)
+            ok, jpeg = cv2.imencode(".jpg", pixels)
+            assert ok, "Could not encode a grayscale JPEG"
+            packet = av.Packet(jpeg.tobytes())
+            packet.stream = stream
+            packet.pts = packet.dts = frame_idx
+            packet.time_base = Fraction(1, 1)  # that of the stream (rate=1)
+            packet.is_keyframe = True  # every JPEG is; the AVI index marks the keyframes
+            container.mux(packet)
+        for frame_idx in range(0 if pix_fmt == "gray" else num_frames):
             # Vary each channel along both axes so incorrect row/plane strides change pixels.
             pixels = np.stack(
                 (
