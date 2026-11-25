@@ -297,6 +297,8 @@ def run(args):
             reps.append(json.loads(r.stdout.splitlines()[-1]))
         if reps:
             out[key(group, cfg)] = dict(group=group, t=cfg["t"], rd=cfg["rd"])
+            if reference:  # which torchcodec backend produced the row
+                out[key(group, cfg)]["backend"] = cfg["backend"]
             for k in reps[0]:
                 out[key(group, cfg)][k] = (
                     reps[0][k] if k == "hash" else statistics.median(x[k] for x in reps)
@@ -328,8 +330,14 @@ def compare(path_a, path_b):
         if a[k].get("hash") != b[k].get("hash"):
             bad.append(k)
         if "fps" in a[k] and "fps" in b[k]:
-            ratio = b[k]["fps"] / a[k]["fps"]
-            print(f"{k:34} {a[k]['fps']:9.1f} -> {b[k]['fps']:9.1f} frames/s  x{ratio:.2f}")
+            line = f"{k:34} {a[k]['fps']:9.1f} -> {b[k]['fps']:9.1f} frames/s"
+            # only torchcodec rows have a "backend" (and not those of older result files)
+            backends = [x[k].get("backend", "?") for x in (a, b)]
+            if backends[0] != backends[1]:  # not the same decoder: no ratio
+                line += f"  torchcodec backend {backends[0]} -> {backends[1]}"
+            else:
+                line += f"  x{b[k]['fps'] / a[k]['fps']:.2f}"
+            print(line)
     print("DIFFERENT / MISSING:", bad if bad else "none")
     return int(bool(bad))
 
