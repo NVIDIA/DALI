@@ -2015,6 +2015,22 @@ def test_legacy_file_list_include_preceding_frame_maps_to_rounding(device):
 
 
 @cartesian_params(devices)
+def test_file_list_fractional_frame_numbers_warn(device):
+    list_file = _write_file_list([f"{VIDEO_0} 0 2.5 10.5"])
+    pattern = (
+        r"fractional frame number \(2\.5 10\.5\): it is rounded with file_list_rounding='all_down'"
+    )
+    with check_output_pattern(pattern):
+        selection = _file_list_frame_selection(
+            _experimental_reader(device),
+            list_file,
+            file_list_format="frames",
+            file_list_rounding="all_down",
+        )
+    assert selection == (8, list(range(2, 10))), f"{selection}"
+
+
+@cartesian_params(devices)
 def test_legacy_file_list_frame_num_truncates_fractional_frames(device):
     # The legacy reader truncates fractional frame numbers (after adding the number of frames to a
     # negative one): [2, 10) and [232, 237) of the 240 frames
