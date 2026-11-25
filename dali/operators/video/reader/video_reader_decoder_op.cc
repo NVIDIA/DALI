@@ -519,8 +519,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             const int64_t video_end = index.EndPts();
             int64_t start_ts = (entry.start < 0 ? video_end : video_start) +
                                SecondsToTimestamp(index.timebase, entry.start, round_down_start);
-            int64_t end_ts = (entry.end <= 0 ? video_end : video_start) +
-                             SecondsToTimestamp(index.timebase, entry.end, round_down_end);
+            const int64_t end_ticks = SecondsToTimestamp(index.timebase, entry.end, round_down_end);
+            int64_t end_ts = (entry.end <= 0 ? video_end : video_start) + end_ticks;
             if (start_ts > video_end) {
               throw std::runtime_error(make_string(
                   "The start time ", entry.start, " of the file_list entry for \"", entry.filename,
@@ -530,7 +530,12 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             start_frame = index.GetFrameIdxByTimestamp(start_ts, round_down_start);
             end_frame = index.GetFrameIdxByTimestamp(end_ts, round_down_end);
             // The end is exclusive: the frame at exactly that time is included on request.
-            if (file_list_opts_.include_end && end_frame < num_frames &&
+            // end_ts is rounded to the timebase, so a time within a tick of a frame (e.g.
+            // 1.99999 s for a frame at 2 s) also lands on the pts of that frame: the end is exact
+            // only if it is a whole number of ticks, i.e. rounding it either way gives the same.
+            const bool end_is_exact =
+                SecondsToTimestamp(index.timebase, entry.end, !round_down_end) == end_ticks;
+            if (file_list_opts_.include_end && end_is_exact && end_frame < num_frames &&
                 index[end_frame].pts == end_ts) {
               end_frame++;
             }

@@ -1765,6 +1765,24 @@ def test_file_list_timestamps_include_end(device):
 
 
 @cartesian_params(devices)
+def test_file_list_timestamps_include_end_needs_an_exact_end(device):
+    # 1.99999 s and 2.00001 s are within a tick (1/12288 s) of the frame 48 (2.0 s), so rounding
+    # them to the timebase, up or down respectively, gives its pts: still, no frame is exactly at
+    # the end, and file_list_include_end must not add the frame 48. Both give the frames 24 to 47.
+    expected = (24, list(range(24, 48)))
+    # the end rounded up (the default rounding)
+    assert _timestamps_selection(device, "1.0 1.99999") == expected
+    assert _timestamps_selection(device, "1.0 1.99999", file_list_include_end=True) == expected
+    # the end rounded down
+    kwargs = {"file_list_rounding": "start_up_end_down"}
+    assert _timestamps_selection(device, "1.0 2.00001", **kwargs) == expected
+    assert (
+        _timestamps_selection(device, "1.0 2.00001", file_list_include_end=True, **kwargs)
+        == expected
+    )
+
+
+@cartesian_params(devices)
 def test_file_list_timestamps_omitted_end_is_the_end_of_the_video(device):
     # 2.5 s is the frame 60, exactly: legacy gives the same
     list_file = _write_file_list([f"{VIDEO_0} 0 2.5"])
