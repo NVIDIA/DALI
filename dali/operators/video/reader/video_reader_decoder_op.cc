@@ -283,6 +283,9 @@ inline boundary::BoundaryType GetReaderBoundaryType(const OpSpec &spec) {
  */
 inline FileListOptions GetFileListOptions(const OpSpec &spec) {
   FileListOptions opts;
+  // The legacy reader truncates the frame numbers of a file_list, which is ``all_down``: the
+  // legacy arguments keep that, unless ``file_list_rounding`` is given.
+  bool legacy_frames = false;
 
   if (spec.HasArgument("file_list_frame_num")) {
     DALI_ENFORCE(!spec.HasArgument("file_list_format"),
@@ -290,6 +293,7 @@ inline FileListOptions GetFileListOptions(const OpSpec &spec) {
                  "`file_list_format`. Use `file_list_format` only.");
     opts.format = spec.GetArgument<bool>("file_list_frame_num") ? FileListFormat::kFrames
                                                                 : FileListFormat::kTimestamps;
+    legacy_frames = opts.format == FileListFormat::kFrames;
   } else {
     auto format_str = spec.GetArgument<std::string>("file_list_format");
     if (format_str == "frames") {
@@ -305,13 +309,16 @@ inline FileListOptions GetFileListOptions(const OpSpec &spec) {
     DALI_ENFORCE(!spec.HasArgument("file_list_rounding"),
                  "The legacy argument `file_list_include_preceding_frame` cannot be used together "
                  "with `file_list_rounding`. Use `file_list_rounding` only.");
-    // As in the legacy reader, it only applies to the times: the frame numbers are not rounded
-    // by it.
+    // As in the legacy reader, it only applies to the times: the frame numbers are truncated.
     if (opts.format == FileListFormat::kTimestamps) {
       opts.rounding = spec.GetArgument<bool>("file_list_include_preceding_frame")
                           ? FileListRounding::kStartDownEndUp
                           : FileListRounding::kStartUpEndDown;
+    } else {
+      opts.rounding = FileListRounding::kAllDown;
     }
+  } else if (legacy_frames && !spec.HasArgument("file_list_rounding")) {
+    opts.rounding = FileListRounding::kAllDown;
   } else {
     auto rounding_str = spec.GetArgument<std::string>("file_list_rounding");
     if (rounding_str == "start_down_end_up") {
@@ -1328,6 +1335,30 @@ The outputs of the operator are: video, [labels], [frame_num], [timestamps].
   * ``"sequence"``: Frame index of each decoded frame, shape ``(F,)``. Padded frames (e.g. when
     using ``pad_mode='constant'``) have index ``-1``.
 * ``timestamps``: Time in seconds of each frame in the sequence. Only available when ``enable_timestamps=True``.
+
+The ``video`` output is ``uint8``.
+
+Migrating from ``fn.readers.video``: the legacy arguments ``pad_sequences``, ``file_list_frame_num``
+and ``file_list_include_preceding_frame`` are accepted and mapped to `pad_mode`, `file_list_format`
+and `file_list_rounding`; ``skip_vfr_check`` and ``channels`` are accepted and ignored. The
+differences that remain are:
+
+* There is no ``dtype``, ``normalized`` or ``additional_decode_surfaces`` argument.
+  ``video / 255`` gives values in ``[0, 1]``, and ``fn.cast(video, dtype=types.FLOAT)`` values in
+  ``[0, 255]``. With ``device='gpu'``, they match the legacy ``FLOAT`` output up to 8-bit
+  rounding (at most 0.5/255 for normalized output), except that the legacy output was not clamped
+  to that range. The CPU backend converts the colors with FFmpeg, so its output can differ from
+  the legacy one by a few levels.
+* The default of `file_list_rounding` is not the legacy default (see `file_list_rounding`).
+* The ``timestamps`` of a `file_list` and of the timestamps output are relative to the first frame
+  of the video (see `file_list_format`).
+* Videos tagged as BT.709 are converted to RGB with the BT.709 matrix; the legacy reader used
+  BT.601 for all videos.
+* The number of frames of a video is the number of frames in its stream. The legacy reader
+  computed it from the duration and the frame rate, so the epoch size can differ for files whose
+  duration does not match their frames.
+* Explicitly passed empty ``filenames``, ``file_root`` or ``file_list``, and ``labels=[]``, are
+  errors. Omit the argument instead, or pass ``labels=list(range(len(filenames)))``.
 )code")
     .NumInput(0)
     .OutputFn([](const OpSpec &spec) {
@@ -1391,7 +1422,12 @@ Default: ``timestamps``.)code",
 
 The legacy ``fn.readers.video`` has the ``file_list_include_preceding_frame`` argument instead:
 True corresponds to ``start_down_end_up`` and False to ``start_up_end_down``. The legacy reader
-truncates the frame numbers of the ``frames`` format, which corresponds to ``all_down``.)code",
+truncates the frame numbers of the ``frames`` format, which corresponds to ``all_down``.
+
+The defaults differ: the legacy reader's default, ``file_list_include_preceding_frame=False``, is
+``start_up_end_down``, while the default here is ``start_down_end_up``. For a time between two
+frames, this operator includes one more frame at each end of the range. Pass
+``file_list_rounding='start_up_end_down'`` to select the same frames as the legacy default.)code",
         "start_down_end_up")
     .AddOptionalArg("file_list_include_end",
         R"code(If true, the end frame of a ``file_list`` entry is part of its range. Default: false,
@@ -1474,14 +1510,19 @@ of frames at the very end of the video.)code", false)
 timestamps.)code", false)
     .DeprecateArg("file_list_frame_num", "2.5", false,
         R"code(Use `file_list_format` instead: ``file_list_frame_num=True`` is
-``file_list_format='frames'``, and ``False`` is ``file_list_format='timestamps'``.)code")
+``file_list_format='frames', file_list_rounding='all_down'`` (as the legacy reader, it truncates
+fractional frame numbers, unless `file_list_rounding` is given), and ``False`` is
+``file_list_format='timestamps'``.)code")
     .AddOptionalArg("file_list_include_preceding_frame",
         R"code(Changes how the start and end timestamps of `file_list` are translated to frame
 numbers.)code", false)
     .DeprecateArg("file_list_include_preceding_frame", "2.5", false,
         R"code(Use `file_list_rounding` instead: ``file_list_include_preceding_frame=True`` is
 ``file_list_rounding='start_down_end_up'``, and ``False`` is ``'start_up_end_down'``. It applies to
-the ``timestamps`` format only. The legacy reader computes the frame numbers in single precision,
+the ``timestamps`` format only: with the ``frames`` format, the frame numbers are truncated
+(``'all_down'``). When neither this argument nor `file_list_rounding` is given, the default of
+`file_list_rounding` applies, which is not the same as ``False``.
+The legacy reader computes the frame numbers in single precision,
 so for a time that is exactly the time of a frame, the frame that this operator selects can differ
 from the legacy one by one.)code")
     .AddOptionalArg("skip_vfr_check", R"code(Skips the check for variable frame rate videos.)code",
