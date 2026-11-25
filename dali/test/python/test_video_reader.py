@@ -1676,6 +1676,11 @@ def test_file_list_frames_start_past_the_end_of_the_video(device):
         _frames_selection(device, "0 24", "300 400")
     with assert_raises(RuntimeError, glob="*past the end of the video*"):
         _frames_selection(device, "0 24", "241 300")
+    # starts that do not fit in 32 bits must not wrap around to a frame inside the video
+    # (4294967300 is 2^32 + 4)
+    for start in (3000000000, 4294967300):
+        with assert_raises(RuntimeError, glob="*past the end of the video*"):
+            _frames_selection(device, "0 24", f"{start} {start + 10}")
     # a start at the end of the video is an empty range: it is skipped, as the others
     assert _frames_selection(device, "0 24", "240 300") == (24, list(range(24)))
     assert _frames_selection(device, "0 24", "100 100") == (24, list(range(24)))

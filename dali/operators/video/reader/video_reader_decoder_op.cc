@@ -1310,6 +1310,9 @@ This option is mutually exclusive with `filenames` and `file_root`.)code",
 
 * ``frames``: Use exact frame numbers (0-based).
 * ``timestamps``: Use timestamps in seconds, relative to the first frame of the video.
+  The legacy `readers.video` measured them from the start time of the stream instead, and from 0
+  in AVI, MKV and WebM files. The two differ for MKV and WebM files whose first frame is not at
+  0, and for streams cut in the middle of an open GOP.
 
 Negative start and end values count from the end of the video, and an end of 0 (or an omitted
 end) is the end of the video. An end past the end of the video is clamped to it. A start past the
