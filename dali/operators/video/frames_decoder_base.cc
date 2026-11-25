@@ -42,12 +42,11 @@ const bool av_log_level_set = [] {
 }  // namespace
 
 int MemoryVideoFile::Read(unsigned char *buffer, int buffer_size) {
-  int left_in_file = size_ - position_;
-  if (left_in_file <= 0) {
+  if (position_ >= size_) {
     return AVERROR_EOF;
   }
 
-  int to_read = std::min(left_in_file, buffer_size);
+  const int to_read = std::min<int64_t>(size_ - position_, buffer_size);
   std::copy(data_ + position_, data_ + position_ + to_read, buffer);
   position_ += to_read;
   return to_read;
