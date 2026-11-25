@@ -18,7 +18,7 @@ import tempfile
 
 import numpy as np
 from nose2.tools import cartesian_params, params
-from nvidia.dali import fn, pipeline_def
+from nvidia.dali import fn, pipeline_def, types
 
 from nose_utils import assert_raises
 from test_utils import check_output_pattern, get_dali_extra_path
@@ -78,6 +78,32 @@ def write_unsupported_gpu_source(source, path):
     assert header.count(b"MJPG") == 2, "Unexpected AVI header"
     with open(path, "wb") as f:
         f.write(header.replace(b"MJPG", b"FLV1") + data[header_size:])
+    return path
+
+
+def write_rgb_jpeg_source(source, path):
+    """Writes a copy of an MJPEG AVI whose JPEGs have the component IDs R, G and B instead of 1, 2
+    and 3. FFmpeg then decodes them as RGB-coded (gbrp), and the GPU decoder rejects that pixel
+    format on every GPU, as NVDEC outputs YCbCr: the readers skip the file because of its pixel
+    format, and decoders.video can't create a decoder for it."""
+    with open(os.path.join(VIDEO_DIR, source), "rb") as f:
+        data = bytearray(f.read())
+    # The SOF0 segment (length 17, 8 bits, 3 components of 3 bytes, the first one 10 bytes after
+    # the marker) and the SOS segment (length 12, 3 components of 2 bytes, from byte 5) of every
+    # frame both name the components by ID.
+    segments = [(b"\xff\xc0\x00\x11\x08", 10, 3), (b"\xff\xda\x00\x0c\x03", 5, 2)]
+    num_frames = data.count(segments[0][0])
+    assert num_frames > 10, "Unexpected MJPEG frames"
+    for marker, first_id, stride in segments:
+        assert data.count(marker) == num_frames, "Unexpected MJPEG frames"
+        pos = data.find(marker)
+        while pos >= 0:
+            ids = slice(pos + first_id, pos + first_id + 3 * stride, stride)
+            assert data[ids] == b"\x01\x02\x03", "Unexpected JPEG component IDs"
+            data[ids] = b"RGB"
+            pos = data.find(marker, pos + len(marker))
+    with open(path, "wb") as f:
+        f.write(data)
     return path
 
 
@@ -214,24 +240,47 @@ def test_broken_file_with_unsupported_codec_is_skipped(num_threads):
         assert pipe.reader_meta("reader")["epoch_size"] == reference
 
 
-@params("cpu", "gpu")
-def test_unsupported_file_is_skipped_with_a_warning(device):
+@params(("cpu", "codec"), ("gpu", "codec"), ("gpu", "pixel_format"))
+def test_unsupported_file_is_skipped_with_a_warning(device, reason):
     """A file whose video stream the decoder can't decode is skipped, with a warning that names
-    it."""
+    it. On the GPU, the file is rejected for its codec (an MJPEG AVI that declares FLV1) or for
+    its pixel format (an RGB-coded MJPEG AVI; for its codec, on a GPU without NVDEC JPEG)."""
     with tempfile.TemporaryDirectory() as root:
         valid = [os.path.join(VIDEO_DIR, name) for name in SOURCE_FILES[device]]
         unsupported = os.path.join(
             root, "unsupported" + os.path.splitext(UNSUPPORTED_FILE[device])[1]
         )
-        if device == "gpu":
+        pattern = r"is not supported by .*"
+        if device == "cpu":
+            os.symlink(os.path.join(VIDEO_DIR, UNSUPPORTED_FILE[device]), unsupported)
+        elif reason == "codec":
             write_unsupported_gpu_source(UNSUPPORTED_FILE[device], unsupported)
         else:
-            os.symlink(os.path.join(VIDEO_DIR, UNSUPPORTED_FILE[device]), unsupported)
+            write_rgb_jpeg_source(UNSUPPORTED_FILE[device], unsupported)
+            pattern = r"(JPEG with pixel format gbrp|Codec mjpeg) " + pattern
         reference = build_reader(valid, 1, device).reader_meta("reader")["epoch_size"]
-        with check_output_pattern(rf"is not supported by .*\. Skipping {re.escape(unsupported)}\."):
+        with check_output_pattern(rf"{pattern}\. Skipping {re.escape(unsupported)}\."):
             pipe = build_reader(valid[:2] + [unsupported] + valid[2:], 1, device)
             epoch_size = pipe.reader_meta("reader")["epoch_size"]
         assert epoch_size == reference
+
+
+def test_rgb_jpeg_is_rejected_by_gpu_decoder():
+    """decoders.video can't create a GPU decoder for an RGB-coded MJPEG stream, whatever the GPU,
+    and warns why (for the codec, on a GPU without NVDEC JPEG)."""
+    with tempfile.TemporaryDirectory() as root:
+        path = write_rgb_jpeg_source(UNSUPPORTED_FILE["gpu"], os.path.join(root, "rgb.avi"))
+        data = np.fromfile(path, dtype=np.uint8)
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe_def():
+        video = fn.external_source(source=lambda: [data], dtype=types.UINT8)
+        return fn.decoders.video(video, device="mixed")
+
+    pipe = pipe_def()
+    with check_output_pattern(r"(JPEG with pixel format gbrp|Codec mjpeg) is not supported by"):
+        with assert_raises(RuntimeError, glob="*Failed to create video decoder*"):
+            pipe.run()
 
 
 @params("cpu", "gpu")

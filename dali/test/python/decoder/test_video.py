@@ -31,6 +31,7 @@ import random
 import re
 import shutil
 from enum import Enum
+from fractions import Fraction
 from functools import lru_cache
 from itertools import cycle
 from test_utils import (
@@ -78,6 +79,8 @@ unsupported_cpu_codecs = {"h264", "hevc", "mpeg4", "av1"}
 
 
 def make_mjpeg_video(width, height, pix_fmt="yuvj444p", num_frames=2, step=16):
+    """With `pix_fmt="gray"`, the frames are grayscale JPEGs. FFmpeg's MJPEG encoder has no
+    grayscale format, so OpenCV encodes them, and they are muxed as they are."""
     y, x = np.mgrid[:height, :width]
     x = x * 64 // max(width - 1, 1)
     y = y * 48 // max(height - 1, 1)
@@ -87,8 +90,18 @@ def make_mjpeg_video(width, height, pix_fmt="yuvj444p", num_frames=2, step=16):
         stream.width, stream.height = width, height
         # 4:4:4 by default: avoids chroma upsampling differences between DALI's and PyAV's FFmpeg
         # builds.
-        stream.pix_fmt = pix_fmt
-        for frame_idx in range(num_frames):
+        stream.pix_fmt = "yuvj444p" if pix_fmt == "gray" else pix_fmt
+        for frame_idx in range(num_frames if pix_fmt == "gray" else 0):
+            pixels = (32 + x + y // 2 + 2 * step * frame_idx).astype(np.uint8)
+            ok, jpeg = cv2.imencode(".jpg", pixels)
+            assert ok, "Could not encode a grayscale JPEG"
+            packet = av.Packet(jpeg.tobytes())
+            packet.stream = stream
+            packet.pts = packet.dts = frame_idx
+            packet.time_base = Fraction(1, 1)  # that of the stream (rate=1)
+            packet.is_keyframe = True  # every JPEG is; the AVI index marks the keyframes
+            container.mux(packet)
+        for frame_idx in range(0 if pix_fmt == "gray" else num_frames):
             # Vary each channel along both axes so incorrect row/plane strides change pixels.
             pixels = np.stack(
                 (
@@ -410,18 +423,21 @@ def test_video_left_top_crop_is_not_supported(crop_options, expected_size):
 
 
 @cartesian_params(
-    ["yuvj420p", "yuvj422p", "yuvj444p"],
+    ["yuvj420p", "yuvj422p", "yuvj444p", "gray"],
     [(150, 110), (160, 96), (64, 104), (150, 109), (152, 111)],
 )
 def test_mjpeg_mixed_matches_cpu(pix_fmt, size):
-    """The Mixed backend decodes MJPEG in the usual JPEG chroma formats as the CPU backend does,
-    also at sizes that are not a multiple of the JPEG blocks, and reads the right frames after a
-    seek and when the last frame is read again after the end of the stream.
+    """The Mixed backend decodes MJPEG in the usual JPEG chroma formats and in grayscale as the CPU
+    backend does, also at sizes that are not a multiple of the JPEG blocks, and reads the right
+    frames after a seek and when the last frame is read again after the end of the stream.
 
     For 4:2:2 and 4:4:4, NVDEC leaves the last row of its 4:2:0 chroma unwritten when that plane
     has an odd number of rows: heights 110 and 109 (% 4 is 2 and 1), not 111 (% 4 is 3). The odd
     heights also check the layout of NVDEC's odd-height surfaces (the chroma plane starts after an
-    even number of rows) and that the conversion writes no row outside the frame."""
+    even number of rows) and that the conversion writes no row outside the frame.
+
+    The conversion reads the chroma plane for grayscale too: its output is gray only because NVDEC
+    writes neutral chroma there for a JPEG without chroma, which the API doesn't promise."""
     skip_if_m60()
     width, height = size
     data = np.frombuffer(
