@@ -1371,7 +1371,10 @@ Otherwise, the number of values must match the number of channels in the video.)
 
 The number of decoders is never more than ``max_batch_size``, since extra decoders would be idle.
 Every decoder has its own frame buffers, so the memory used grows with the number of
-decoders.)code",
+decoders. On the CPU, the decoders run on the reader's own threads (one per decoder), alongside
+the ``num_threads`` threads that run the pipeline's other CPU operators, and each keeps its frame
+buffers in host memory: with a large ``num_threads``, set ``num_decoders`` to limit the threads and
+the memory the reader uses.)code",
                     0)
     .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).
 
