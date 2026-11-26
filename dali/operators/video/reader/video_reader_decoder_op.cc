@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <exception>
 #include <functional>
 #include <limits>
@@ -601,8 +602,9 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
             << " too short for a whole sequence: with pad_mode='none', sequence_length="
             << sequence_len_ << " and stride=" << stride_ << " need at least "
             << int64_t{sequence_len_} * stride_ << " frames";
-      if (num_skipped == 0 && num_too_short == 0)
-        why << "there are no input files";
+      // The constructor throws when there are no files, and every file without a sample is
+      // counted in one of the two
+      assert(num_skipped + num_too_short == static_cast<int64_t>(video_files_info_.size()));
       throw std::runtime_error(
           make_string("No samples could be built from the input: ", why.str(), "."));
     }
@@ -1375,7 +1377,9 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
         R"code(How to handle videos with insufficient frames when using start_frame/sequence_length/stride:
 
 * ``'none'``: No padding: a sequence that would extend past the last frame is not returned, so
-  every sample has exactly ``sequence_length`` frames: ABC -> (dropped)
+  every sample has exactly ``sequence_length`` frames: ABC -> (dropped). A sequence takes
+  ``sequence_length * stride`` frames from its first one, so with ``stride=3`` a sequence of 4
+  needs 12 frames, although it returns only frames 0, 3, 6 and 9.
 * ``'constant'``: Pad with a fixed value (specified by ``fill_value``): ABC -> ABCPPP
 * ``'edge'`` or ``'repeat'``: Repeat the last valid frame: ABC -> ABCCCC
 * ``'reflect_1001'`` or ``'symmetric'``: Reflect padding, including the last element: ABC -> ABCCBA
