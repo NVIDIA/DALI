@@ -26,8 +26,6 @@ import multiprocessing
 import random
 import shutil
 import struct
-import subprocess
-import sys
 import tempfile
 import unittest
 import uuid
@@ -1170,93 +1168,57 @@ def test_file_list_with_only_ranges_after_the_video_raises(device):
         p.build()
 
 
-# Builds an experimental.readers.video pipeline in a child process. For the CPU reader the
-# address space is capped, so that an infinite sample-generation loop cannot exhaust the
-# machine's memory. The cap is not applied to the GPU reader: CUDA reserves a lot of virtual
-# address space, so under RLIMIT_AS cuInit fails and the pipeline cannot be created at all.
-# There the timeout of the parent process is the only guard against a hang.
-_BOUNDED_BUILD_CHILD = r"""
-import resource
-import sys
+# The three tests below cover arguments that used to make the sample loop of the reader
+# (PrepareMetadataImpl) never advance: it kept adding samples until the machine ran out of memory.
+# The constructor of the loader (VideoLoaderDecoder) rejects them now.
+#
+# lazy_init=True makes a regression of that check fail these tests quickly, instead of hanging
+# them and exhausting the memory of the CI machine: build() constructs the loader, which runs the
+# check, but with lazy_init it does not prepare the metadata, so the sample loop does not run.
+# Without the check, build() returns and assert_raises fails. To keep it that way:
+# - Keep lazy_init=True.
+# - Do not run the pipeline, call reader_meta() or enable checkpointing here: each of them
+#   prepares the metadata, so it would run the sample loop.
+# - If the check is moved into the metadata preparation, these tests fail with "no exception
+#   raised". Do not make them pass by dropping lazy_init (which would bring back the unbounded
+#   loop on a regression): keep the check before the loop, or build the reader in a child process
+#   with a timeout. Capping that process with RLIMIT_AS does not work: CUDA cannot initialize
+#   under it, and under ASan the process already exceeds any reasonable cap when it starts.
+def _build_reader_with_lazy_init(device, sequence_length, stride):
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipe():
+        return fn.experimental.readers.video(
+            device=device,
+            filenames=[VIDEO_0],
+            sequence_length=sequence_length,
+            stride=stride,
+            lazy_init=True,  # see the comment above
+        )
 
-device = sys.argv[4]
-
-if device == "cpu":
-    limit = 6 * 1024**3
-    resource.setrlimit(resource.RLIMIT_AS, (limit, limit))
-
-from nvidia.dali import fn, pipeline_def
-
-
-@pipeline_def(batch_size=1, num_threads=1, device_id=None if device == "cpu" else 0)
-def pipe():
-    return fn.experimental.readers.video(
-        device=device,
-        filenames=[sys.argv[1]],
-        sequence_length=int(sys.argv[2]),
-        stride=int(sys.argv[3]),
-    )
-
-
-try:
     pipe().build()
-except RuntimeError as e:  # any other exception fails the child with a non-zero exit code
-    print("RAISED:", e)
-    sys.exit(0)
-print("BUILT")
-"""
-
-
-def _build_reader_in_bounded_subprocess(device, sequence_length, stride, timeout=120):
-    try:
-        return subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                _BOUNDED_BUILD_CHILD,
-                VIDEO_0,
-                str(sequence_length),
-                str(stride),
-                device,
-            ],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired:
-        raise AssertionError(
-            f"build() with device={device}, sequence_length={sequence_length}, "
-            f"stride={stride} did not return within {timeout} s "
-            f"(sample-generation loop not advancing?)"
-        )
-
-
-def _assert_raised(res, message):
-    """The child process of _build_reader_in_bounded_subprocess raised a RuntimeError (any other
-    exception makes it exit with an error) with `message` in it."""
-    assert res.returncode == 0 and "RAISED:" in res.stdout and message in res.stdout, (
-        f"Expected a RuntimeError with {message!r}; returncode={res.returncode}, "
-        f"stdout={res.stdout!r}, stderr tail={res.stderr[-2000:]!r}"
-    )
 
 
 @cartesian_params(devices)
 def test_stride_zero_raises_instead_of_hanging(device):
-    res = _build_reader_in_bounded_subprocess(device, sequence_length=3, stride=0)
-    _assert_raised(res, "stride must be greater than 0, got 0.")
+    with assert_raises(RuntimeError, glob="stride must be greater than 0, got 0."):
+        _build_reader_with_lazy_init(device, sequence_length=3, stride=0)
 
 
 @cartesian_params(devices)
 def test_sequence_length_zero_raises_instead_of_hanging(device):
-    res = _build_reader_in_bounded_subprocess(device, sequence_length=0, stride=1)
-    _assert_raised(res, "sequence_length must be at least 1, got 0.")
+    with assert_raises(RuntimeError, glob="sequence_length must be at least 1, got 0."):
+        _build_reader_with_lazy_init(device, sequence_length=0, stride=1)
 
 
 @cartesian_params(devices)
 def test_huge_stride_times_sequence_length_raises_instead_of_hanging(device):
     # 65536 * 65536 overflows int: the default step (stride * sequence_length) used to wrap to 0.
-    res = _build_reader_in_bounded_subprocess(device, sequence_length=65536, stride=65536)
-    _assert_raised(res, "stride * sequence_length must not exceed 2147483647, got 65536 * 65536.")
+    # [*] is a literal asterisk in a glob.
+    with assert_raises(
+        RuntimeError,
+        glob="stride [*] sequence_length must not exceed 2147483647, got 65536 [*] 65536.",
+    ):
+        _build_reader_with_lazy_init(device, sequence_length=65536, stride=65536)
 
 
 @cartesian_params(devices)
