@@ -336,16 +336,19 @@ class DLL_PUBLIC FramesDecoderBase {
 
   /**
    * @brief Width of a video frame in pixels
+   *
+   * The size from the container, unless a decoder overrides it with SetDisplaySize. Only
+   * FramesDecoderGpu does: FramesIndexer and the CPU decoder keep the container size.
    */
   int Width() const {
-    return codec_params_->width;
+    return display_width_ > 0 ? display_width_ : codec_params_->width;
   }
 
   /**
    * @brief Height of a video frame in pixels
    */
   int Height() const {
-    return codec_params_->height;
+    return display_height_ > 0 ? display_height_ : codec_params_->height;
   }
 
   /**
@@ -674,6 +677,27 @@ class DLL_PUBLIC FramesDecoderBase {
    */
   bool HasDecodeOrderTimestamps() const;
 
+  /**
+   * @brief Overrides the size reported by Width() and Height(), when the size of the pictures in
+   *        the stream differs from the one declared by the container.
+   */
+  void SetDisplaySize(int width, int height) {
+    display_width_ = width;
+    display_height_ = height;
+  }
+
+  /**
+   * @brief For an MJPEG stream that the container gives no pixel format for, reads the stream
+   *        information (avformat_find_stream_info) to get it, with the color range, and keeps the
+   *        size that the container declares. Does nothing for the other streams.
+   *
+   * Only the backends that need these (the GPU decoder: the formats of NVDEC depend on the GPU)
+   * call it: it opens a decoder and reads at least a packet. Returns false if the probe fails.
+   * After a probe that succeeds, the pixel format can still be unknown (FFmpeg only warns then),
+   * which IsStreamSupported rejects. Requires a selected stream.
+   */
+  bool CanDetermineMjpegPixelFormat();
+
   AVUniquePtr<AVFormatContext> ctx_;
   AVUniquePtr<AVCodecContext> codec_ctx_;
   AVUniquePtr<AVFrame> frame_;
@@ -769,6 +793,8 @@ class DLL_PUBLIC FramesDecoderBase {
                    int buffer_size);
 
   int channels_ = 3;
+  int display_width_ = 0;
+  int display_height_ = 0;
   bool is_vfr_ = false;
 
   std::string filename_ = {};
@@ -785,17 +811,27 @@ class DLL_PUBLIC FramesDecoderBase {
  * It only demuxes the file: it has no codec context, parser or frame buffers, so it is much
  * cheaper to create than a decoder. It is valid for the files whose container has a video stream.
  * Whether a backend can decode the codec of that stream is up to the caller to check, for example
- * with `Decoder::IsCodecSupported(indexer.CodecId())`.
+ * with `Decoder::IsStreamSupported(indexer.CodecParameters())`. For the GPU decoder, call
+ * `CanDetermineMjpegPixelFormat()` first, as the decoder does.
  */
 class DLL_PUBLIC FramesIndexer : public FramesDecoderBase {
  public:
   explicit FramesIndexer(const std::string &filename, DALIImageType image_type = DALI_RGB);
+
+  using FramesDecoderBase::CanDetermineMjpegPixelFormat;
 
   /**
    * @brief Codec of the selected video stream. Only valid when IsValid().
    */
   AVCodecID CodecId() const {
     return codec_params_->codec_id;
+  }
+
+  /**
+   * @brief Parameters of the selected video stream. Only valid when IsValid().
+   */
+  const AVCodecParameters &CodecParameters() const {
+    return *codec_params_;
   }
 
   bool ReadNextFrame(uint8_t *data) override;

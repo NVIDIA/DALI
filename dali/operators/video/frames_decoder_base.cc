@@ -329,6 +329,25 @@ bool FramesDecoderBase::CheckDimensions() {
   return true;
 }
 
+bool FramesDecoderBase::CanDetermineMjpegPixelFormat() {
+  assert(codec_params_);
+  if (codec_params_->codec_id != AV_CODEC_ID_MJPEG || codec_params_->format != AV_PIX_FMT_NONE)
+    return true;
+  // The probe replaces the size declared by the container with the one of the bitstream. Keep the
+  // declared one, so that a mismatch with the decoded frames is detected as it is without a probe.
+  int declared_width = codec_params_->width;
+  int declared_height = codec_params_->height;
+  if (avformat_find_stream_info(ctx_, nullptr) < 0) {
+    DALI_WARN(make_string("Could not find stream information in ", Filename()));
+    return false;
+  }
+  if (declared_width != 0 && declared_height != 0) {
+    codec_params_->width = declared_width;
+    codec_params_->height = declared_height;
+  }
+  return true;
+}
+
 FramesDecoderBase::FramesDecoderBase(const std::string &filename, DALIImageType image_type) {
   filename_ = filename;
   ValidateImageType(image_type);

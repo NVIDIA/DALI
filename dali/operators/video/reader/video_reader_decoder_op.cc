@@ -14,15 +14,23 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
+#include <condition_variable>
+#include <cstdlib>
+#include <deque>
 #include <exception>
 #include <functional>
+#include <iomanip>
 #include <limits>
 #include <memory>
+#include <mutex>
 #include <numeric>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <tuple>
 #include <type_traits>
 #include <unordered_map>
@@ -33,6 +41,7 @@
 #include "dali/core/cuda_stream_pool.h"
 #include "dali/core/device_guard.h"
 #include "dali/core/exec/thread_pool_base.h"
+#include "dali/core/nvtx.h"
 #include "dali/core/small_vector.h"
 #include "dali/core/span.h"
 
@@ -61,6 +70,9 @@ namespace dali {
 struct VideoFileIndex {
   bool valid = false;          // false if the file is not a valid video (it is skipped)
   AVCodecID codec_id = AV_CODEC_ID_NONE;  // of the video stream, if valid
+  // of the video stream, if valid and the codec is supported (unknown if not probed, see
+  // IndexVideoFile)
+  AVPixelFormat pix_fmt = AV_PIX_FMT_NONE;
   std::exception_ptr error;    // set if indexing the file failed with an exception
   // set if valid and the codec is supported (otherwise, the file is skipped), and there's no error
   std::shared_ptr<const FrameIndex> index;
@@ -74,10 +86,13 @@ struct VideoFileIndex {
  * The index is taken from FrameIndexCache, or built and cached there. It is not built for the
  * files whose codec is not in `supported_codecs` (made by the decoder's `SupportedCodecs`), which
  * are skipped, as with the decoder. It does not warn about them: the caller does, in the order of
- * the file list. It does not touch CUDA, so it can run on any thread.
+ * the file list. With `probe_pixel_format` (for the GPU decoder), the pixel format of MJPEG
+ * streams is probed, as the decoder does (see FramesDecoderBase::CanDetermineMjpegPixelFormat),
+ * and a file whose probe fails is not valid. It does not touch CUDA, so it can run on any thread.
  */
 static VideoFileIndex IndexVideoFile(const std::string &filename, DALIImageType image_type,
-                                     span<const AVCodecID> supported_codecs) {
+                                     span<const AVCodecID> supported_codecs,
+                                     bool probe_pixel_format) {
   VideoFileIndex result;
   try {
     // the version of the file that the indexer opens (see FrameIndexCache::GetOrBuild)
@@ -96,6 +111,11 @@ static VideoFileIndex IndexVideoFile(const std::string &filename, DALIImageType 
       LOG_LINE << "Unsupported codec in video file: " << filename << std::endl;
       return result;
     }
+    if (probe_pixel_format && !indexer.CanDetermineMjpegPixelFormat()) {
+      result.valid = false;  // as the decoder, whose stream selection fails then
+      return result;
+    }
+    result.pix_fmt = static_cast<AVPixelFormat>(indexer.CodecParameters().format);
     result.index = FrameIndexCache::instance().GetOrBuild(filename, stamp, [&]() {
       LOG_LINE << "Building index for " << filename << std::endl;
       indexer.BuildIndex();
@@ -257,6 +277,88 @@ static void ValidateSourceArgs(const OpSpec &spec) {
   }
 }
 
+namespace detail {
+
+/**
+ * @brief The boundary type of the reader: ``pad_mode``, or the legacy ``pad_sequences``
+ * (True is ``pad_mode="constant"``, False is ``pad_mode="none"``).
+ */
+inline boundary::BoundaryType GetReaderBoundaryType(const OpSpec &spec) {
+  if (spec.HasArgument("pad_sequences")) {
+    DALI_ENFORCE(!spec.HasArgument("pad_mode"),
+                 "The legacy argument `pad_sequences` cannot be used together with `pad_mode`. "
+                 "Use `pad_mode` only.");
+    return spec.GetArgument<bool>("pad_sequences") ? boundary::BoundaryType::CONSTANT
+                                                    : boundary::BoundaryType::ISOLATED;
+  }
+  return GetBoundaryType(spec);
+}
+
+/**
+ * @brief The options of the ``file_list``, from ``file_list_format``, ``file_list_rounding`` and
+ * ``file_list_include_end``, or from the legacy ``file_list_frame_num`` and
+ * ``file_list_include_preceding_frame`` that stand for the first two. They are checked also when
+ * there is no ``file_list``.
+ */
+inline FileListOptions GetFileListOptions(const OpSpec &spec) {
+  FileListOptions opts;
+  // The legacy reader truncates the frame numbers of a file_list, which is ``all_down``: the
+  // legacy arguments keep that, unless ``file_list_rounding`` is given.
+  bool legacy_frames = false;
+
+  if (spec.HasArgument("file_list_frame_num")) {
+    DALI_ENFORCE(!spec.HasArgument("file_list_format"),
+                 "The legacy argument `file_list_frame_num` cannot be used together with "
+                 "`file_list_format`. Use `file_list_format` only.");
+    opts.format = spec.GetArgument<bool>("file_list_frame_num") ? FileListFormat::kFrames
+                                                                : FileListFormat::kTimestamps;
+    legacy_frames = opts.format == FileListFormat::kFrames;
+  } else {
+    auto format_str = spec.GetArgument<std::string>("file_list_format");
+    if (format_str == "frames") {
+      opts.format = FileListFormat::kFrames;
+    } else if (format_str == "timestamps") {
+      opts.format = FileListFormat::kTimestamps;
+    } else {
+      DALI_FAIL(make_string("Invalid file_list_format: ", format_str));
+    }
+  }
+
+  if (spec.HasArgument("file_list_include_preceding_frame")) {
+    DALI_ENFORCE(!spec.HasArgument("file_list_rounding"),
+                 "The legacy argument `file_list_include_preceding_frame` cannot be used together "
+                 "with `file_list_rounding`. Use `file_list_rounding` only.");
+    // As in the legacy reader, it only applies to the times: the frame numbers are truncated.
+    if (opts.format == FileListFormat::kTimestamps) {
+      opts.rounding = spec.GetArgument<bool>("file_list_include_preceding_frame")
+                          ? FileListRounding::kStartDownEndUp
+                          : FileListRounding::kStartUpEndDown;
+    } else {
+      opts.rounding = FileListRounding::kAllDown;
+    }
+  } else if (legacy_frames && !spec.HasArgument("file_list_rounding")) {
+    opts.rounding = FileListRounding::kAllDown;
+  } else {
+    auto rounding_str = spec.GetArgument<std::string>("file_list_rounding");
+    if (rounding_str == "start_down_end_up") {
+      opts.rounding = FileListRounding::kStartDownEndUp;
+    } else if (rounding_str == "start_up_end_down") {
+      opts.rounding = FileListRounding::kStartUpEndDown;
+    } else if (rounding_str == "all_up") {
+      opts.rounding = FileListRounding::kAllUp;
+    } else if (rounding_str == "all_down") {
+      opts.rounding = FileListRounding::kAllDown;
+    } else {
+      DALI_FAIL(make_string("Invalid file_list_rounding: ", rounding_str));
+    }
+  }
+
+  opts.include_end = spec.GetArgument<bool>("file_list_include_end");
+  return opts;
+}
+
+}  // namespace detail
+
 template <typename Backend, typename FramesDecoderImpl, typename Sample = VideoSample<Backend>>
 class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
  public:
@@ -269,7 +371,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         stride_(spec.GetArgument<int>("stride")),
         step_(spec.GetArgument<int>("step")),
         image_type_(spec.GetArgument<DALIImageType>("image_type")),
-        boundary_type_(GetBoundaryType(spec)),
+        boundary_type_(detail::GetReaderBoundaryType(spec)),
         uniform_sample_(spec.GetArgument<bool>("uniform_sample")),
         num_threads_(std::max(1, spec.GetArgument<int>("num_threads"))) {
     ValidateSourceArgs(spec);
@@ -278,31 +380,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     video_files_info_ = GetVideoFiles(file_root_, filenames_, has_labels, labels_, file_list_);
     DALI_ENFORCE(!video_files_info_.empty(), "No files were read.");
 
-    if (!file_list_.empty()) {
-      auto format_str = spec.GetArgument<std::string>("file_list_format");
-      if (format_str == "frames") {
-        file_list_opts_.format = FileListFormat::kFrames;
-      } else if (format_str == "timestamps") {
-        file_list_opts_.format = FileListFormat::kTimestamps;
-      } else {
-        DALI_FAIL(make_string("Invalid file_list_format: ", format_str));
-      }
-
-      auto rounding_str = spec.GetArgument<std::string>("file_list_rounding");
-      if (rounding_str == "start_down_end_up") {
-        file_list_opts_.rounding = FileListRounding::kStartDownEndUp;
-      } else if (rounding_str == "start_up_end_down") {
-        file_list_opts_.rounding = FileListRounding::kStartUpEndDown;
-      } else if (rounding_str == "all_up") {
-        file_list_opts_.rounding = FileListRounding::kAllUp;
-      } else if (rounding_str == "all_down") {
-        file_list_opts_.rounding = FileListRounding::kAllDown;
-      } else {
-        DALI_FAIL(make_string("Invalid file_list_rounding: ", rounding_str));
-      }
-
-      file_list_opts_.include_end = spec.GetArgument<bool>("file_list_include_end");
-    }
+    file_list_opts_ = detail::GetFileListOptions(spec);
 
     // Both feed the default step (stride_ * sequence_len_); zero would make the sample loop in
     // PrepareMetadataImpl never advance.
@@ -333,7 +411,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       if (spec.HasArgument("step")) {
         DALI_WARN("uniform_sample=True: the `step` argument is ignored.");
       }
-      if (spec.HasArgument("pad_mode")) {
+      if (spec.HasArgument("pad_mode") || spec.HasArgument("pad_sequences")) {
         DALI_WARN("uniform_sample=True: the `pad_mode` argument is ignored. "
                   "Frames are repeated when sequence_length exceeds the number of available frames.");
       }
@@ -387,12 +465,16 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     // needs a current CUDA context; this thread has the device of the reader, the threads of the
     // pool have none. Then the indexing does not touch CUDA.
     const std::vector<AVCodecID> supported_codecs = FramesDecoderImpl::SupportedCodecs();
+    // Only the GPU decoder needs the pixel format of MJPEG streams, to tell whether NVDEC can
+    // decode them.
+    constexpr bool probe_pixel_format = std::is_same_v<FramesDecoderImpl, FramesDecoderGpu>;
 
     std::atomic<size_t> first_error{filenames.size()};  // the lowest failing slot so far
     auto index_file = [&](size_t i) {
       if (i > first_error.load(std::memory_order_relaxed))
         return;  // a file before this one failed: the second phase does not get to this one
-      results[i] = IndexVideoFile(filenames[i], image_type_, make_cspan(supported_codecs));
+      results[i] = IndexVideoFile(filenames[i], image_type_, make_cspan(supported_codecs),
+                                  probe_pixel_format);
       if (results[i].error) {
         size_t prev = first_error.load(std::memory_order_relaxed);
         while (i < prev && !first_error.compare_exchange_weak(prev, i, std::memory_order_relaxed)) {
@@ -425,9 +507,10 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
    * 2. The list is walked in order, sequentially. For every entry, the frame range is resolved
    *    (from `file_list`, if given) and the samples (or, with `uniform_sample`, the frame indices
    *    of the sample) are made from the index of its file. The entries that are not valid videos,
-   *    whose codec is not supported or whose frame range is empty are skipped (with a warning,
-   *    except for the invalid ones). An error that occurred while indexing is thrown here, so the
-   *    one reported is that of the first failing file in the list, however many threads there are.
+   *    whose video stream the decoder can't decode or whose frame range is empty are skipped (with
+   *    a warning, except for the invalid ones). An error that occurred while indexing is thrown
+   *    here, so the one reported is that of the first failing file in the list, however many
+   *    threads there are.
    *
    * Finally, the samples are shuffled (if `shuffle`) and the reader is set to the start of its
    * shard.
@@ -459,66 +542,125 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     std::vector<VideoFileIndex> file_indices = BuildFileIndices(filenames);
 
     // Phase 2: build the samples, in the order of the list.
+    // For the error message when there are no samples: the entries that were skipped (with a
+    // warning) and those that were too short for a whole sequence (without a warning).
+    int64_t num_skipped = 0, num_too_short = 0;
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
       auto& entry = video_files_info_[i];
       LOG_LINE << "Processing video file " << i << ": " << entry.filename << std::endl;
       const VideoFileIndex &file_index = file_indices[file_slot[i]];
       if (file_index.error)
         std::rethrow_exception(file_index.error);  // the first failing file, in the list order
-      if (!file_index.valid)
+      if (!file_index.valid) {
+        ++num_skipped;
         continue;
-      if (!file_index.index) {
-        // The codec is not supported: skipped, as with the decoder. The check is made again (its
-        // result is cached) to warn here, once per entry and in the order of the list, not from
-        // the indexing threads.
-        FramesDecoderImpl::IsCodecSupported(file_index.codec_id);
+      }
+      // A stream that the decoder can't decode is skipped, as the decoder would reject it: its
+      // codec is not supported (then it is not indexed) or, for MJPEG on the GPU, NVDEC doesn't
+      // support its pixel format on this device. That is checked here, and not by the indexing
+      // threads, because it needs CUDA (the result is cached), and so that the warnings come once
+      // per entry and in the order of the list.
+      std::string unsupported =
+          FramesDecoderImpl::UnsupportedStreamReason(file_index.codec_id, file_index.pix_fmt);
+      if (!unsupported.empty() || !file_index.index) {
+        DALI_WARN(make_string(unsupported, " Skipping ", entry.filename, "."));
+        ++num_skipped;
         continue;
       }
       const FrameIndex &index = *file_index.index;
       indices_[entry.filename] = file_index.index;  // kept for the reader's lifetime
       int64_t num_frames = index.size();
-      entry.start_frame = 0;
-      entry.end_frame = num_frames;
+      // The range is resolved in 64 bits, and stored in the (int) fields of the entry only once
+      // it is within the frames of the video.
+      int64_t start_frame = 0;
+      int64_t end_frame = num_frames;
       LOG_LINE << "Total frames in video: " << num_frames << std::endl;
       if (entry.start != 0.0f || entry.end != 0.0f) {
         LOG_LINE << "Processing range [" << entry.start << ", " << entry.end
                  << "], file_list_format: " << make_string(file_list_opts_) << std::endl;
         switch (file_list_opts_.format) {
-          case FileListFormat::kFrames:
-            if (entry.start < 0)
-              entry.start = num_frames + entry.start;
-            if (entry.end < 0)
-              entry.end = num_frames + entry.end;
-            entry.start_frame = file_list_opts_.round_start(entry.start);
-            entry.end_frame = file_list_opts_.round_end(entry.end);
+          case FileListFormat::kFrames: {
+            // Negative values count from the end of the video. An end of 0 (or an omitted one) is
+            // the end of the video.
+            double start = entry.start;
+            double end = entry.end;
+            if (start != std::trunc(start) || end != std::trunc(end)) {
+              // Most likely a mistake of whatever wrote the list (e.g. 119.99999999 for 120). The
+              // legacy reader truncated such values without a message.
+              std::ostringstream msg;
+              msg << std::setprecision(12) << "The file_list entry for \"" << entry.filename
+                  << "\" has a fractional frame number (" << start << " " << end
+                  << "): it is rounded with file_list_rounding='"
+                  << make_string(file_list_opts_.rounding) << "'.";
+              DALI_WARN(msg.str());
+            }
+            if (start < 0)
+              start += num_frames;
+            if (end <= 0)
+              end += num_frames;
+            if (start > num_frames) {
+              throw std::runtime_error(make_string(
+                  "The start frame ", entry.start, " of the file_list entry for \"", entry.filename,
+                  "\" is past the end of the video (", num_frames, " frames)."));
+            }
+            if (file_list_opts_.include_end)
+              end += 1;
+            // Clamped before the conversion: the values may be too large for an integer.
+            start = std::clamp(start, 0.0, static_cast<double>(num_frames));
+            end = std::clamp(end, 0.0, static_cast<double>(num_frames));
+            start_frame = file_list_opts_.round_start(start);
+            end_frame = file_list_opts_.round_end(end);
             break;
-          case FileListFormat::kTimestamps:
-            entry.start_frame = index.GetFrameIdxByTimestamp(
-                SecondsToTimestamp(index.timebase, entry.start,
-                                   file_list_opts_.should_round_down_start()),
-                file_list_opts_.should_round_down_start());
-            entry.end_frame = index.GetFrameIdxByTimestamp(
-                SecondsToTimestamp(index.timebase, entry.end,
-                                   file_list_opts_.should_round_down_end()),
-                file_list_opts_.should_round_down_end());
+          }
+          case FileListFormat::kTimestamps: {
+            // The times are relative to the first frame. Negative values (and an end of 0, or an
+            // omitted one) count from the end of the video.
+            const bool round_down_start = file_list_opts_.should_round_down_start();
+            const bool round_down_end = file_list_opts_.should_round_down_end();
+            const int64_t video_start = index[0].pts;  // the index is sorted by pts
+            const int64_t video_end = index.EndPts();
+            int64_t start_ts = (entry.start < 0 ? video_end : video_start) +
+                               SecondsToTimestamp(index.timebase, entry.start, round_down_start);
+            const int64_t end_ticks = SecondsToTimestamp(index.timebase, entry.end, round_down_end);
+            int64_t end_ts = (entry.end <= 0 ? video_end : video_start) + end_ticks;
+            if (start_ts > video_end) {
+              throw std::runtime_error(make_string(
+                  "The start time ", entry.start, " of the file_list entry for \"", entry.filename,
+                  "\" is past the end of the video (", TimestampToSeconds(index.timebase,
+                  video_end - video_start), " s)."));
+            }
+            start_frame = index.GetFrameIdxByTimestamp(start_ts, round_down_start);
+            end_frame = index.GetFrameIdxByTimestamp(end_ts, round_down_end);
+            // The end is exclusive: the frame at exactly that time is included on request.
+            // end_ts is rounded to the timebase, so a time within a tick of a frame (e.g.
+            // 1.99999 s for a frame at 2 s) also lands on the pts of that frame: the end is exact
+            // only if it is a whole number of ticks, i.e. rounding it either way gives the same.
+            const bool end_is_exact =
+                SecondsToTimestamp(index.timebase, entry.end, !round_down_end) == end_ticks;
+            if (file_list_opts_.include_end && end_is_exact && end_frame < num_frames &&
+                index[end_frame].pts == end_ts) {
+              end_frame++;
+            }
             break;
+          }
           default:
             DALI_FAIL("Invalid file_list_format");
         }
-        LOG_LINE << "Frame range after conversion: [" << entry.start_frame << ", "
-                 << entry.end_frame << "]" << std::endl;
+        LOG_LINE << "Frame range after conversion: [" << start_frame << ", " << end_frame << "]"
+                 << std::endl;
       }
 
       // The padding (see FramesDecoderBase::HandleBoundary) reflects and clamps within
       // [start_frame, end_frame), so the range has to be a subset of the frames of the file.
       // Entries like "-60 10" (a start before the first frame) or "45 60" (an end past the last
       // one) would otherwise map the padded indices to frames outside of the range.
-      entry.start_frame = std::max<int64_t>(entry.start_frame, 0);
-      entry.end_frame = std::min<int64_t>(entry.end_frame, num_frames);
+      entry.start_frame = static_cast<int>(std::clamp<int64_t>(start_frame, 0, num_frames));
+      entry.end_frame = static_cast<int>(std::clamp<int64_t>(end_frame, 0, num_frames));
 
       if (entry.start_frame >= entry.end_frame) {
         DALI_WARN(make_string("Empty frame range [", entry.start_frame, ", ", entry.end_frame,
                               ") for file ", entry.filename, ". Skipping."));
+        ++num_skipped;
         continue;
       }
 
@@ -540,23 +682,9 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       } else {
         // The constructor checked that stride_ * sequence_len_ fits in int.
         const int full_seq_stride = stride_ * sequence_len_;
-        // int64: after the last sample, start + step_ can exceed INT_MAX.
-        int64_t start = entry.start_frame;
-        for (; start + full_seq_stride <= entry.end_frame; start += step_) {
-          LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
-                   << ", stride=" << stride_ << std::endl;
-          // the sample ends at or before entry.end_frame, so its frame indices fit in int
-          samples_.emplace_back(&entry, static_cast<int>(start),
-                                static_cast<int>(start + full_seq_stride), stride_);
-        }
-
-        // if we have a tail that doesn't fit a full sequence and we allow padding, extend the last
-        // sequence
-        if (boundary_type_ != boundary::BoundaryType::ISOLATED && start < entry.end_frame) {
-          LOG_LINE << "Adding padded tail sample starting at frame " << start
-                   << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
-          // Unlike the samples above, the padded one ends past entry.end_frame, possibly past
-          // INT_MAX (start < entry.end_frame, so start itself fits in int).
+        // A sample ends full_seq_stride frames after its start, possibly past INT_MAX (its start
+        // is a frame of the range, so the start itself fits in int).
+        auto add_sample = [&](int64_t start) {
           int end;
           const bool overflow =
               __builtin_add_overflow(static_cast<int>(start), full_seq_stride, &end);
@@ -566,11 +694,61 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
                                    ", which exceeds the supported frame index range. Reduce "
                                    "stride or sequence_length."));
           samples_.emplace_back(&entry, static_cast<int>(start), end, stride_);
+        };
+        // A sequence only needs its last frame to exist: it spans
+        // (sequence_length - 1) * stride + 1 frames, not stride * sequence_length (as in the legacy
+        // reader). The end of the sample (see add_sample) can be up to stride - 1 frames past the
+        // last frame of the range, which the frames decoder does not read.
+        const int64_t seq_span = static_cast<int64_t>(sequence_len_ - 1) * stride_ + 1;
+        // int64: after the last sample, start + step_ can exceed INT_MAX.
+        int64_t start = entry.start_frame;
+        const size_t num_samples_before = samples_.size();
+        for (; start + seq_span <= entry.end_frame; start += step_) {
+          LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
+                   << ", stride=" << stride_ << std::endl;
+          add_sample(start);
         }
+
+        // With padding, the sequences that do not fit are padded: there is a sample at every step
+        // that remains in the range, as in the legacy reader, with fewer and fewer frames of the
+        // range in each.
+        if (boundary_type_ != boundary::BoundaryType::ISOLATED) {
+          for (; start < entry.end_frame; start += step_) {
+            LOG_LINE << "Adding padded sample starting at frame " << start
+                     << ", end=" << entry.end_frame << ", stride=" << stride_ << std::endl;
+            add_sample(start);
+          }
+        }
+        // Only possible with pad_mode='none': the range is shorter than the seq_span frames that a
+        // sequence spans.
+        if (samples_.size() == num_samples_before)
+          ++num_too_short;
       }
     }
 
     LOG_LINE << "Created " << samples_.size() << " total samples" << std::endl;
+
+    // Without this check, the loader would report that there are fewer samples than shards,
+    // which does not say why there are none.
+    if (samples_.empty()) {
+      auto entries = [](int64_t n) {
+        return n == 1 ? make_string(n, " input file or frame range was")
+                      : make_string(n, " input files or frame ranges were");
+      };
+      std::stringstream why;
+      if (num_skipped > 0)
+        why << entries(num_skipped) << " skipped (not a valid video, an unsupported codec or an "
+            << "empty frame range; see the warnings above)";
+      if (num_too_short > 0)
+        why << (num_skipped > 0 ? "; " : "") << entries(num_too_short)
+            << " too short for a whole sequence: with pad_mode='none', sequence_length="
+            << sequence_len_ << " and stride=" << stride_ << " need at least "
+            << (int64_t{sequence_len_} - 1) * stride_ + 1 << " frames";
+      if (num_skipped == 0 && num_too_short == 0)
+        why << "there are no input files";
+      throw std::runtime_error(
+          make_string("No samples could be built from the input: ", why.str(), "."));
+    }
 
     if (shuffle_) {
       LOG_LINE << "Shuffling samples" << std::endl;
@@ -657,12 +835,15 @@ class VideoReaderDecoder
       : Base(spec),
         frame_num_policy_(ParseFrameNumPolicy(spec.GetArgument<std::string>("enable_frame_num"))),
         has_timestamps_(spec.GetArgument<bool>("enable_timestamps")),
-        boundary_type_(GetBoundaryType(spec)),
+        boundary_type_(detail::GetReaderBoundaryType(spec)),
         image_type_(spec.GetArgument<DALIImageType>("image_type")) {
     // before InitLoader, which indexes every file unless lazy_init is set
     int num_decoders = spec.GetArgument<int>("num_decoders");
     DALI_ENFORCE(num_decoders >= 0,
                  make_string("num_decoders must not be negative, got ", num_decoders));
+    // Test aid only: a lane's decoder that is not where the plan expects it fails the batch
+    const char *strict_plans = std::getenv("DALI_VIDEO_READER_STRICT_PLANS");
+    strict_plans_ = strict_plans && *strict_plans && std::string_view(strict_plans) != "0";
     loader_ = InitLoader<VideoLoaderImpl>(spec);
     this->SetInitialSnapshot();
 
@@ -687,7 +868,10 @@ class VideoReaderDecoder
 
   ~VideoReaderDecoder() override {
     LOG_LINE << "VideoReaderDecoder destructor" << std::endl;
-    Base::StopPrefetchThread();
+    cancel_ = true;  // the lanes skip the samples they have not started
+    Base::StopPrefetchThread();  // a Prefetch in progress throws once its batch is done
+    StopLanes();
+    pending_.clear();  // the samples go back to the loader, which is still alive
     LOG_LINE << "VideoReaderDecoder destructor done" << std::endl;
   }
 
@@ -819,10 +1003,24 @@ class VideoReaderDecoder
   }
 
   void Prefetch() override {
-    Base::Prefetch();
-    PlanBatch();
-    AssignRuns();
-    DecodeBatch();
+    DomainTimeRange tr(make_string("[DALI][VideoReaderDecoder] Prefetch #", curr_batch_producer_),
+                       DomainTimeRange::kRed);
+    auto &slot = prefetched_batch_queue_[curr_batch_producer_];
+    slot.clear();  // first: a consumed batch's samples go back to the loader
+    while (static_cast<int>(pending_.size()) <= decode_ahead_ && !read_failed_)
+      StartBatch();
+    auto batch = std::move(pending_.front());
+    pending_.pop_front();
+    WaitForBatch(*batch);  // after this, no lane uses the batch
+    if (cancel_)  // the reader is being destroyed: nothing is published any more
+      throw std::runtime_error("The video reader is being destroyed.");
+    if (auto error = FirstError(*batch)) {
+      cancel_ = true;  // the lanes skip the batches after it
+      std::rethrow_exception(error);
+    }
+    slot = std::move(batch->samples);
+    if (this->IsCheckpointingEnabled())
+      this->SaveLoaderSnapshot(batch->snapshot);
     LOG_LINE << "Prefetch done" << std::endl;
   }
 
@@ -835,7 +1033,17 @@ class VideoReaderDecoder
     int batch_idx = 0;  // first position of the sample in the batch
     int first = -1;     // smallest frame index decoded; -1 if none (padding only)
     int last = -1;      // largest frame index decoded; -1 if none
+    int end = -1;       // where the sample leaves its decoder (see EndFrame)
     SmallVector<int, 32> frames;  // the frames the decoder seeks to, in order (see SampleFrames)
+  };
+
+  /**
+   * @brief Where a lane's decoder is, as planned: its file (empty: no decoder) and the frame it
+   * returns next (see Normalize).
+   */
+  struct LanePosition {
+    std::string filename;
+    int next_frame = -1;
   };
 
   /**
@@ -846,74 +1054,240 @@ class VideoReaderDecoder
   struct DecodeRun {
     std::string_view filename;
     const FrameIndex *index = nullptr;  // the index of the file; not null
-    // Indices into tasks_, in decoding order: usually a few samples, up to the batch size for
-    // consecutive samples of one file
+    // Indices into the batch's tasks, in decoding order: usually a few samples, up to the batch
+    // size for consecutive samples of one file
     SmallVector<int, 4> tasks;
     int last = -1;      // largest frame index decoded; -1 if none
     int batch_idx = 0;  // the smallest position of its samples in the batch
   };
 
   /**
-   * @brief A part of a batch's decoding that runs on one thread.
+   * @brief An error of a sample, at its position in the batch (INT_MAX: of no sample), and the
+   * lane that decoded it.
+   */
+  struct SampleError {
+    int batch_idx;
+    int lane;
+    std::exception_ptr error;
+  };
+
+  /**
+   * @brief A batch, from when it is read until it is published: its samples and their decoding.
+   */
+  struct PendingBatch {
+    typename Base::BatchQueueElement samples;
+    LoaderStateSnapshot snapshot;  // the loader's state after reading the batch (checkpointing)
+    std::vector<SampleTask> tasks;
+    std::vector<DecodeRun> runs;
+    std::vector<LanePlan> plans;  // the runs of each lane, in decoding order
+    std::vector<LanePosition> lane_start;  // where the plan expects each lane's decoder
+    // Reading, planning or queuing the batch, or recording a lane's errors, failed (once the batch
+    // is queued, guarded by lanes_mutex_)
+    std::exception_ptr error;
+    // Guarded by lanes_mutex_: the lanes that have yet to do their part, and the errors
+    int lanes_left = 0;
+    std::vector<SampleError> errors;
+    // The batch index of the first sample that failed so far, in any lane (max: none)
+    std::atomic<int> first_error_idx{std::numeric_limits<int>::max()};
+  };
+
+  /**
+   * @brief A decoder with its own thread (with more than one lane) and stream.
    *
    * A lane keeps its decoder while consecutive samples come from the same file, so that they
    * are decoded without seeking, and decodes on its own stream, so that lanes do not wait for
    * each other's work. Which samples a lane decodes is decided before decoding starts, from the
    * samples alone, so a decoder's history (and with it, the output) never depends on thread
-   * timing.
+   * timing. A lane does its parts of the batches in the order they are read.
    */
   struct DecodeLane {
     CUDAStreamLease stream;  // GPU only; empty: the default stream
     std::unique_ptr<FramesDecoderImpl> decoder;  // after `stream`: destroyed (and synced) first
     Tensor<Backend> constant_frame;
     SmallVector<int, 32> frames;  // scratch: the frames of the sample it decodes (DecodeSample)
-    // Errors of the current batch: (position in the batch, exception)
-    std::vector<std::pair<int, std::exception_ptr>> errors;
+    // Planning: where the decoder is once the lane is done with the batches planned so far. The
+    // plans are made from it, not from the decoder.
+    LanePosition planned;
+    int64_t backlog = 0;  // planning: see LaneStart::backlog
+    // Whether decoding a sample failed (and reset the decoder) since the lane last opened one:
+    // the decoder is then not where the plan expects it
+    bool failed = false;
+    std::deque<PendingBatch *> queue;  // guarded by lanes_mutex_: the batches to do, in order
+    std::thread thread;  // with more than one lane
   };
 
   // Planning costs, in pictures decoded: opening a decoder (or resetting it, which reopens the
   // file) costs about as much as decoding a few pictures
   static constexpr int64_t kOpenCost = 16;
 
-  // GPU: decode lanes per NVDEC engine. Lanes beyond the number of engines only compete for them,
-  // and each one adds a decoder's surfaces to the memory used.
-  static constexpr int kLanesPerEngine = 1;
+  // GPU: the most decode lanes picked automatically per NVDEC engine. An engine decodes for several
+  // sessions at once, so there can be more lanes than engines, which lets a batch be split evenly
+  // (e.g. 8 lanes for 16 samples on 7 engines): no engine waits at the end of the batch while a few
+  // lanes decode their extra samples. Each lane adds a decoder's surfaces to the memory used.
+  static constexpr int kLanesPerEngine = 2;
 
-  // CPU: the most decode lanes picked automatically. Each lane keeps its own libavcodec decoder
-  // and frame buffers, so the memory used grows with the number of lanes.
-  static constexpr int kMaxAutoLanesCPU = 4;
+  // With more than one lane: the batches read and decoded ahead of the one being published, so that
+  // a lane that is done with its part of a batch goes on to the next one, instead of waiting for
+  // the slowest lane. Each holds one more batch of samples (of the loader's 2 *
+  // prefetch_queue_depth batches).
+  static constexpr int kDecodeAhead = 1;
+
+  // SampleTask::end of a sample that decodes no frame: its decoder stays where it was
+  static constexpr int kNoFrames = -2;
 
   /**
-   * @brief Number of decode lanes: num_decoders or, when it is 0, num_threads capped at
-   * kLanesPerEngine per NVDEC engine on the GPU (one lane if the number of engines is unknown) and
-   * at kMaxAutoLanesCPU on the CPU; never more than the batch size, since extra lanes are idle.
+   * @brief A decoder's next frame as the planner sees it: CanReachWithoutSeek and resetting
+   * decoders (see FramesDecoderBase::SeekFrame) treat any frame < 0 or >= num_frames as the end
+   * of the file, so these are all -1.
+   */
+  static int Normalize(int next_frame, int num_frames) {
+    return next_frame < 0 || next_frame >= num_frames ? -1 : next_frame;
+  }
+
+  /**
+   * @brief Where decoding a sample leaves its decoder: after the largest frame it decodes
+   * (Normalized), or kNoFrames.
+   *
+   * The task's frames are those DecodeFrames decodes, in [0, num_frames) and sorted (see
+   * SampleFrames), and it decodes them in order, so that the largest one is read last.
+   */
+  static int EndFrame(const SampleTask &task, int num_frames) {
+    return task.frames.empty() ? kNoFrames : Normalize(task.frames.back() + 1, num_frames);
+  }
+
+  /**
+   * @brief Where a lane's decoder is once it decodes `runs` of `batch`, in order, from `pos`.
+   */
+  static LanePosition PredictEnd(const PendingBatch &batch, span<const int> runs,
+                                 LanePosition pos) {
+    for (int r : runs) {
+      for (int t : batch.runs[r].tasks) {
+        const auto &task = batch.tasks[t];
+        const auto &filename = task.sample->video_file_meta_->filename;
+        if (pos.filename != filename)
+          pos = {filename, 0};  // a newly opened decoder
+        if (task.end != kNoFrames)
+          pos.next_frame = task.end;
+      }
+    }
+    return pos;
+  }
+
+  /**
+   * @brief Whether a lane's decoder is at `pos`.
+   */
+  static bool IsAt(DecodeLane &lane, const LanePosition &pos) {
+    if (!lane.decoder)
+      return pos.filename.empty();
+    return lane.decoder->Filename() == pos.filename &&
+           Normalize(lane.decoder->NextFrameIdx(), lane.decoder->NumFrames()) == pos.next_frame;
+  }
+
+  /**
+   * @brief Checks that a lane's decoder is at `start`, where the plan of its batch expects it.
+   *
+   * The plans are made from where decoding the samples leaves the decoders, which is where they
+   * are as long as they decode every frame they are asked for. If one is somewhere else, the lane
+   * still decodes the right frames (decoding seeks from where the decoder is), only the plan may
+   * be worse. With DALI_VIDEO_READER_STRICT_PLANS set (for tests), it is an error.
+   */
+  void CheckPlan(DecodeLane &lane, const LanePosition &start) {
+    if (lane.failed || IsAt(lane, start))
+      return;
+    LOG_LINE << "The decoder of a lane is at "
+             << (lane.decoder ? lane.decoder->Filename() : "no file") << ", frame "
+             << (lane.decoder ? lane.decoder->NextFrameIdx() : -1) << "; planned: "
+             << start.filename << ", frame " << start.next_frame << std::endl;
+    if (strict_plans_)
+      throw std::logic_error(make_string(
+          "Internal error: a video decoder is not where the plan expects it, at frame ",
+          start.next_frame, " of \"", start.filename, "\"; it is at frame ",
+          lane.decoder ? lane.decoder->NextFrameIdx() : -1, " of \"",
+          lane.decoder ? lane.decoder->Filename() : "", "\"."));
+  }
+
+  /**
+   * @brief Number of decode lanes: num_decoders or, when it is 0, num_threads, capped at
+   * kLanesPerEngine per NVDEC engine on the GPU (one lane if the number of engines is unknown),
+   * then lowered to as few as decode a full batch in as many rounds (see EvenSplitLanes); never
+   * more than the batch size, since extra lanes are idle.
+   *
+   * On the CPU, decoding is limited by the CPUs, which num_threads already sets: each lane decodes
+   * on a CPU, with its own libavcodec decoder and frame buffers.
    */
   int NumLanes(const OpSpec &spec) {
+    int batch_size = spec.GetArgument<int>("max_batch_size");
     int lanes = spec.GetArgument<int>("num_decoders");
     if (lanes == 0) {
       lanes = spec.GetArgument<int>("num_threads");
       if constexpr (std::is_same_v<Backend, GPUBackend>) {
         int engines = FramesDecoderGpu::NumEngines(spec.GetArgument<int>("device_id"));
         lanes = std::min(lanes, engines > 0 ? kLanesPerEngine * engines : 1);
-      } else {
-        lanes = std::min(lanes, kMaxAutoLanesCPU);
       }
+      return EvenSplitLanes(lanes, batch_size);
     }
-    lanes = std::min(lanes, spec.GetArgument<int>("max_batch_size"));
+    lanes = std::min(lanes, batch_size);
     return std::max(lanes, 1);
   }
 
   void InitLanes(const OpSpec &spec) {
     lanes_.resize(NumLanes(spec));
-    int device_id = spec.GetArgument<int>("device_id");
+    decode_ahead_ = lanes_.size() > 1 ? kDecodeAhead : 0;
+    // CPU: the lanes' threads do not use the GPU (DeviceGuard does nothing)
+    lane_device_id_ = std::is_same_v<Backend, GPUBackend> ? spec.GetArgument<int>("device_id")
+                                                          : CPU_ONLY_DEVICE_ID;
     for (auto &lane : lanes_) {
       lane.constant_frame.set_pinned(std::is_same_v<Backend, GPUBackend>);
       if (use_streams_)
-        lane.stream = CUDAStreamPool::instance().Get(device_id);
+        lane.stream = CUDAStreamPool::instance().Get(lane_device_id_);
     }
-    if (lanes_.size() > 1)
-      thread_pool_ = std::make_unique<NewThreadPool>(lanes_.size(), device_id, false,
-                                                     "VideoReaderDecoder");
+  }
+
+  /**
+   * @brief Starts the lanes' threads, with more than one lane, unless they run already.
+   */
+  void StartLanes() {
+    if (lanes_.size() == 1 || lanes_started_)
+      return;
+    for (int l = 0; l < static_cast<int>(lanes_.size()); l++)
+      lanes_[l].thread = std::thread(&VideoReaderDecoder::LaneMain, this, l);
+    lanes_started_ = true;
+  }
+
+  void StopLanes() {
+    {
+      std::lock_guard<std::mutex> lock(lanes_mutex_);
+      stop_lanes_ = true;
+    }
+    lanes_cv_.notify_all();
+    for (auto &lane : lanes_) {
+      if (lane.thread.joinable())
+        lane.thread.join();
+    }
+  }
+
+  /**
+   * @brief Reads the next batch, plans its decoding and queues it to the lanes.
+   *
+   * If reading or planning it fails, the batch fails when it is due, and no batch is read after
+   * it.
+   */
+  void StartBatch() {
+    pending_.push_back(std::make_unique<PendingBatch>());
+    auto &batch = *pending_.back();
+    try {
+      this->ReadBatch(batch.samples);
+      if (this->IsCheckpointingEnabled())
+        batch.snapshot = loader_->GetStateSnapshot();
+      StartLanes();
+      PlanBatch(batch);
+      AssignRuns(batch);
+    } catch (...) {
+      batch.error = std::current_exception();
+      read_failed_ = true;
+      return;
+    }
+    QueueBatch(batch);
   }
 
   /**
@@ -930,12 +1304,9 @@ class VideoReaderDecoder
    * A sample repeated in the batch (pad_last_batch) is decoded once, and a sample planned in an
    * earlier batch (padding repeats the last sample, also in the next batch) is not decoded again.
    */
-  void PlanBatch() {
-    auto &batch = prefetched_batch_queue_[curr_batch_producer_];
-    tasks_.clear();
-    runs_.clear();
-    for (int i = 0; i < static_cast<int>(batch.size()); i++) {
-      auto &sample = *batch[i];
+  void PlanBatch(PendingBatch &batch) {
+    for (int i = 0; i < static_cast<int>(batch.samples.size()); i++) {
+      auto &sample = *batch.samples[i];
       if (sample.planned)
         continue;
       sample.planned = true;
@@ -951,42 +1322,45 @@ class VideoReaderDecoder
         SampleFrames(task.frames, sample.frame_idxs_, sample.start_, sample.end_, sample.stride_,
                      boundary_type_, sample.video_file_meta_->start_frame,
                      sample.video_file_meta_->end_frame, index->size());
+        task.end = EndFrame(task, index->size());
       } catch (...) {
         // An invalid sample is planned without frames: decoding it throws the same error, in its
         // lane, so that the batch reports the error of its first failing sample
         task.frames.clear();
+        task.end = -1;
       }
       if (!task.frames.empty()) {
         task.first = task.frames.front();
         task.last = task.frames.back();
       }
-      tasks_.push_back(std::move(task));
+      batch.tasks.push_back(std::move(task));
     }
 
-    std::vector<int> order(tasks_.size());
+    std::vector<int> order(batch.tasks.size());
     std::iota(order.begin(), order.end(), 0);
     std::sort(order.begin(), order.end(), [&](int a, int b) {
-      const auto &ta = tasks_[a], &tb = tasks_[b];
+      const auto &ta = batch.tasks[a], &tb = batch.tasks[b];
       const auto &fa = ta.sample->video_file_meta_->filename;
       const auto &fb = tb.sample->video_file_meta_->filename;
       return std::tie(fa, ta.first, ta.batch_idx) < std::tie(fb, tb.first, tb.batch_idx);
     });
     size_t file_runs = 0;  // the first run of the current file
     for (int t : order) {
-      auto &task = tasks_[t];
+      auto &task = batch.tasks[t];
       const auto &filename = task.sample->video_file_meta_->filename;
-      if (runs_.empty() || runs_.back().filename != filename)
-        file_runs = runs_.size();
+      if (batch.runs.empty() || batch.runs.back().filename != filename)
+        file_runs = batch.runs.size();
       // join a run of the file that a decoder continues to this sample without seeking
-      auto run = std::find_if(runs_.begin() + file_runs, runs_.end(), [&](const DecodeRun &r) {
+      auto &runs = batch.runs;
+      auto run = std::find_if(runs.begin() + file_runs, runs.end(), [&](const DecodeRun &r) {
         return task.first < 0 || CanReachWithoutSeek(*r.index, r.last + 1, task.first);
       });
-      if (run != runs_.end()) {
+      if (run != runs.end()) {
         run->tasks.push_back(t);
         run->last = std::max(run->last, task.last);
         run->batch_idx = std::min(run->batch_idx, task.batch_idx);
       } else {
-        DecodeRun &new_run = runs_.emplace_back();
+        DecodeRun &new_run = runs.emplace_back();
         new_run.filename = filename;
         new_run.index = FileIndex(filename);
         new_run.tasks.push_back(t);
@@ -997,108 +1371,218 @@ class VideoReaderDecoder
   }
 
   /**
-   * @brief Assigns the runs to lanes (see PlanLanes), from where the lanes' decoders are. A lane
-   * without runs releases its decoder.
+   * @brief Assigns the runs to lanes (see PlanLanes), from where the lanes' earlier batches leave
+   * their decoders. A lane without runs releases its decoder.
    */
-  void AssignRuns() {
+  void AssignRuns(PendingBatch &batch) {
     std::vector<PlannedRun> runs;
-    for (const auto &run : runs_) {
+    for (const auto &run : batch.runs) {
       runs.push_back({run.filename, run.index, run.batch_idx, {}});
       for (int t : run.tasks)
-        runs.back().samples.push_back(make_cspan(tasks_[t].frames));
+        runs.back().samples.push_back(make_cspan(batch.tasks[t].frames));
     }
-    std::vector<std::string> filenames(lanes_.size());  // of the lanes' decoders
     std::vector<LaneStart> starts(lanes_.size());
     for (size_t l = 0; l < lanes_.size(); l++) {
-      if (lanes_[l].decoder) {
-        filenames[l] = lanes_[l].decoder->Filename();
-        starts[l] = {filenames[l], DecoderPosition(*lanes_[l].decoder)};
+      const auto &pos = lanes_[l].planned;
+      if (!pos.filename.empty()) {
+        starts[l] = {pos.filename, FramesDecoderBase::PositionAt(*FileIndex(pos.filename),
+                                                                 pos.next_frame)};
       }
+      starts[l].backlog = lanes_[l].backlog;
     }
-    PlanLanes(plans_, make_cspan(runs), make_cspan(starts), kOpenCost);
+    PlanLanes(batch.plans, make_cspan(runs), make_cspan(starts), kOpenCost);
+    if (decode_ahead_ > 0) {
+      // A lane that is done with its part of a batch goes on to the next one: the work that one
+      // lane has more than another carries over to the next batch
+      int64_t least = std::numeric_limits<int64_t>::max();
+      for (size_t l = 0; l < lanes_.size(); l++) {
+        lanes_[l].backlog += batch.plans[l].load;
+        least = std::min(least, lanes_[l].backlog);
+      }
+      for (auto &lane : lanes_)
+        lane.backlog -= least;
+    }
+    batch.lane_start.resize(lanes_.size());
     for (size_t l = 0; l < lanes_.size(); l++) {
-      if (plans_[l].runs.empty() && lanes_.size() > 1)
-        lanes_[l].decoder.reset();  // frees its frame buffers (an NVDEC decoder goes back to the
-                                    // NVDECCache, where any lane can reuse it)
+      auto &lane = lanes_[l];
+      const auto &lane_runs = batch.plans[l].runs;
+      batch.lane_start[l] = lane.planned;
+      if (lane_runs.empty() && lanes_.size() > 1)
+        lane.planned = {};  // the lane releases its decoder (see DecodeLanePart)
+      else
+        lane.planned = PredictEnd(batch, make_cspan(lane_runs), std::move(lane.planned));
     }
   }
 
   /**
-   * @brief Decodes the batch, every lane on its own thread, and waits for all of them.
-   *
-   * An error is reported for the first failing sample in the batch, whatever the lanes' timing.
+   * @brief Has the lanes decode the batch: on their threads, after the batches queued before it,
+   * or here, with one lane.
    */
-  void DecodeBatch() {
-    first_error_idx_ = std::numeric_limits<int>::max();
-    std::vector<int> active;
-    for (int l = 0; l < static_cast<int>(lanes_.size()); l++) {
-      if (!plans_[l].runs.empty())
-        active.push_back(l);
+  void QueueBatch(PendingBatch &batch) {
+    if (lanes_.size() == 1) {
+      batch.lanes_left = 1;
+      RunLanePart(0, batch);
+      return;
     }
-    if (active.size() == 1 || !thread_pool_) {
-      for (int l : active)
-        DecodeLanePart(l);
-    } else {
-      // DecodeLanePart reports the errors of its samples in the lane, it does not throw
-      Job job;
-      for (int l : active)
-        job.AddTask([this, l]() { DecodeLanePart(l); }, plans_[l].load);
-      job.Run(*thread_pool_, true);
-    }
-    const std::pair<int, std::exception_ptr> *first_error = nullptr;
-    for (int l : active) {
-      for (auto &error : lanes_[l].errors) {
-        if (!first_error || error.first < first_error->first)
-          first_error = &error;
+    {
+      std::lock_guard<std::mutex> lock(lanes_mutex_);
+      for (auto &lane : lanes_) {
+        try {
+          lane.queue.push_back(&batch);
+        } catch (...) {
+          batch.error = std::current_exception();
+          break;
+        }
+        batch.lanes_left++;  // only the lanes that do their part
       }
     }
-    if (first_error) {
-      auto error = first_error->second;
-      for (int l : active)
-        lanes_[l].errors.clear();
-      std::rethrow_exception(error);
+    lanes_cv_.notify_all();
+  }
+
+  /**
+   * @brief Waits until no lane uses the batch any more.
+   */
+  void WaitForBatch(PendingBatch &batch) {
+    std::unique_lock<std::mutex> lock(lanes_mutex_);
+    batch_done_cv_.wait(lock, [&] { return batch.lanes_left == 0; });
+  }
+
+  /**
+   * @brief The error a batch fails with: of reading or planning it, or of its first failing sample
+   * (whatever the lanes' timing).
+   */
+  static std::exception_ptr FirstError(const PendingBatch &batch) {
+    if (batch.error)
+      return batch.error;
+    const SampleError *first = nullptr;
+    for (const auto &error : batch.errors) {
+      if (!first || std::tie(error.batch_idx, error.lane) < std::tie(first->batch_idx, first->lane))
+        first = &error;
+    }
+    return first ? first->error : nullptr;
+  }
+
+  void LaneMain(int l) {
+    // Nothing may throw out of a lane's thread: if setting it up fails, it fails its part of every
+    // batch with that error
+    std::exception_ptr setup_error;
+    std::optional<DeviceGuard> device_guard;
+    try {
+      SetThreadName(make_string("[DALI][VR lane ", l, "]").c_str());
+      device_guard.emplace(lane_device_id_);
+    } catch (...) {
+      setup_error = std::current_exception();
+    }
+    auto &lane = lanes_[l];
+    std::unique_lock<std::mutex> lock(lanes_mutex_);
+    for (;;) {
+      lanes_cv_.wait(lock, [&] { return stop_lanes_ || !lane.queue.empty(); });
+      if (lane.queue.empty())
+        return;  // stopped
+      PendingBatch *batch = lane.queue.front();
+      lane.queue.pop_front();
+      lock.unlock();
+      RunLanePart(l, *batch, setup_error);
+      lock.lock();
     }
   }
 
   /**
-   * @brief Decodes a lane's runs of the batch. A sample that fails is recorded in the lane's
-   * errors.
+   * @brief Does a lane's part of a batch, and records that it is done. Never throws: on a lane's
+   * thread, that would end the process, and the batch would never be done. With `setup_error`
+   * (the lane's thread could not be set up), the part fails with it.
+   */
+  void RunLanePart(int lane_id, PendingBatch &batch, std::exception_ptr setup_error = nullptr) {
+    std::vector<SampleError> errors;
+    std::exception_ptr failure = setup_error;  // of the lane's part, not of a sample
+    if (!failure) {
+      try {
+        DecodeLanePart(lane_id, batch, errors);
+      } catch (...) {
+        failure = std::current_exception();
+      }
+    }
+    std::lock_guard<std::mutex> lock(lanes_mutex_);
+    try {
+      if (failure)
+        errors.push_back({std::numeric_limits<int>::max(), lane_id, failure});
+      batch.errors.insert(batch.errors.end(), errors.begin(), errors.end());
+    } catch (...) {
+      // out of memory: the batch fails all the same
+      if (!batch.error)
+        batch.error = failure ? failure : std::current_exception();
+    }
+    if (--batch.lanes_left == 0)
+      batch_done_cv_.notify_all();
+  }
+
+  /**
+   * @brief Records that the sample at `batch_idx` of `batch` failed, for the lanes to skip the
+   * samples after it (see DecodeLanePart).
+   */
+  static void NoteFailure(PendingBatch &batch, int batch_idx) {
+    int first = batch.first_error_idx.load(std::memory_order_relaxed);
+    while (batch_idx < first &&
+           !batch.first_error_idx.compare_exchange_weak(first, batch_idx,
+                                                        std::memory_order_relaxed)) {}
+  }
+
+  /**
+   * @brief Decodes a lane's runs of a batch. A sample that fails is recorded in `errors`.
    *
    * Once a sample of the batch has failed, in any lane, the samples after it in the batch are not
    * decoded: the batch fails, and none of them can be its first failing sample. The samples
    * before it still are, since one of them may fail too and is then the error reported.
    */
-  void DecodeLanePart(int lane_id) {
+  void DecodeLanePart(int lane_id, PendingBatch &batch, std::vector<SampleError> &errors) {
     auto &lane = lanes_[lane_id];
-    const auto &plan = plans_[lane_id];
-    lane.errors.clear();
-    for (int r : plan.runs) {
-      for (int t : runs_[r].tasks) {
-        auto &task = tasks_[t];
-        if (task.batch_idx > first_error_idx_.load(std::memory_order_relaxed)) {
-          task.sample->planned = false;  // not decoded: decode it if it is read again
+    const auto &plan = batch.plans[lane_id];
+    if (plan.runs.empty()) {
+      if (lanes_.size() > 1)
+        lane.decoder.reset();  // frees its frame buffers (an NVDEC decoder goes back to the
+                               // NVDECCache, where any lane can reuse it)
+      return;
+    }
+    DomainTimeRange tr(make_string("[DALI][VideoReaderDecoder] lane ", lane_id),
+                       DomainTimeRange::kOrange);
+    try {
+      CheckPlan(lane, batch.lane_start[lane_id]);
+    } catch (...) {
+      int first_task = batch.runs[plan.runs[0]].tasks[0];
+      errors.push_back({batch.tasks[first_task].batch_idx, lane_id, std::current_exception()});
+      NoteFailure(batch, batch.tasks[first_task].batch_idx);
+    }
+    bool cancelled = false;
+    for (size_t i = 0; i < plan.runs.size() && !cancelled; i++) {
+      for (int t : batch.runs[plan.runs[i]].tasks) {
+        if ((cancelled = cancel_))
+          break;
+        auto &task = batch.tasks[t];
+        if (task.batch_idx > batch.first_error_idx.load(std::memory_order_relaxed)) {
+          // Not decoded, but never read either: the batch fails, and no batch is published after
+          // it. `planned` is left as it is: only the prefetch thread touches it, also while a
+          // batch read ahead is planned with a sample that pad_last_batch repeats from this one.
+          lane.failed = true;  // the decoder is not where the plan expects it
           continue;
         }
         try {
-          DecodeSample(*task.sample, lane, *runs_[r].index);
+          DecodeSample(*task.sample, lane, *batch.runs[plan.runs[i]].index);
         } catch (...) {
           lane.decoder.reset();  // in an unknown state; its destructor waits for its stream
-          lane.errors.emplace_back(task.batch_idx, std::current_exception());
-          int first = first_error_idx_.load(std::memory_order_relaxed);
-          while (task.batch_idx < first &&
-                 !first_error_idx_.compare_exchange_weak(first, task.batch_idx,
-                                                         std::memory_order_relaxed)) {}
+          lane.failed = true;
+          errors.push_back({task.batch_idx, lane_id, std::current_exception()});
+          NoteFailure(batch, task.batch_idx);
         }
       }
     }
     if constexpr (std::is_same_v<Backend, GPUBackend>) {
       // the samples are read on the workspace stream once the batch is consumed
       cudaStream_t stream = lane.stream ? lane.stream.get() : 0;
-      if (lane.errors.empty()) {
+      if (errors.empty()) {
         try {
           CUDA_CALL(cudaStreamSynchronize(stream));
         } catch (...) {
-          lane.errors.emplace_back(std::numeric_limits<int>::max(), std::current_exception());
+          errors.push_back({std::numeric_limits<int>::max(), lane_id, std::current_exception()});
         }
       } else if (cudaStreamSynchronize(stream) != cudaSuccess) {
         (void)cudaGetLastError();  // already failing: report the sample's error
@@ -1120,6 +1604,7 @@ class VideoReaderDecoder
              << (lane.decoder ? lane.decoder->Filename() : "none") << std::endl;
     if (!lane.decoder || lane.decoder->Filename() != filename) {
       lane.decoder.reset();  // first: its frame buffers are freed before the new ones
+      lane.failed = false;
       if constexpr (std::is_same_v<Backend, CPUBackend>) {
         lane.decoder = std::make_unique<FramesDecoderImpl>(filename, image_type_);
       } else {
@@ -1184,15 +1669,23 @@ class VideoReaderDecoder
   DALIImageType image_type_;
   std::vector<uint8_t> fill_value_;
   bool has_labels_ = false;
+  bool strict_plans_ = false;  // see CheckPlan
 
   bool use_streams_ = false;  // GPU: a stream per lane (false: the default stream, old drivers)
-  std::vector<SampleTask> tasks_;  // of the current batch
-  std::vector<DecodeRun> runs_;  // of the current batch
   std::vector<DecodeLane> lanes_;
-  std::vector<LanePlan> plans_;  // the runs of each lane in the current batch, in decoding order
-  // the batch index of the first sample that failed in DecodeBatch so far (max: none)
-  std::atomic<int> first_error_idx_{std::numeric_limits<int>::max()};
-  std::unique_ptr<NewThreadPool> thread_pool_;  // with more than one lane; destroyed first
+  int lane_device_id_ = CPU_ONLY_DEVICE_ID;  // the device of the lanes' threads
+  bool lanes_started_ = false;
+  std::mutex lanes_mutex_;
+  std::condition_variable lanes_cv_;  // a lane's queue or stop_lanes_ changed
+  std::condition_variable batch_done_cv_;  // a batch's lanes_left reached 0
+  bool stop_lanes_ = false;  // guarded by lanes_mutex_
+  // The batches read, and queued to the lanes, that are not published yet, in reading order
+  std::deque<std::unique_ptr<PendingBatch>> pending_;
+  int decode_ahead_ = 0;  // the batches read and decoded ahead of the one being published
+  bool read_failed_ = false;  // reading or planning a batch failed: no batch is read after it
+  // Set by the destructor, or by Prefetch when a batch fails: the lanes skip the samples they have
+  // not started, and Prefetch publishes nothing more
+  std::atomic<bool> cancel_{false};
 };
 
 DALI_SCHEMA(experimental__readers__Video)
@@ -1219,7 +1712,14 @@ The following codecs are supported by the GPU backend only:
 The samples of a batch are decoded in parallel by several decoders, see `num_decoders`.
 Consecutive samples of one file that can be decoded without seeking are decoded by the same
 decoder, one after another. Every decoder has its own frame buffers, so the memory used grows with
-the number of decoders.
+the number of decoders. With more than one decoder, the decoders that are done with their part
+of a batch start on the next batch, so up to one more batch of decoded samples is held in memory
+(host memory for the CPU backend).
+
+.. note::
+  For MJPEG streams in 4:2:2 or 4:4:4, the GPU backend subsamples the chroma to 4:2:0 before the
+  color conversion. The colors of fine details and sharp edges then differ from those of the CPU
+  backend, which keeps the chroma resolution of the stream.
 
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
@@ -1234,6 +1734,30 @@ The outputs of the operator are: video, [labels], [frame_num], [timestamps].
   * ``"sequence"``: Frame index of each decoded frame, shape ``(F,)``. Padded frames (e.g. when
     using ``pad_mode='constant'``) have index ``-1``.
 * ``timestamps``: Time in seconds of each frame in the sequence. Only available when ``enable_timestamps=True``.
+
+The ``video`` output is ``uint8``.
+
+Migrating from ``fn.readers.video``: the legacy arguments ``pad_sequences``, ``file_list_frame_num``
+and ``file_list_include_preceding_frame`` are accepted and mapped to `pad_mode`, `file_list_format`
+and `file_list_rounding`; ``skip_vfr_check`` and ``channels`` are accepted and ignored. The
+differences that remain are:
+
+* There is no ``dtype``, ``normalized`` or ``additional_decode_surfaces`` argument.
+  ``video / 255`` gives values in ``[0, 1]``, and ``fn.cast(video, dtype=types.FLOAT)`` values in
+  ``[0, 255]``. With ``device='gpu'``, they match the legacy ``FLOAT`` output up to 8-bit
+  rounding (at most 0.5/255 for normalized output), except that the legacy output was not clamped
+  to that range. The CPU backend converts the colors with FFmpeg, so its output can differ from
+  the legacy one by a few levels.
+* The default of `file_list_rounding` is not the legacy default (see `file_list_rounding`).
+* The ``timestamps`` of a `file_list` and of the timestamps output are relative to the first frame
+  of the video (see `file_list_format`).
+* Videos tagged as BT.709 are converted to RGB with the BT.709 matrix; the legacy reader used
+  BT.601 for all videos.
+* The number of frames of a video is the number of frames in its stream. The legacy reader
+  computed it from the duration and the frame rate, so the epoch size can differ for files whose
+  duration does not match their frames.
+* Explicitly passed empty ``filenames``, ``file_root`` or ``file_list``, and ``labels=[]``, are
+  errors. Omit the argument instead, or pass ``labels=list(range(len(filenames)))``.
 )code")
     .NumInput(0)
     .OutputFn([](const OpSpec &spec) {
@@ -1274,8 +1798,17 @@ This option is mutually exclusive with `filenames` and `file_root`.)code",
     .AddOptionalArg("file_list_format",
         R"code(How to interpret start/end values in file_list:
 
-* ``frames``: Use exact frame numbers (0-based). Negative values count from end.
-* ``timestamps``: Use timestamps in seconds.
+* ``frames``: Use exact frame numbers (0-based). A fractional frame number is rounded according
+  to `file_list_rounding`, with a warning.
+* ``timestamps``: Use timestamps in seconds, relative to the first frame of the video.
+  The legacy `readers.video` measured them from the start time of the stream instead, and from 0
+  in AVI, MKV and WebM files. The two differ for MKV and WebM files whose first frame is not at
+  0, and for streams cut in the middle of an open GOP.
+
+Negative start and end values count from the end of the video, and an end of 0 (or an omitted
+end) is the end of the video. An end past the end of the video is clamped to it. A start past the
+end of the video is an error, and any other empty range (for example, a start equal to the end)
+is skipped with a warning.
 
 Default: ``timestamps``.)code",
         "timestamps")
@@ -1285,11 +1818,24 @@ Default: ``timestamps``.)code",
 * ``start_down_end_up`` (default): Round start down and end up
 * ``start_up_end_down``: Round start up and end down
 * ``all_up``: Round both up
-* ``all_down``: Round both down)code",
+* ``all_down``: Round both down
+
+The legacy ``fn.readers.video`` has the ``file_list_include_preceding_frame`` argument instead:
+True corresponds to ``start_down_end_up`` and False to ``start_up_end_down``. The legacy reader
+truncates the frame numbers of the ``frames`` format, which corresponds to ``all_down``.
+
+The defaults differ: the legacy reader's default, ``file_list_include_preceding_frame=False``, is
+``start_up_end_down``, while the default here is ``start_down_end_up``. For a time between two
+frames, this operator includes one more frame at each end of the range. Pass
+``file_list_rounding='start_up_end_down'`` to select the same frames as the legacy default.)code",
         "start_down_end_up")
     .AddOptionalArg("file_list_include_end",
-        R"code(If true, include the end frame in the range. Default: true)code",
-        true)
+        R"code(If true, the end frame of a ``file_list`` entry is part of its range. Default: false,
+which makes the end exclusive, as the end of a Python range.
+
+In the ``frames`` format, the range ends at ``end + 1``. In the ``timestamps`` format, the frame
+whose timestamp is exactly ``end`` is included, if there is one.)code",
+        false)
     .AddOptionalArg<vector<int>>("labels", R"(Labels associated with the files listed in
 `filenames` argument, one per file. If not provided, no labels will be yielded.
 
@@ -1346,8 +1892,46 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
 * ``'reflect_1001'`` or ``'symmetric'``: Reflect padding, including the last element: ABC -> ABCCBA
 * ``'reflect_101'`` or ``'reflect'``: Reflect padding, not including the last element: ABC -> ABCBA
 
+A sequence only needs its last frame to exist, so a sequence of ``sequence_length`` frames with the
+given ``stride`` fits in ``(sequence_length - 1) * stride + 1`` frames. With padding, a sample starts
+at every ``step`` position of the video (or of its ``file_list`` range), so the last ones hold
+fewer frames of the video than ``sequence_length``, as with the legacy ``fn.readers.video``.
+
 Not relevant when using ``frames`` argument.)code",
         "none", true)
+    .AddOptionalArg("pad_sequences",
+        R"code(Allows creation of incomplete sequences if there is an insufficient number
+of frames at the very end of the video.)code", false)
+    .DeprecateArg("pad_sequences", "2.5", false,
+        R"code(Use `pad_mode` instead: ``pad_sequences=True`` is ``pad_mode='constant'``, and
+``pad_sequences=False`` is ``pad_mode='none'``.)code")
+    .AddOptionalArg("file_list_frame_num",
+        R"code(Interpret the start and end values of `file_list` as frame numbers, not as
+timestamps.)code", false)
+    .DeprecateArg("file_list_frame_num", "2.5", false,
+        R"code(Use `file_list_format` instead: ``file_list_frame_num=True`` is
+``file_list_format='frames', file_list_rounding='all_down'`` (as the legacy reader, it truncates
+fractional frame numbers, unless `file_list_rounding` is given), and ``False`` is
+``file_list_format='timestamps'``.)code")
+    .AddOptionalArg<bool>("file_list_include_preceding_frame",
+        R"code(Changes how the start and end timestamps of `file_list` are translated to frame
+numbers.)code", nullptr)
+    .DeprecateArg("file_list_include_preceding_frame", "2.5", false,
+        R"code(Use `file_list_rounding` instead: ``file_list_include_preceding_frame=True`` is
+``file_list_rounding='start_down_end_up'``, and ``False`` is ``'start_up_end_down'``. It applies to
+the ``timestamps`` format only: with the ``frames`` format, the frame numbers are truncated
+(``'all_down'``). When neither this argument nor `file_list_rounding` is given, the default of
+`file_list_rounding` applies, which is not the same as ``False``.
+The legacy reader computes the frame numbers in single precision,
+so for a time that is exactly the time of a frame, the frame that this operator selects can differ
+from the legacy one by one.)code")
+    .AddOptionalArg("skip_vfr_check", R"code(Skips the check for variable frame rate videos.)code",
+                    false)
+    .DeprecateArg("skip_vfr_check", "2.5", true,
+        R"code(It has no effect: this operator reads variable frame rate videos.)code")
+    .AddOptionalArg("channels", R"code(Number of channels.)code", 3)
+    .DeprecateArg("channels", "2.5", true,
+        R"code(It has no effect: the output always has 3 channels (see `image_type`).)code")
     .AddOptionalArg("fill_value",
                     R"code(Value(s) used to pad missing frames when ``pad_mode='constant'``.
 
@@ -1360,9 +1944,11 @@ Otherwise, the number of values must match the number of channels in the video.)
     .AddOptionalArg("num_decoders",
                     R"code(Number of decoders that decode the samples of a batch in parallel.
 
-* ``0`` (default): Picked automatically: on the GPU, one decoder per NVDEC engine of the device
-  (one decoder if the number of engines is unknown), on the CPU, up to 4 decoders; in both cases,
-  no more than ``num_threads``.
+* ``0`` (default): Picked automatically: on the GPU, up to two decoders per NVDEC engine of the
+  device (one decoder if the number of engines is unknown), on the CPU, one decoder per thread;
+  in both cases, no more than ``num_threads``. The number is then lowered to the fewest decoders
+  that decode a full batch in as many rounds: for example, 16 samples take 3 rounds on 7
+  decoders, as on 6.
 * A positive value sets the number of decoders.
 
 The number of decoders is never more than ``max_batch_size``, since extra decoders would be idle.
@@ -1372,7 +1958,8 @@ decoders.)code",
     .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).
 
 YCbCr output contains the decoded samples upsampled to 4:4:4, in the color range and matrix of
-the stream (usually limited range); RGB output is full range.)",
+the stream (usually limited range); RGB output is full range. The GPU backend upsamples them from
+4:2:0 (for MJPEG, also when the stream is 4:2:2 or 4:4:4).)",
                     DALI_RGB)
     .AddParent("LoaderBase")
     .OutputNDim(0, 4)

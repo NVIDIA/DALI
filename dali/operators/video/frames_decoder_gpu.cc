@@ -13,6 +13,9 @@
 // limitations under the License.
 
 #include "dali/operators/video/frames_decoder_gpu.h"
+extern "C" {
+#include <libavutil/pixdesc.h>
+}
 #include <cuda.h>
 #include <unistd.h>
 #include <algorithm>
@@ -28,6 +31,8 @@
 #include "dali/core/call_at_exit.h"
 #include "dali/core/error_handling.h"
 #include "dali/core/cuda_error.h"
+#include "dali/core/device_guard.h"
+#include "dali/core/util.h"
 #include "dali/pipeline/data/backend.h"
 #include "dali/pipeline/data/tensor.h"
 #include "dali/operators/video/color_space.h"
@@ -461,6 +466,7 @@ void NVDECLease::Discard() {
   }
 }
 
+// Called by the parser before the first picture, and again whenever the format changes
 int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
   // The callbacks are called by the NVDEC parser from within cuvidParseVideoData. An exception must
@@ -479,6 +485,8 @@ int process_video_sequence(void *user_data, CUVIDEOFORMAT *video_format) {
 
 int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
+  if (frames_decoder->HasCallbackException())
+    return 0;
 
   try {
     return frames_decoder->ProcessPictureDecode(picture_params);
@@ -490,6 +498,8 @@ int process_picture_decode(void *user_data, CUVIDPICPARAMS *picture_params) {
 
 int handle_picture_display(void *user_data, CUVIDPARSERDISPINFO *picture_display_info) {
   FramesDecoderGpu *frames_decoder = static_cast<FramesDecoderGpu*>(user_data);
+  if (frames_decoder->HasCallbackException())
+    return 0;
 
   try {
     return frames_decoder->HandlePictureDisplay(picture_display_info);
@@ -513,7 +523,51 @@ void FramesDecoderGpu::NVDECDestroyUnusedDecoders(int device_id) {
   frame_dec_gpu_impl::NVDECCache::GetCache(device_id).DestroyUnused();
 }
 
-void FramesDecoderGpu::InitBitStreamFilter() {
+namespace {
+
+/**
+ * Why NVDEC can't decode a JPEG stream in the given pixel format, or an empty string if it can.
+ */
+std::string JpegPixelFormatError(AVPixelFormat pix_fmt) {
+  const AVPixFmtDescriptor *desc = av_pix_fmt_desc_get(pix_fmt);
+  if (!desc || desc->nb_components == 0) {
+    // Not even known after probing the stream: it can't be checked, so don't claim support.
+    return "Could not determine the pixel format of a JPEG stream, so it can't be checked against "
+           "what NVDEC on this platform supports.";
+  }
+  // NVDEC outputs the components of a JPEG as Y, Cb and Cr, and the color conversion treats them
+  // so: RGB-coded JPEGs (e.g. gbrp), and those with 4 components (CMYK, YCCK, alpha) would come out
+  // with wrong colors.
+  constexpr uint64_t kNotYCbCr = AV_PIX_FMT_FLAG_RGB | AV_PIX_FMT_FLAG_ALPHA | AV_PIX_FMT_FLAG_PAL;
+  if ((desc->flags & kNotYCbCr) || (desc->nb_components != 1 && desc->nb_components != 3)) {
+    return make_string("JPEG with pixel format ", desc->name, " is not supported by the GPU "
+                       "variant of this operator: only YCbCr and grayscale JPEGs are.");
+  }
+  cudaVideoChromaFormat chroma;
+  if (desc->nb_components == 1) {
+    chroma = cudaVideoChromaFormat_Monochrome;
+  } else if (desc->log2_chroma_w == 0 && desc->log2_chroma_h == 0) {
+    chroma = cudaVideoChromaFormat_444;
+  } else if (desc->log2_chroma_w == 1 && desc->log2_chroma_h == 0) {
+    chroma = cudaVideoChromaFormat_422;
+  } else if (desc->log2_chroma_w == 1 && desc->log2_chroma_h == 1) {
+    chroma = cudaVideoChromaFormat_420;
+  } else {
+    // e.g. 4:4:0 or 4:1:1: there is no NVDEC chroma format for it
+    return make_string("JPEG with pixel format ", desc->name,
+                       " is not supported by NVDEC on this platform.");
+  }
+  int bit_depth = desc->comp[0].depth;
+  if (FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec_JPEG, chroma, bit_depth))
+    return {};
+  return make_string("JPEG with pixel format ", desc->name, " (", bit_depth, "-bit, chroma ",
+                     frame_dec_gpu_impl::chroma_to_string(chroma),
+                     ") is not supported by NVDEC on this platform.");
+}
+
+}  // namespace
+
+void FramesDecoderGpu::InitBitStreamFilter(AVUniquePtr<AVBSFContext> &bsfc) {
   const AVBitStreamFilter *bsf = nullptr;
   const char* filtername = nullptr;
   switch (codec_params_->codec_id) {
@@ -552,19 +606,19 @@ void FramesDecoderGpu::InitBitStreamFilter() {
   if (filtername != nullptr) {
     auto bsf = av_bsf_get_by_name(filtername);
     DALI_ENFORCE(bsf, "Error finding bit stream filter.");
-    DALI_ENFORCE(av_bsf_alloc(bsf, &bsfc_) >= 0,
+    DALI_ENFORCE(av_bsf_alloc(bsf, &bsfc) >= 0,
                  "Unable to allocate bit stream filter");
   } else {
-    DALI_ENFORCE(av_bsf_get_null_filter(&bsfc_) >= 0,
+    DALI_ENFORCE(av_bsf_get_null_filter(&bsfc) >= 0,
                  "Error creating pass-through filter.");
   }
 
   DALI_ENFORCE(
-    avcodec_parameters_copy(bsfc_->par_in,
+    avcodec_parameters_copy(bsfc->par_in,
                             ctx_->streams[stream_id_]->codecpar) >= 0,
     "Unable to copy bit stream filter parameters");
   DALI_ENFORCE(
-    av_bsf_init(bsfc_) >= 0,
+    av_bsf_init(bsfc) >= 0,
     "Unable to initialize bit stream filter");
 }
 
@@ -614,12 +668,59 @@ bool FramesDecoderGpu::IsBT709(CUVIDEOFORMAT *video_format) const {
 
 int FramesDecoderGpu::NumDecodeSurfaces(const CUVIDEOFORMAT &video_format) {
   // the minimum is what the stream's reference pictures and reordering need. The display delay
-  // keeps that many more decoded pictures in the parser
+  // keeps that many more decoded pictures in the parser.
+  // The sequence callback returns this number, and the parser takes it only if it is more than 1
+  // (nvcuvid.h): otherwise it keeps its own (ulMaxNumDecodeSurfaces), more than the decoder has.
+  static_assert(kDisplayDelay + kSpareDecodeSurfaces > 1);
   return video_format.min_num_decode_surfaces + kDisplayDelay + kSpareDecodeSurfaces;
 }
 
+// The codecs for which the size of the output is taken from the NVDEC parser.
+static bool IsProbedCodec(AVCodecID codec_id) {
+  return codec_id == AV_CODEC_ID_H264 || codec_id == AV_CODEC_ID_HEVC;
+}
+
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
+  // The parser calls this again when the format of the stream changes, so this is checked for
+  // every format, not only for the one that the decoder is created for.
+  if (video_format->codec == cudaVideoCodec_JPEG) {
+    // The output buffer and the color conversion use the dimensions from the container, while
+    // NVDEC sizes its surfaces after the frames. A JPEG has no cropping, so they must agree.
+    int width = video_format->display_area.right - video_format->display_area.left;
+    int height = video_format->display_area.bottom - video_format->display_area.top;
+    if (width != Width() || height != Height()) {
+      throw std::runtime_error(
+          make_string("Decoded frame dimensions (", width, "x", height,
+                      ") do not match the video dimensions (", Width(), "x", Height(),
+                      ") in ", Filename(), "."));
+    }
+  }
+  // NVDEC outputs every picture as NV12 (4:2:0), whose chroma plane has ceil(Height() / 2) rows.
+  // For a 4:2:2 or 4:4:4 JPEG, it halves the chroma vertically to get them, and it writes that
+  // plane in pairs of rows: when the plane has an odd number of rows (Height() % 4 is 1 or 2), the
+  // last one is left unwritten (as observed; the API doesn't say). A 4:2:0 JPEG already has that
+  // many chroma rows, and they are all written. The conversion takes the missing row as a copy of
+  // the one above it: exact for smooth chroma, an approximation where the chroma of the last two
+  // rows of the picture differs from that of the two rows above.
+  bool jpeg_chroma_downsampled = video_format->codec == cudaVideoCodec_JPEG &&
+                                 (video_format->chroma_format == cudaVideoChromaFormat_422 ||
+                                  video_format->chroma_format == cudaVideoChromaFormat_444);
+  int nv12_chroma_rows = div_ceil(Height(), 2);
+  chroma_height_ = nv12_chroma_rows - (jpeg_chroma_downsampled && nv12_chroma_rows % 2 ? 1 : 0);
+
   if (!nvdecode_state_->decoder) {
+    int area_width = video_format->display_area.right - video_format->display_area.left;
+    int area_height = video_format->display_area.bottom - video_format->display_area.top;
+    // Other codecs keep the size from the container, as they did before the probe was added.
+    if (IsProbedCodec(codec_params_->codec_id) &&
+        (area_width != Width() || area_height != Height())) {
+      throw std::runtime_error(make_string(
+          "The size of the pictures decoded by NVDEC (", area_width, "x", area_height,
+          ") differs from the size determined when the file \"", Filename(), "\" was opened (",
+          Width(), "x", Height(), "). The crop of the stream may differ from the size declared by "
+          "the container, or the size could not be determined. Note that the left and top crop "
+          "of the stream is not supported."));
+    }
     if (image_type_ == DALI_RGB) {
       bool is_full_range = IsFullRange(video_format);
       if (IsBT709(video_format)) {
@@ -639,12 +740,146 @@ void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
   }
 }
 
+namespace {
+
+void SetSequenceHeader(CUVIDEOFORMATEX &parser_extinfo, const AVCodecParameters *codec_params) {
+  if (codec_params->extradata_size > 0) {
+    auto hdr_size = std::min(sizeof(parser_extinfo.raw_seqhdr_data),
+                             static_cast<std::size_t>(codec_params->extradata_size));
+    parser_extinfo.format.seqhdr_data_length = hdr_size;
+    memcpy(parser_extinfo.raw_seqhdr_data, codec_params->extradata, hdr_size);
+  }
+}
+
+int StoreVideoFormat(void *user_data, CUVIDEOFORMAT *video_format) {
+  *static_cast<CUVIDEOFORMAT *>(user_data) = *video_format;
+  return 1;
+}
+
+int IgnorePicture(void *, CUVIDPICPARAMS *) {
+  return 1;
+}
+
+int IgnoreDisplay(void *, CUVIDPARSERDISPINFO *) {
+  return 1;
+}
+
+}  // namespace
+
+bool FramesDecoderGpu::ReadSelectedStreamPacket(AVPacket *packet) {
+  while (av_read_frame(ctx_, packet) >= 0) {
+    if (packet->stream_index == stream_id_)
+      return true;
+    av_packet_unref(packet);
+  }
+  return false;
+}
+
+namespace {
+
+bool SamePacket(const AVPacket *a, const AVPacket *b) {
+  return a->stream_index == b->stream_index && a->pts == b->pts && a->dts == b->dts &&
+         a->pos == b->pos && a->size == b->size && memcmp(a->data, b->data, a->size) == 0;
+}
+
+}  // namespace
+
+bool FramesDecoderGpu::RewindToFirstPacket(const AVPacket *first) {
+  // A seek can succeed and still land after the first packet (e.g. when the first packets have
+  // negative timestamps). The restart is checked by reading the first packet again. The second
+  // seek is the same call, issued from the same state as the first, so it lands in the same place.
+  AVUniquePtr<AVPacket> again(av_packet_alloc());
+  if (!again)
+    throw std::runtime_error(
+        make_string("Could not allocate av packet for \"", Filename(), "\""));
+  return av_seek_frame(ctx_, stream_id_, 0, AVSEEK_FLAG_BACKWARD) >= 0 &&
+         ReadSelectedStreamPacket(again) && SamePacket(first, again) &&
+         av_seek_frame(ctx_, stream_id_, 0, AVSEEK_FLAG_BACKWARD) >= 0;
+}
+
+void FramesDecoderGpu::ProbeDisplaySize() {
+  if (!IsProbedCodec(codec_params_->codec_id))
+    return;
+
+  AVUniquePtr<AVBSFContext> bsfc;
+  InitBitStreamFilter(bsfc);
+  AVUniquePtr<AVPacket> first(av_packet_alloc());
+  AVUniquePtr<AVPacket> unfiltered(av_packet_alloc());
+  AVUniquePtr<AVPacket> filtered(av_packet_alloc());
+  if (!first || !unfiltered || !filtered)
+    throw std::runtime_error(
+        make_string("Could not allocate av packet for \"", Filename(), "\""));
+
+  // The parser reports the format only after it gets the first picture.
+  bool got_packet = ReadSelectedStreamPacket(first);
+  if (got_packet) {
+    got_packet = av_packet_ref(unfiltered, first) >= 0 &&
+                 av_bsf_send_packet(bsfc, unfiltered) >= 0 &&
+                 av_bsf_receive_packet(bsfc, filtered) >= 0;
+    if (!got_packet)
+      LOG_LINE << "Display size probe: bit stream filter failed for " << Filename() << std::endl;
+  } else {
+    LOG_LINE << "Display size probe: no packet in the selected stream of " << Filename()
+             << std::endl;
+  }
+  if (!RewindToFirstPacket(first)) {
+    LOG_LINE << "Display size probe: could not rewind to the first packet, reopening "
+             << Filename() << std::endl;
+    FramesDecoderBase::Reset();
+  }
+  if (!got_packet)
+    return;
+
+  CUVIDEOFORMAT format = {};
+  CUVIDPARSERPARAMS parser_info = {};
+  CUVIDEOFORMATEX parser_extinfo = {};
+  parser_info.CodecType = GetCodecType(codec_params_->codec_id);
+  parser_info.ulMaxNumDecodeSurfaces = 1;
+  parser_info.pUserData = &format;
+  parser_info.pfnSequenceCallback = StoreVideoFormat;
+  parser_info.pfnDecodePicture = IgnorePicture;
+  parser_info.pfnDisplayPicture = IgnoreDisplay;
+  parser_info.pExtVideoInfo = &parser_extinfo;
+  SetSequenceHeader(parser_extinfo, ctx_->streams[stream_id_]->codecpar);
+  frame_dec_gpu_impl::CUvideoparserHandle parser(parser_info);
+
+  CUVIDSOURCEDATAPACKET packet = {};
+  packet.payload = filtered->data;
+  packet.payload_size = filtered->size;
+  // The results of the calls are ignored on purpose: a failure leaves the format empty, which
+  // keeps the size from the container.
+  cuvidParseVideoData(parser, &packet);
+  // Without the flush the parser often does not report the format of a single packet.
+  packet = {};
+  packet.flags = CUVID_PKT_ENDOFSTREAM;
+  cuvidParseVideoData(parser, &packet);
+
+  int width = format.display_area.right - format.display_area.left;
+  int height = format.display_area.bottom - format.display_area.top;
+  if (width <= 0 || height <= 0) {
+    LOG_LINE << "Display size probe: NVDEC reported no format for " << Filename() << std::endl;
+    return;
+  }
+  if (width != Width() || height != Height()) {
+    LOG_LINE << "Display size probe: size of " << Filename() << " changed from " << Width() << "x"
+             << Height() << " (container) to " << width << "x" << height << " (NVDEC)"
+             << std::endl;
+  }
+  if (width > Width() || height > Height()) {
+    DALI_WARN_ONCE(
+        "NVDEC reports a larger picture size than the one declared by the container of a video "
+        "file. This can happen when the stream has a left or top crop, which is not supported. "
+        "The size reported by NVDEC is used.");
+  }
+  SetDisplaySize(width, height);
+}
+
 void FramesDecoderGpu::InitGpuParser() {
   nvdecode_state_ = std::make_unique<NvDecodeState>();
   nvdecode_state_->stream = stream_;
   labels_from_parser_ = HasDecodeOrderTimestamps();
 
-  InitBitStreamFilter();
+  InitBitStreamFilter(bsfc_);
 
   filtered_packet_.reset(av_packet_alloc());
   DALI_ENFORCE(filtered_packet_,
@@ -668,17 +903,9 @@ void FramesDecoderGpu::InitGpuParser() {
   parser_info.pfnDecodePicture = frame_dec_gpu_impl::process_picture_decode;
   parser_info.pfnDisplayPicture = frame_dec_gpu_impl::handle_picture_display;
 
-  auto extradata = ctx_->streams[stream_id_]->codecpar->extradata;
-  auto extradata_size = ctx_->streams[stream_id_]->codecpar->extradata_size;
-
   memset(&parser_extinfo, 0, sizeof(parser_extinfo));
   parser_info.pExtVideoInfo = &parser_extinfo;
-  if (extradata_size > 0) {
-    auto hdr_size = std::min(sizeof(parser_extinfo.raw_seqhdr_data),
-                             static_cast<std::size_t>(extradata_size));
-    parser_extinfo.format.seqhdr_data_length = hdr_size;
-    memcpy(parser_extinfo.raw_seqhdr_data, extradata, hdr_size);
-  }
+  SetSequenceHeader(parser_extinfo, ctx_->streams[stream_id_]->codecpar);
 
   nvdecode_state_->parser = frame_dec_gpu_impl::CUvideoparserHandle(parser_info);
 
@@ -693,6 +920,7 @@ FramesDecoderGpu::FramesDecoderGpu(const std::string &filename, cudaStream_t str
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
   if (is_valid_) {
+    ProbeDisplaySize();
     InitGpuParser();
   }
 }
@@ -704,6 +932,7 @@ FramesDecoderGpu::FramesDecoderGpu(const char *memory_file, size_t memory_file_s
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
   if (is_valid_) {
+    ProbeDisplaySize();
     InitGpuParser();
   }
 }
@@ -716,8 +945,39 @@ FramesDecoderGpu::FramesDecoderGpu(std::unique_ptr<InputStream> input_stream,
       stream_(stream) {
   is_valid_ = is_valid_ && SelectVideoStream();
   if (is_valid_) {
+    ProbeDisplaySize();
     InitGpuParser();
   }
+}
+
+void FramesDecoderGpu::CreateJpegEvent(int surface_idx) {
+  auto &events = nvdecode_state_->jpeg_decoded_events;
+  if (surface_idx >= static_cast<int>(events.size()))
+    events.resize(surface_idx + 1);
+  auto &jpeg_event = events[surface_idx];
+  if (!jpeg_event.event)
+    jpeg_event.event = CUDAEvent::CreateWithFlags(cudaEventDisableTiming);
+  // until it is recorded for this decode, it does not tell when the decode is done
+  jpeg_event.recorded = false;
+}
+
+void FramesDecoderGpu::RecordJpegDecoded(int surface_idx) {
+  auto &jpeg_event = nvdecode_state_->jpeg_decoded_events[surface_idx];
+  // Recorded right after cuvidDecodePicture, it completes once the work queued so far on the
+  // legacy default stream (and on the blocking streams) is done, that of this picture included.
+  // If the record fails, `recorded` stays false: an earlier record does not tell when this decode
+  // is done.
+  CUDA_CALL(cudaEventRecord(jpeg_event.event, cudaStreamLegacy));
+  jpeg_event.recorded = true;
+}
+
+void FramesDecoderGpu::WaitForJpegDecoded(int surface_idx) {
+  // Every JPEG picture is decoded, and only decoded pictures are mapped
+  auto &events = nvdecode_state_->jpeg_decoded_events;
+  DALI_ENFORCE(surface_idx < static_cast<int>(events.size()) && events[surface_idx].recorded,
+               make_string("Internal error: picture ", surface_idx, " of \"", Filename(),
+                           "\" is mapped, but it was not decoded."));
+  CUDA_CALL(cudaStreamWaitEvent(stream_, events[surface_idx].event, 0));
 }
 
 int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
@@ -749,11 +1009,17 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   bool decode = picture_params->ref_pic_flag || picture_params->field_pic_flag ||
                 codec_params_->codec_id != AV_CODEC_ID_H264 || labels_from_parser_ ||
                 ShouldDecodePicture(pts);
+  int idx = picture_params->CurrPicIdx;
   if (decode) {
+    bool jpeg = codec_params_->codec_id == AV_CODEC_ID_MJPEG;
+    if (jpeg)
+      CreateJpegEvent(idx);  // before the decode, which can't be waited for without it
     CUDA_CALL(cuvidDecodePicture(nvdecode_state_->decoder, picture_params));
     nvdecode_state_->last_decoded = picture_params->CurrPicIdx;
     nvdecode_state_->last_mapped = false;
     decoded_pictures_++;
+    if (jpeg)
+      RecordJpegDecoded(idx);
   } else {
     not_decoded_pictures_++;
   }
@@ -761,7 +1027,6 @@ int FramesDecoderGpu::ProcessPictureDecode(CUVIDPICPARAMS *picture_params) {
   // The pts of the picture is kept with the surface, for the display callback: the timestamps that
   // the parser passes to that callback are not reliable when it drops pictures, e.g. the leading
   // pictures of an HEVC CRA picture after a seek.
-  int idx = picture_params->CurrPicIdx;
   if (idx >= static_cast<int>(surface_pts_.size())) {
     surface_pts_.resize(idx + 1, AV_NOPTS_VALUE);
     surface_to_display_.resize(idx + 1, false);
@@ -882,6 +1147,9 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
   CUdeviceptr frame = {};
   unsigned int pitch = 0;
 
+  if (codec_params_->codec_id == AV_CODEC_ID_MJPEG)
+    WaitForJpegDecoded(picture_display_info->picture_index);
+
   CUDA_CALL(cuvidMapVideoFrame(
     nvdecode_state_->decoder,
     picture_display_info->picture_index,
@@ -912,7 +1180,8 @@ int FramesDecoderGpu::HandlePictureDisplay(CUVIDPARSERDISPINFO *picture_display_
       Width(),
       conversion_type_,
       false,  // normalized_range_,
-      stream_);
+      stream_,
+      chroma_height_);
   ), DALI_FAIL(make_string("Unsupported type: ", dtype_)));
 
   if (keep_as_last_frame)
@@ -1487,6 +1756,32 @@ void FramesDecoderGpu::RepeatLastFrame(void *data) {
 
 NvDecodeState::~NvDecodeState() {
   if (decoder && last_decoded >= 0 && !last_mapped) {
+    // A JPEG decode is ordered with the legacy default stream, and the map does not wait for it:
+    // the stream waits for the event recorded right after the last picture was submitted. The JPEG
+    // decodes are all on that one stream, so the last one is enough. Only the work queued there
+    // before that decode is waited for, not what was queued since (e.g. by a training loop).
+    // A JPEG decoder (one with events) whose last decode was not recorded can't be waited for:
+    // that only happens after an earlier error (e.g. of cudaEventRecord).
+    if (!jpeg_decoded_events.empty()) {
+      bool recorded = last_decoded < static_cast<int>(jpeg_decoded_events.size()) &&
+                      jpeg_decoded_events[last_decoded].recorded;
+      if (!recorded) {
+        DALI_WARN("The decode of the last JPEG picture of an NVDEC decoder was not recorded, so it "
+                  "can't be waited for; destroying the decoder.");
+        decoder.Discard();
+        return;
+      }
+      cudaError_t err = cudaStreamWaitEvent(stream, jpeg_decoded_events[last_decoded].event, 0);
+      if (err != cudaSuccess) {
+        cudaGetLastError();  // clear the error
+        if (err != cudaErrorCudartUnloading) {
+          DALI_WARN(make_string("Could not wait for the last picture of an NVDEC decoder (",
+                                cudaGetErrorName(err), "); destroying it."));
+        }
+        decoder.Discard();
+        return;
+      }
+    }
     CUdeviceptr frame = 0;
     unsigned int pitch = 0;
     CUVIDPROCPARAMS params = {};
@@ -1550,12 +1845,17 @@ int FramesDecoderGpu::NumEngines(int device_id) {
 }
 
 bool FramesDecoderGpu::SupportsHevc() {
-  CUVIDDECODECAPS decoder_caps = {};
-  decoder_caps.eCodecType = cudaVideoCodec_HEVC;
-  decoder_caps.eChromaFormat = cudaVideoChromaFormat_420;
-  decoder_caps.nBitDepthMinus8 = 10 - 8;  // 10-bit HEVC
-  CUDA_CALL(cuvidGetDecoderCaps(&decoder_caps));
-  return decoder_caps.bIsSupported;
+  return CanNvdecDecode(cudaVideoCodec_HEVC, cudaVideoChromaFormat_420, 10);  // 10-bit HEVC
+}
+
+bool FramesDecoderGpu::CanNvdecDecode(cudaVideoCodec codec_type,
+                                      cudaVideoChromaFormat chroma_format, int bit_depth) {
+  // cuvidGetDecoderCaps needs a current context: cudaFree(nullptr) makes the primary context of the
+  // current device current if the thread has none. DeviceGuard restores the thread's previous
+  // CUcontext (none included) on exit.
+  DeviceGuard dg;
+  CUDA_CALL(cudaFree(nullptr));
+  return frame_dec_gpu_impl::GetDecoderCaps(codec_type, chroma_format, bit_depth - 8).bIsSupported;
 }
 
 void FramesDecoderGpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
@@ -1564,12 +1864,12 @@ void FramesDecoderGpu::CopyFrame(uint8_t *dst, const uint8_t *src) {
 
 namespace {
 
-constexpr std::array<AVCodecID, /*7*/ 6> kGpuCodecs = {
+constexpr std::array<AVCodecID, 7> kGpuCodecs = {
   AVCodecID::AV_CODEC_ID_H264,
   AVCodecID::AV_CODEC_ID_HEVC,
   AVCodecID::AV_CODEC_ID_VP8,
   AVCodecID::AV_CODEC_ID_VP9,
-  // AVCodecID::AV_CODEC_ID_MJPEG,  // TODO(janton): add support for MJPEG
+  AVCodecID::AV_CODEC_ID_MJPEG,
   AVCodecID::AV_CODEC_ID_AV1,
   AVCodecID::AV_CODEC_ID_MPEG4,
 };
@@ -1585,23 +1885,42 @@ std::vector<AVCodecID> FramesDecoderGpu::SupportedCodecs() {
   return supported;
 }
 
-bool FramesDecoderGpu::IsCodecSupported(AVCodecID codec_id, bool warn) {
+std::string FramesDecoderGpu::UnsupportedCodecReason(AVCodecID codec_id) {
   if (std::find(kGpuCodecs.begin(), kGpuCodecs.end(), codec_id) == kGpuCodecs.end()) {
-    if (warn)
-      DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
-                            ") is not supported by the GPU variant of this operator."));
-    return false;
+    return make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
+                       ") is not supported by the GPU variant of this operator.");
   }
-
   auto decoder_caps = frame_dec_gpu_impl::GetDecoderCaps(GetCodecType(codec_id),
                                                          cudaVideoChromaFormat_420, 0);
   if (!decoder_caps.bIsSupported) {
-    if (warn)
-      DALI_WARN(make_string("Codec ", avcodec_get_name(codec_id),
-                            " is not supported by NVDEC on this platform."));
-    return false;
+    return make_string("Codec ", avcodec_get_name(codec_id),
+                       " is not supported by NVDEC on this platform.");
   }
-  return true;
+  return {};
+}
+
+bool FramesDecoderGpu::IsCodecSupported(AVCodecID codec_id, bool warn) {
+  std::string reason = UnsupportedCodecReason(codec_id);
+  if (!reason.empty() && warn)
+    DALI_WARN(reason);
+  return reason.empty();
+}
+
+std::string FramesDecoderGpu::UnsupportedStreamReason(AVCodecID codec_id, AVPixelFormat pix_fmt) {
+  std::string reason = UnsupportedCodecReason(codec_id);
+  // The codec check only looks at 8-bit 4:2:0, which is what NVDEC JPEG support is always
+  // reported for. MJPEG is often 4:2:2 or 4:4:4, which not every GPU can decode: such files are
+  // rejected like an unsupported codec, rather than failing in the decoder later.
+  if (reason.empty() && codec_id == AV_CODEC_ID_MJPEG)
+    reason = JpegPixelFormatError(pix_fmt);
+  return reason;
+}
+
+bool FramesDecoderGpu::IsStreamSupported(AVCodecID codec_id, AVPixelFormat pix_fmt) {
+  std::string reason = UnsupportedStreamReason(codec_id, pix_fmt);
+  if (!reason.empty())
+    DALI_WARN(reason);
+  return reason.empty();
 }
 
 bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
@@ -1611,7 +1930,9 @@ bool FramesDecoderGpu::SelectVideoStream(int stream_id) {
 
   assert(stream_id_ >= 0 && stream_id_ < static_cast<int>(ctx_->nb_streams));
   assert(codec_params_);
-  if (!IsCodecSupported(codec_params_->codec_id)) {
+  // For MJPEG, NVDEC's support depends on the pixel format, and the color conversion on the color
+  // range: the container often has neither
+  if (!CanDetermineMjpegPixelFormat() || !IsStreamSupported(*codec_params_)) {
     return false;
   }
 

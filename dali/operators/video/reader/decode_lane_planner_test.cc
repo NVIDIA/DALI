@@ -53,6 +53,11 @@ LaneStart Held(std::string_view file, const FrameIndex &index, int next_frame) {
   return {file, FramesDecoderBase::PositionAt(index, next_frame)};
 }
 
+// Where a decoder with an index is, for LaneStart
+FramesDecoderBase::DecodePosition DecoderPosition(const FramesDecoderBase &decoder) {
+  return FramesDecoderBase::PositionAt(decoder.GetIndex(), decoder.NextFrameIdx());
+}
+
 /**
  * @brief The runs of a batch, and the frames of their samples.
  */
@@ -236,6 +241,37 @@ void CheckPlannedPictures(const std::vector<ReaderSample> &batch, std::vector<Re
 
 }  // namespace
 
+TEST(DecodeLanePlannerTest, EvenSplitLanes) {
+  // 16 samples: 3 rounds on 7 lanes as on 6; 2 rounds on 14 lanes as on 8; 1 round on 16
+  EXPECT_EQ(EvenSplitLanes(7, 16), 6);
+  EXPECT_EQ(EvenSplitLanes(14, 16), 8);
+  EXPECT_EQ(EvenSplitLanes(16, 16), 16);
+  EXPECT_EQ(EvenSplitLanes(21, 16), 16);  // capped at the batch size
+  EXPECT_EQ(EvenSplitLanes(8, 16), 8);
+  EXPECT_EQ(EvenSplitLanes(4, 8), 4);
+  EXPECT_EQ(EvenSplitLanes(3, 8), 3);  // 3 rounds on 3 lanes; 2 lanes would need 4
+  EXPECT_EQ(EvenSplitLanes(5, 8), 4);  // 2 rounds on 5 lanes as on 4
+  EXPECT_EQ(EvenSplitLanes(12, 32), 11);  // 3 rounds
+  // never fewer than one lane, never more than the batch
+  EXPECT_EQ(EvenSplitLanes(0, 16), 1);
+  EXPECT_EQ(EvenSplitLanes(8, 1), 1);
+  EXPECT_EQ(EvenSplitLanes(8, 0), 1);
+  for (int batch = 1; batch <= 64; batch++) {
+    for (int max_lanes = 1; max_lanes <= 64; max_lanes++) {
+      int lanes = EvenSplitLanes(max_lanes, batch);
+      int cap = std::min(max_lanes, batch);
+      ASSERT_GE(lanes, 1);
+      ASSERT_LE(lanes, cap);
+      // as many rounds as with `cap` lanes, and one lane fewer would need more
+      auto rounds = [&](int n) { return div_ceil(batch, n); };
+      ASSERT_EQ(rounds(lanes), rounds(cap)) << batch << " " << max_lanes;
+      if (lanes > 1) {
+        ASSERT_GT(rounds(lanes - 1), rounds(cap)) << batch << " " << max_lanes;
+      }
+    }
+  }
+}
+
 TEST(DecodeLanePlannerTest, SampleFrames) {
   using boundary::BoundaryType;
   // the given frames (uniform sampling), sorted, duplicates kept
@@ -391,6 +427,37 @@ TEST(DecodeLanePlannerTest, OneLongRunUsesOneLane) {
   EXPECT_EQ(plans[0].load, 512 + kOpenCost);
   for (int l = 1; l < 4; l++)
     EXPECT_TRUE(plans[l].runs.empty()) << "lane " << l;
+}
+
+TEST(DecodeLanePlannerTest, TiesToTheLeastBacklog) {
+  auto index = MakeIndex(100, 100);
+  Batch batch;
+  batch.Add("a", &index, 0, 0, 29);
+  // lanes without decoders, which would all finish the run at the same time: the lowest one
+  auto plans = Plan(batch, {{}, {}, {}});
+  EXPECT_EQ(plans[0].runs, std::vector<int>({0}));
+  // unless it has more work of earlier batches left than another
+  LaneStart behind, less_behind;
+  behind.backlog = 10;
+  less_behind.backlog = 5;
+  plans = Plan(batch, {behind, less_behind, behind});
+  EXPECT_TRUE(plans[0].runs.empty());
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
+  // the backlog only breaks ties: the lane that continues the run gets it
+  auto held = Held("a", index, 0);
+  held.backlog = 1000;
+  plans = Plan(batch, {{}, held});
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
+  // a lane whose decoder a later run of the batch continues on goes before the backlog
+  auto long_index = MakeIndex(1000, 250);
+  Batch two;
+  two.Add("b", &long_index, 0, 0, 47);
+  two.Add("a", &long_index, 1, 500, 515);
+  LaneStart spare;
+  spare.backlog = 10;
+  plans = Plan(two, {Held("a", long_index, 500), spare});
+  EXPECT_EQ(plans[0].runs, std::vector<int>({1}));
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
 }
 
 TEST(DecodeLanePlannerTest, HeldFileContinues) {
@@ -589,6 +656,7 @@ TEST(DecodeLanePlannerTest, PlannedPicturesAreDecoded) {
   int n = indices[gops].size();
 
   for (int num_lanes : {1, 2}) {
+    SCOPED_TRACE(make_string(num_lanes, " lanes"));
     // the first lane holds a decoder of the first file, which decoded frames 20 to 29
     std::vector<ReaderLane> lanes(num_lanes);
     lanes[0].decoder = std::make_unique<FramesDecoderCpu>(gops);
@@ -598,18 +666,17 @@ TEST(DecodeLanePlannerTest, PlannedPicturesAreDecoded) {
 
     // continuing on that decoder, the last frame repeated (edge padding: the decoder resets), a
     // stride, uniform sampling, seeking forward and back, and continuing from the previous batch
-    std::string what = make_string(num_lanes, " lanes, batch ");
     ASSERT_NO_FATAL_FAILURE(CheckPlannedPictures({{gops, n - 6, n + 2, 1},
                                                   {gops, 30, 46, 2},
                                                   {gops, 0, 0, 1, {0, n / 3, 2 * n / 3, n - 1}},
                                                   {single_gop, 0, 16, 1},
                                                   {single_gop, 25, 41, 1}},
-                                                 lanes, indices, buffer, what + "1"));
+                                                 lanes, indices, buffer, "batch 1 (open decoder)"));
     ASSERT_NO_FATAL_FAILURE(CheckPlannedPictures({{gops, 30, 46, 1},
                                                   {gops, 5, 21, 1},
                                                   {single_gop, 16, 32, 1},
                                                   {single_gop, 34, 50, 1}},
-                                                 lanes, indices, buffer, what + "2"));
+                                                 lanes, indices, buffer, "batch 2 (continuing)"));
     // regions of the files (a file list), padded past their end
     ASSERT_NO_FATAL_FAILURE(CheckPlannedPictures(
         {{gops, 12, 28, 1, {}, boundary::BoundaryType::REFLECT_101, 12, 20},
@@ -617,7 +684,7 @@ TEST(DecodeLanePlannerTest, PlannedPicturesAreDecoded) {
          {gops, 50, 60, 1, {}, boundary::BoundaryType::CONSTANT, 50, 55},
          {single_gop, 32, 48, 2, {}, boundary::BoundaryType::REFLECT_1001, 32, 40},
          {single_gop, 0, 0, 1, {3, 6, 9}, boundary::BoundaryType::CLAMP, 2, 12}},
-        lanes, indices, buffer, what + "3"));
+        lanes, indices, buffer, "batch 3 (file regions)"));
   }
 }
 

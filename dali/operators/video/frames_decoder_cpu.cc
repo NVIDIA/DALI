@@ -296,11 +296,23 @@ constexpr std::array<AVCodecID, 3> kCpuCodecs = {
 
 }  // namespace
 
+std::string FramesDecoderCpu::UnsupportedCodecReason(AVCodecID codec_id) {
+  if (std::find(kCpuCodecs.begin(), kCpuCodecs.end(), codec_id) == kCpuCodecs.end()) {
+    return make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
+                       ") is not supported by the CPU variant of this operator.");
+  }
+  if (!avcodec_find_decoder(codec_id)) {
+    return make_string("Codec ", avcodec_get_name(codec_id),
+                       " is not supported by the CPU variant of this operator: FFmpeg has no "
+                       "decoder for it.");
+  }
+  return {};
+}
+
 bool FramesDecoderCpu::IsCodecSupported(AVCodecID codec_id, bool warn) {
   if (std::find(kCpuCodecs.begin(), kCpuCodecs.end(), codec_id) == kCpuCodecs.end()) {
     if (warn)
-      DALI_WARN(make_string("Codec ", codec_id, " (", avcodec_get_name(codec_id),
-                            ") is not supported by the CPU variant of this operator."));
+      DALI_WARN(UnsupportedCodecReason(codec_id));
     return false;
   }
 

@@ -18,8 +18,12 @@ import numpy as np
 import cv2
 import av
 import io
+import sys
 import struct
+import subprocess
+from fractions import Fraction
 import tempfile
+import contextlib
 import nvidia.dali.types as types
 import glob
 import os
@@ -27,6 +31,7 @@ import random
 import re
 import shutil
 from enum import Enum
+from fractions import Fraction
 from functools import lru_cache
 from itertools import cycle
 from test_utils import (
@@ -73,7 +78,9 @@ unsupported_cpu_codec_error = r"is not supported by the CPU variant of this oper
 unsupported_cpu_codecs = {"h264", "hevc", "mpeg4", "av1"}
 
 
-def make_mjpeg_video(width, height):
+def make_mjpeg_video(width, height, pix_fmt="yuvj444p", num_frames=2, step=16):
+    """With `pix_fmt="gray"`, the frames are grayscale JPEGs. FFmpeg's MJPEG encoder has no
+    grayscale format, so OpenCV encodes them, and they are muxed as they are."""
     y, x = np.mgrid[:height, :width]
     x = x * 64 // max(width - 1, 1)
     y = y * 48 // max(height - 1, 1)
@@ -81,15 +88,26 @@ def make_mjpeg_video(width, height):
     with av.open(encoded, mode="w", format="avi") as container:
         stream = container.add_stream("mjpeg", rate=1)
         stream.width, stream.height = width, height
-        # Avoid chroma upsampling differences between DALI's and PyAV's FFmpeg builds.
-        stream.pix_fmt = "yuvj444p"
-        for frame_idx in range(2):
+        # 4:4:4 by default: avoids chroma upsampling differences between DALI's and PyAV's FFmpeg
+        # builds.
+        stream.pix_fmt = "yuvj444p" if pix_fmt == "gray" else pix_fmt
+        for frame_idx in range(num_frames if pix_fmt == "gray" else 0):
+            pixels = (32 + x + y // 2 + 2 * step * frame_idx).astype(np.uint8)
+            ok, jpeg = cv2.imencode(".jpg", pixels)
+            assert ok, "Could not encode a grayscale JPEG"
+            packet = av.Packet(jpeg.tobytes())
+            packet.stream = stream
+            packet.pts = packet.dts = frame_idx
+            packet.time_base = Fraction(1, 1)  # that of the stream (rate=1)
+            packet.is_keyframe = True  # every JPEG is; the AVI index marks the keyframes
+            container.mux(packet)
+        for frame_idx in range(0 if pix_fmt == "gray" else num_frames):
             # Vary each channel along both axes so incorrect row/plane strides change pixels.
             pixels = np.stack(
                 (
-                    32 + x + y // 2 + 32 * frame_idx,
+                    32 + x + y // 2 + 2 * step * frame_idx,
                     64 + x // 2 + y,
-                    160 - x // 2 + y // 2 - 16 * frame_idx,
+                    160 - x // 2 + y // 2 - step * frame_idx,
                 ),
                 axis=-1,
             ).astype(np.uint8)
@@ -102,6 +120,24 @@ def make_mjpeg_video(width, height):
         for packet in stream.encode():
             container.mux(packet)
     return bytearray(encoded.getvalue())
+
+
+def run_capturing_stderr(function):
+    """Calls `function` and returns its result or None, the exception it raised or None, and what
+    was written to stderr meanwhile, by the C++ code too."""
+    sys.stderr.flush()
+    with tempfile.TemporaryFile(mode="w+") as captured:
+        saved = os.dup(2)
+        os.dup2(captured.fileno(), 2)
+        try:
+            result, error = function(), None
+        except Exception as e:
+            result, error = None, e
+        finally:
+            os.dup2(saved, 2)
+            os.close(saved)
+        captured.seek(0)
+        return result, error, captured.read()
 
 
 def mjpeg_reference(data, image_type=types.RGB):
@@ -157,6 +193,286 @@ def test_video_reader_matching_frame_dimensions(width, image_type):
 
         output = pipeline().run()[0].at(0)
         np.testing.assert_allclose(output, mjpeg_reference(data, image_type), atol=2, rtol=0)
+
+
+def make_video(width, height, codec="libx264", num_frames=8, container_format="mp4", shift=0):
+    """Encodes a moving gradient to an in-memory video. The stream crops the size to a coded one.
+
+    A nonzero ``shift`` moves the timestamps back by that many frames, so that the first packets
+    have negative ones (the muxer is told to keep them).
+    """
+    y, x = np.mgrid[:height, :width]
+    encoded = io.BytesIO()
+    options = {"avoid_negative_ts": "disabled"} if shift else {}
+    with av.open(encoded, mode="w", format=container_format, options=options) as container:
+        try:
+            stream = container.add_stream(codec, rate=24)
+        except Exception:
+            raise SkipTest(f"{codec} is not available")
+        stream.width, stream.height, stream.pix_fmt = width, height, "yuv420p"
+        stream.time_base = Fraction(1, 24)
+        if codec == "libx265":
+            stream.options = {"x265-params": "keyint=4:bframes=0:log-level=none", "crf": "10"}
+        else:
+            stream.options = {"g": "4", "bf": "0", "crf": "10"}
+        packets = []
+        for i in range(num_frames):
+            pixels = np.stack(
+                ((x * 255 // width + 8 * i) % 256, y * 255 // height, (x + y + 20 * i) % 256),
+                axis=-1,
+            ).astype(np.uint8)
+            frame = av.VideoFrame.from_ndarray(pixels, format="rgb24")
+            frame.pts = i
+            packets.extend(stream.encode(frame))
+        packets.extend(stream.encode())
+        for packet in packets:
+            if shift:
+                packet.pts -= shift
+                packet.dts -= shift
+            container.mux(packet)
+    return bytearray(encoded.getvalue())
+
+
+def make_h264_video(width, height, num_frames=8):
+    return make_video(width, height, "libx264", num_frames)
+
+
+def set_mp4_container_size(data, width, height):
+    """Rewrites the size in the sample entry. The size in the SPS is not changed."""
+    stsd = data.index(b"stsd")
+    entry = min(i for i in (data.find(tag, stsd) for tag in (b"avc1", b"hvc1", b"hev1")) if i > 0)
+    struct.pack_into(">HH", data, entry + 28, width, height)
+
+
+def recrop_with_ffmpeg(data, crop_options):
+    """Rewrites the crop in the SPS of an H.264 stream, leaving the container size as it is."""
+    ffmpeg = os.environ.get("FFMPEG") or shutil.which("ffmpeg")
+    if not ffmpeg:
+        raise SkipTest("the ffmpeg executable is not available")
+    src = write_video(data, ".mp4")
+    dst = src + ".crop.mp4"
+    try:
+        command = [ffmpeg, "-y", "-loglevel", "error", "-i", src, "-c", "copy"]
+        subprocess.run(command + ["-bsf:v", f"h264_metadata={crop_options}", dst], check=True)
+        with open(dst, "rb") as video:
+            return bytearray(video.read())
+    finally:
+        for path in (src, dst):
+            if os.path.exists(path):
+                os.remove(path)
+
+
+def decode_with_pyav(path):
+    with av.open(path) as container:
+        return np.stack([f.to_ndarray(format="rgb24") for f in container.decode(video=0)])
+
+
+class GpuVideoOp(Enum):
+    READER = "reader"  # fn.experimental.readers.video
+    DECODER = "decoder"  # fn.decoders.video
+    INPUT = "input"  # fn.experimental.inputs.video
+
+
+def read_video_gpu(path, num_frames, op):
+    if not isinstance(op, GpuVideoOp):
+        raise ValueError(f"Unknown video operator: {op!r}")
+
+    @pipeline_def(batch_size=1, num_threads=2, device_id=0)
+    def pipeline():
+        if op == GpuVideoOp.DECODER:
+            data = fn.external_source(
+                source=lambda: [np.fromfile(path, dtype=np.uint8)], dtype=types.UINT8
+            )
+            return fn.decoders.video(data, device="mixed")
+        if op == GpuVideoOp.INPUT:
+            return fn.experimental.inputs.video(
+                name="video_input",
+                device="mixed",
+                blocking=False,
+                sequence_length=num_frames,
+            )
+        return fn.experimental.readers.video(
+            filenames=[path], sequence_length=num_frames, device="gpu", random_shuffle=False
+        )
+
+    pipe = pipeline()
+    if op == GpuVideoOp.INPUT:
+        pipe.feed_input("video_input", [np.fromfile(path, dtype=np.uint8)])
+    return np.array(pipe.run()[0].as_cpu().at(0))
+
+
+def write_video(data, suffix):
+    handle, path = tempfile.mkstemp(suffix=suffix)
+    with os.fdopen(handle, "wb") as video:
+        video.write(data)
+    return path
+
+
+READERS = tuple(GpuVideoOp)
+
+
+@params(
+    ("libx264", 300, 232, (320, 240)),  # right and bottom
+    ("libx264", 320, 232, (320, 240)),  # bottom only
+    ("libx264", 300, 240, (320, 240)),  # right only
+    ("libx264", 304, 240, (320, 256)),  # no crop in the stream, only the container is bigger
+    ("libx264", 320, 240, (304, 232)),  # the container is smaller than the stream
+    ("libx265", 300, 232, (320, 240)),
+    ("libx265", 304, 240, (320, 256)),
+)
+def test_video_container_size_differs_from_stream_size(codec, width, height, container_size):
+    """The output has the size of the picture in the stream, not the one from the container."""
+    skip_if_m60()
+    data = make_video(width, height, codec)
+    set_mp4_container_size(data, *container_size)
+    path = write_video(data, ".mp4")
+    try:
+        reference = decode_with_pyav(path)
+        assert reference.shape[1:] == (height, width, 3), reference.shape
+        for reader in READERS:
+            output = read_video_gpu(path, len(reference), reader)
+            assert output.shape == reference.shape, (reader, output.shape, reference.shape)
+            diff = np.abs(output.astype(int) - reference.astype(int)).mean()
+            assert diff < 2.0, (reader, diff)
+    finally:
+        os.remove(path)
+
+
+@params(GpuVideoOp.READER, GpuVideoOp.DECODER)
+def test_video_probe_keeps_leading_frames(reader):
+    """Guards that a file with negative timestamps in the first packets (the seek to 0 skips them)
+    returns the same frames as the sequential decoding, once the probe has rewound the file.
+
+    The decoder builds the index of the file, which reopens it and so hides a wrong rewind. The
+    reader only gives its decoder the index, so it decodes from where the probe left the file."""
+    skip_if_m60()
+    data = make_video(64, 64, num_frames=48, container_format="mpegts", shift=24)
+    path = write_video(data, ".ts")
+    try:
+        with av.open(path) as container:
+            frames = list(container.decode(video=0))
+        assert len(frames) == 48 and sum(f.pts >= 0 for f in frames) == 24
+        # the frames with negative timestamps are not indexed by DALI
+        reference = np.stack([f.to_ndarray(format="rgb24") for f in frames if f.pts >= 0])
+        output = read_video_gpu(path, len(reference), reader)
+        assert output.shape == reference.shape, (output.shape, reference.shape)
+        diff = np.abs(output.astype(int) - reference.astype(int)).mean(axis=(1, 2, 3))
+        assert diff.max() < 3.5, diff
+    finally:
+        os.remove(path)
+
+
+def make_video_without_leading_timestamps():
+    return make_video(64, 64, num_frames=48, container_format="matroska", shift=24)
+
+
+def test_video_no_timestamps_in_first_packets_decoder():
+    """A file whose first packets have no timestamps is rejected by the index, as without the
+    probe. The seek after the probe lands after those packets and must not hide them.
+    Update the test if the index starts to accept such files."""
+    skip_if_m60()
+    path = write_video(make_video_without_leading_timestamps(), ".mkv")
+    try:
+        for reader in (GpuVideoOp.READER, GpuVideoOp.DECODER):
+            with assert_raises(RuntimeError, regex="has no valid timestamps"):
+                read_video_gpu(path, 48, reader)
+    finally:
+        os.remove(path)
+
+
+def test_video_no_timestamps_in_first_packets_input():
+    """The input operator does not index the file: all the frames are returned, as without the
+    probe (and not the ones after the packets that the seek skipped)."""
+    skip_if_m60()
+    path = write_video(make_video_without_leading_timestamps(), ".mkv")
+    try:
+        reference = decode_with_pyav(path)
+        output = read_video_gpu(path, len(reference), GpuVideoOp.INPUT)
+        assert output.shape == reference.shape, (output.shape, reference.shape)
+        assert np.abs(output[0].astype(int) - reference[0].astype(int)).mean() < 2.0
+    finally:
+        os.remove(path)
+
+
+@params(
+    # a pure left/top crop is ignored by NVDEC: the full frame is output
+    ("crop_left=64:crop_top=8", (240, 320)),
+    # of a mixed crop, the right and bottom one is applied and the left and top one is not
+    ("crop_left=16:crop_right=16:crop_top=8:crop_bottom=8", (232, 304)),
+)
+def test_video_left_top_crop_is_not_supported(crop_options, expected_size):
+    """Documents the limitation: NVDEC does not report the left and top crop of the stream.
+
+    The crop is rewritten in the SPS only, so the pictures are those of the original stream: the
+    output is the top-left part of its frames, of the expected size."""
+    skip_if_m60()
+    original = make_h264_video(320, 240)
+    full_frames = decode_with_pyav(io.BytesIO(bytes(original)))
+    assert full_frames.shape[1:] == (240, 320, 3), full_frames.shape
+    reference = full_frames[:, : expected_size[0], : expected_size[1]]
+    data = recrop_with_ffmpeg(original, crop_options)
+    path = write_video(data, ".mp4")
+    try:
+        for reader in READERS:
+            output = read_video_gpu(path, len(reference), reader)
+            assert output.shape == reference.shape, (reader, output.shape, reference.shape)
+            diff = np.abs(output.astype(int) - reference.astype(int)).mean()
+            assert diff < 2.0, (reader, diff)
+    finally:
+        os.remove(path)
+
+
+@cartesian_params(
+    ["yuvj420p", "yuvj422p", "yuvj444p", "gray"],
+    [(150, 110), (160, 96), (64, 104), (150, 109), (152, 111)],
+)
+def test_mjpeg_mixed_matches_cpu(pix_fmt, size):
+    """The Mixed backend decodes MJPEG in the usual JPEG chroma formats and in grayscale as the CPU
+    backend does, also at sizes that are not a multiple of the JPEG blocks, and reads the right
+    frames after a seek and when the last frame is read again after the end of the stream.
+
+    For 4:2:2 and 4:4:4, NVDEC leaves the last row of its 4:2:0 chroma unwritten when that plane
+    has an odd number of rows: heights 110 and 109 (% 4 is 2 and 1), not 111 (% 4 is 3). The odd
+    heights also check the layout of NVDEC's odd-height surfaces (the chroma plane starts after an
+    even number of rows) and that the conversion writes no row outside the frame.
+
+    The conversion reads the chroma plane for grayscale too: its output is gray only because NVDEC
+    writes neutral chroma there for a JPEG without chroma, which the API doesn't promise."""
+    skip_if_m60()
+    width, height = size
+    data = np.frombuffer(
+        make_mjpeg_video(width, height, pix_fmt, num_frames=24, step=2), dtype=np.uint8
+    )
+    frames = [20, 3, 23, 23]  # read as 3, 20 (a seek), 23 and 23 again (back from the end)
+
+    @pipeline_def(batch_size=1, num_threads=1, device_id=0)
+    def pipeline():
+        video = fn.external_source(source=lambda: [data], dtype=types.UINT8)
+        return (
+            fn.decoders.video(video, device="mixed", frames=frames),
+            fn.decoders.video(video, device="mixed"),  # all the frames, in a row
+            fn.decoders.video(video, device="cpu", frames=frames),
+        )
+
+    outputs, error, stderr = run_capturing_stderr(pipeline().run)
+    sys.stderr.write(stderr)
+    if error is not None:
+        # NVDEC may not support JPEG in this chroma format (4:2:2 and 4:4:4 depend on the GPU), or
+        # at all: the decoder warns so, and then can't be created
+        if "is not supported by NVDEC on this platform" in stderr:
+            raise SkipTest(f"NVDEC does not support {pix_fmt} JPEG on this GPU")
+        raise error
+    selected, sequential, cpu = outputs
+    selected = np.array(selected.as_cpu()[0])
+    sequential = np.array(sequential.as_cpu()[0])
+    cpu = np.array(cpu[0])
+    assert selected.shape == cpu.shape == (len(frames), height, width, 3)
+    # The frames read after the seeks are those of a sequential read, exactly
+    np.testing.assert_array_equal(selected, sequential[frames])
+    # The two JPEG decoders differ a little, and the GPU output has 4:2:0 chroma: on this smooth
+    # pattern, that is a few levels at most
+    diff = np.abs(selected.astype(np.int16) - cpu.astype(np.int16))
+    assert diff.max() <= 6 and diff.mean() < 1, f"max {diff.max()}, mean {diff.mean():.3f}"
 
 
 def assert_unsupported_cpu_codec(run_pipeline):
@@ -1979,9 +2295,27 @@ def _lanes_reader_files(device):
     return cfr_files + vfr_files + (gpu_files if device == "gpu" else [])
 
 
+@contextlib.contextmanager
+def _strict_plans():
+    """Readers created in it fail a batch if a decode lane's decoder is not where the batch's plan
+    expects it (otherwise, decoding only follows a worse plan)."""
+    name = "DALI_VIDEO_READER_STRICT_PLANS"
+    old = os.environ.get(name)
+    os.environ[name] = "1"
+    try:
+        yield
+    finally:
+        if old is None:
+            del os.environ[name]
+        else:
+            os.environ[name] = old
+
+
+@_strict_plans()
 def _check_reader_output_independent_of_num_lanes(
-    device, kwargs, batch_size, num_lanes, files=None, window=32
+    device, kwargs, batch_size, num_lanes, files=None, window=32, epochs=None
 ):
+    """With `epochs`, compares that many epochs (and one more batch), otherwise 8 batches."""
     files = files or _lanes_reader_files(device)
 
     @pipeline_def(batch_size=batch_size, num_threads=4, device_id=0, seed=42)
@@ -1995,11 +2329,17 @@ def _check_reader_output_independent_of_num_lanes(
                 device=device,
                 enable_frame_num="sequence",
                 num_decoders=num_lanes,
+                name="Reader",
                 **kwargs,
             )
         )
 
-    compare_pipelines(pipe(1), pipe(num_lanes), batch_size=batch_size, N_iterations=8)
+    ref = pipe(1)
+    iterations = 8
+    if epochs:
+        ref.build()
+        iterations = -(-epochs * ref.epoch_size("Reader") // batch_size) + 1
+    compare_pipelines(ref, pipe(num_lanes), batch_size=batch_size, N_iterations=iterations)
 
     # The two runs could agree on wrong frames, so check the frames against PyAV as well
     p = pipe(num_lanes)
@@ -2072,11 +2412,28 @@ def test_reader_multi_run_lanes_output_independent_of_num_lanes(device, case):
     )
 
 
+# With more than one lane, the lanes decode the next batch while the slowest lane finishes the
+# current one, and while the reader's queue (prefetch_queue_depth) holds earlier batches. Two
+# epochs, so that decoders carry over from batch to batch and into the next epoch
+@cartesian_params(["cpu", "gpu"], (0, 3, 6), (1, 2))
+def test_reader_output_independent_of_num_lanes_reader_depth(device, case, reader_depth):
+    skip_if_m60()
+    _check_reader_output_independent_of_num_lanes(
+        device,
+        dict(_lanes_reader_cases[case], prefetch_queue_depth=reader_depth),
+        batch_size=4,
+        num_lanes=4,
+        files=cfr_files + vfr_files,
+        epochs=2,
+    )
+
+
 # 26 samples in 3 shards (pad_last_batch): shard 0 has samples 0-7, padded to 9 samples, so that
 # its third batch is sample 7, four times (decoded in the batch before it); shard 2 has samples
 # 17-25, so that its third batch is sample 25 and three repeats of it
-@cartesian_params(("cpu", "gpu"), (0, 2))
-def test_reader_pad_last_batch_repeats_last_sample(device, shard_id):
+@cartesian_params(("cpu", "gpu"), (0, 2), (1, 2))
+@_strict_plans()
+def test_reader_pad_last_batch_repeats_last_sample(device, shard_id, reader_depth):
     """With pad_last_batch, a shard's last sample is repeated, in its own batch or as the whole
     next batch: the same sample, which must not be decoded again while an earlier batch may still
     be in use."""
@@ -2100,6 +2457,7 @@ def test_reader_pad_last_batch_repeats_last_sample(device, shard_id):
             num_shards=3,
             shard_id=shard_id,
             num_decoders=4,
+            prefetch_queue_depth=reader_depth,
         )
         return videos, labels
 
@@ -2125,10 +2483,11 @@ def test_reader_pad_last_batch_repeats_last_sample(device, shard_id):
         _assert_frames_match_file(video, range(start, start + 4), files[label % len(files)])
 
 
-@cartesian_params(("cpu", "gpu"), (1, 4))
-def test_reader_reports_first_error_of_batch(device, num_lanes):
-    """Samples fail in two lanes of a batch and in the next batch: the error is the first one of
-    the batch, at that batch, whatever the lanes' timing."""
+@cartesian_params(("cpu", "gpu"), (1, 4), (1, 2))
+@_strict_plans()
+def test_reader_reports_first_error_of_batch(device, num_lanes, reader_depth):
+    """Samples fail in two lanes of a batch and in the next batch, which lanes may be decoding
+    already: the error is the first one of the batch, at that batch, whatever the lanes' timing."""
     skip_if_m60()
     batch_size = 4
     # Whether each sample's file is deleted after the reader has indexed it, so that it fails to
@@ -2155,6 +2514,7 @@ def test_reader_reports_first_error_of_batch(device, num_lanes):
                 device=device,
                 sequence_length=4,
                 num_decoders=num_lanes,
+                prefetch_queue_depth=reader_depth,
             )
             return videos
 
@@ -2163,10 +2523,40 @@ def test_reader_reports_first_error_of_batch(device, num_lanes):
         for filename, delete in zip(files, deleted, strict=True):
             if delete:
                 os.remove(filename)
-        p.run()  # batch 0
         expected = f"Invalid decoder for filename {re.escape(files[5])}"
+        # The reader prefetches batch 1 while batch 0 is consumed, and can fail on it before the
+        # consumer wakes up. Then the error is raised by the first run, not the second.
         with assert_raises(RuntimeError, regex=expected):
+            p.run()  # batch 0
+            p.run()  # batch 1
+        # Destroyed right after the error, while the lanes may still be decoding batch 2, and
+        # before the files of tmp_dir are removed. Left to the function's return, the pipeline
+        # would be destroyed only after the `with` block has removed the directory.
+        del p
+
+
+@params("cpu", "gpu")
+@_strict_plans()
+def test_reader_destroyed_while_decoding(device):
+    """The reader is destroyed with its lanes decoding batches ahead, or before it starts them."""
+    skip_if_m60()
+
+    @pipeline_def(batch_size=4, num_threads=4, device_id=0)
+    def pipe(lazy_init):
+        return fn.experimental.readers.video(
+            filenames=cfr_files + vfr_files,
+            device=device,
+            sequence_length=5,
+            lazy_init=lazy_init,
+            num_decoders=4,
+        )
+
+    for i in range(30):
+        p = pipe(lazy_init=i % 2 == 1)
+        p.build()
+        for _ in range(i % 3):  # none: destroyed before the lanes are started
             p.run()
+        del p
 
 
 @params("cpu", "gpu")

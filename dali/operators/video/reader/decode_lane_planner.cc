@@ -20,7 +20,17 @@
 #include <tuple>
 #include <utility>
 
+#include "dali/core/util.h"
+
 namespace dali {
+
+int EvenSplitLanes(int max_lanes, int batch_size) {
+  int lanes = std::max(1, std::min(max_lanes, batch_size));
+  if (batch_size <= 0)
+    return lanes;
+  int rounds = div_ceil(batch_size, lanes);  // samples on the busiest lane
+  return div_ceil(batch_size, rounds);       // the fewest lanes that need no more rounds
+}
 
 bool CanReachWithoutSeek(const FrameIndex &index, int next, int frame) {
   int size = index.size();
@@ -60,12 +70,6 @@ void SampleFrames(SmallVector<int, 32> &frames, span<const int> frame_idxs, int 
   }
   frames.resize(n);
   std::sort(frames.begin(), frames.end());
-}
-
-FramesDecoderBase::DecodePosition DecoderPosition(const FramesDecoderBase &decoder) {
-  if (!decoder.HasIndex())
-    throw std::invalid_argument("The decoder of a decode lane must have an index.");
-  return FramesDecoderBase::PositionAt(decoder.GetIndex(), decoder.NextFrameIdx());
 }
 
 namespace {
@@ -234,9 +238,13 @@ void PlanLanes(std::vector<LanePlan> &plans, span<const PlannedRun> runs,
         delta = Cost(work, open_cost) - (group ? Cost(group->work, open_cost) : 0);
       }
       int64_t end = plans[l].load + delta;
-      // on a tie, not a lane whose decoder a run left in the batch may continue on
+      // on a tie, not a lane whose decoder a run left in the batch may continue on, then the lane
+      // with the least backlog
       bool spare = pending[l] == 0 || Holds(lanes[l], run.filename);
-      if (end < best_end || (end == best_end && spare && !best_spare)) {
+      bool better = end < best_end;
+      if (end == best_end)
+        better = spare != best_spare ? spare : lanes[l].backlog < lanes[best].backlog;
+      if (better) {
         best = l;
         best_end = end;
         best_spare = spare;
