@@ -1134,7 +1134,8 @@ def test_uniform_sample_with_range_before_the_video(device):
 # The error when the only input entry was skipped, up to the end of the message
 SKIPPED_ONE_ENTRY = (
     "*No samples could be built from the input: 1 input file or frame range was skipped (not a"
-    " valid video, an unsupported codec or an empty frame range; see the warnings above).*"
+    " valid video, an unsupported codec or an empty frame range; see the warnings above, if"
+    " any).*"
 )
 
 
@@ -1346,7 +1347,7 @@ def test_file_list_skipped_and_too_short_ranges_raises(device):
     with assert_raises(
         RuntimeError,
         glob="*No samples could be built from the input: 1 input file or frame range was skipped"
-        " (*see the warnings above); " + _too_short_error(2, 4, 1),
+        " (*see the warnings above, if any); " + _too_short_error(2, 4, 1),
     ):
         p.build()
 

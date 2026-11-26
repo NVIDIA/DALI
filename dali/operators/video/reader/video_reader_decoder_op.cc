@@ -596,7 +596,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       std::stringstream why;
       if (num_skipped > 0)
         why << entries(num_skipped) << " skipped (not a valid video, an unsupported codec or an "
-            << "empty frame range; see the warnings above)";
+            << "empty frame range; see the warnings above, if any)";
       if (num_too_short > 0)
         why << (num_skipped > 0 ? "; " : "") << entries(num_too_short)
             << " too short for a whole sequence: with pad_mode='none', sequence_length="
@@ -605,6 +605,8 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       // The constructor throws when there are no files, and every file without a sample is
       // counted in one of the two
       assert(num_skipped + num_too_short == static_cast<int64_t>(video_files_info_.size()));
+      if (why.str().empty())  // not reached (see the assert), but never an empty reason
+        why << "no input file or frame range produced a sample";
       throw std::runtime_error(
           make_string("No samples could be built from the input: ", why.str(), "."));
     }
