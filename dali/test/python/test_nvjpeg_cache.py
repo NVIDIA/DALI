@@ -38,7 +38,9 @@ def compare(tl1, tl2):
     assert len(tl1_cpu) == len(tl2_cpu)
     for i in range(0, len(tl1_cpu)):
         assert_array_equal(
-            tl1_cpu.at(i), tl2_cpu.at(i), f"cached and non-cached images differ for sample #{i}"
+            tl1_cpu[i],
+            tl2_cpu[i],
+            f"cached and non-cached images differ for sample #{i}",
         )
 
 
@@ -136,7 +138,7 @@ def test_cache_is_not_shared_between_file_roots(decoder_type):
         for _ in range(2):  # the second iteration is served from the cache
             for pipe, ref in ((pipe_a, ref_a), (pipe_b, ref_b), (pipe_a, ref_a), (pipe_b, ref_b)):
                 (out,) = pipe.run()
-                assert_array_equal(out.as_cpu().at(0), ref)
+                assert_array_equal(out.as_cpu()[0], ref)
 
 
 @params(("legacy",), ("experimental",))
@@ -155,8 +157,8 @@ def test_cache_key_follows_the_sample_when_batch_is_permuted(decoder_type):
             for pipe, expected in ((pipe_swapped, (ref_b, ref_a)), (pipe_ordered, (ref_a, ref_b))):
                 (out,) = pipe.run()
                 out = out.as_cpu()
-                assert_array_equal(out.at(0), expected[0])
-                assert_array_equal(out.at(1), expected[1])
+                assert_array_equal(out[0], expected[0])
+                assert_array_equal(out[1], expected[1])
 
 
 @params(("legacy",), ("experimental",))
@@ -167,13 +169,13 @@ def test_cache_key_survives_source_info_propagation(decoder_type):
         (ref,) = _make_dataset(tmp, {"a.png": ((250, 10, 10), (8, 8))}).values()
         warmup = _cached_pipeline(root=tmp, decoder_type=decoder_type)
         (out,) = warmup.run()
-        assert_array_equal(out.as_cpu().at(0), ref)
+        assert_array_equal(out.as_cpu()[0], ref)
         pipe = _cached_pipeline(
             root=tmp, decoder_type=decoder_type, cast_encoded=True, skip_cached_images=True
         )
         for _ in range(2):
             (out,) = pipe.run()
-            assert_array_equal(out.as_cpu().at(0), ref)
+            assert_array_equal(out.as_cpu()[0], ref)
 
 
 def main():

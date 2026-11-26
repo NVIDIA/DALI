@@ -765,7 +765,8 @@ class TestNumbaFuncCPU:
             images_in, R, G, B = pipe.run()
             for i in range(len(images_in)):
                 assert np.array_equal(
-                    images_in.at(i), np.stack([R.at(i), G.at(i), B.at(i)], axis=2)
+                    images_in[i],
+                    np.stack([R[i], G[i], B[i]], axis=2),
                 )
 
     @attr("sanitizer_skip")
@@ -805,8 +806,8 @@ class TestNumbaFuncCPU:
         for _ in range(3):
             images_in, images_out, img_shape = pipe.run()
             for i in range(len(images_in)):
-                assert np.array_equal(255 - images_in.at(i), images_out.at(i))
-                assert np.array_equal(images_out.at(i).shape, img_shape.at(i))
+                assert np.array_equal(255 - images_in[i].as_array(), images_out[i])
+                assert np.array_equal(images_out[i].as_array().shape, img_shape[i])
 
 
 class TestNumbaFuncGPU:
@@ -1023,5 +1024,5 @@ class TestNumbaFuncGPU:
                 img_shape.as_cpu(),
             )
             for i in range(len(images_in)):
-                assert np.array_equal(255 - images_in.at(i), images_out.at(i))
-                assert np.array_equal(images_out.at(i).shape, img_shape.at(i))
+                assert np.array_equal(255 - images_in[i].as_array(), images_out[i])
+                assert np.array_equal(images_out[i].as_array().shape, img_shape[i])

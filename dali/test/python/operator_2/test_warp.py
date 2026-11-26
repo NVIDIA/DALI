@@ -293,7 +293,7 @@ def _test_extremely_large_data(device):
     except MemoryError as e:
         print("Skipping test due to out-of-memory error:", e)
         return
-    out = out.at(0)
+    out = out[0].as_array()
     assert out.shape == (out_size, out_size, channels)
     for c in range(channels):
         assert out[0, 0, c] == c

@@ -205,7 +205,7 @@ def check_stop_iteration_resume(pipe, batch_size, layout):
         try:
             while True:
                 (r,) = pipe.run()
-                r = [np.copy(r.at(i)) for i in range(len(r))]
+                r = [np.copy(r[i]) for i in range(len(r))]
                 output.append(r)
         except StopIteration:
             pipe.reset()

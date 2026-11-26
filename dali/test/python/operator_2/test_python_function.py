@@ -199,7 +199,7 @@ def run_case(func):
         (preprocessed_output,) = pipe.run()
         (output,) = pyfunc_pipe.run()
         for i in range(len(output)):
-            assert numpy.array_equal(output.at(i), func(preprocessed_output.at(i)))
+            assert numpy.array_equal(output[i], func(preprocessed_output[i].as_array()))
 
 
 def one_channel_normalize(image):
@@ -263,7 +263,7 @@ def test_python_operator_flip():
         (numpy_output,) = numpy_flip.run()
         (dali_output,) = dali_flip.run()
         for i in range(len(numpy_output)):
-            assert numpy.array_equal(numpy_output.at(i), dali_output.at(i))
+            assert numpy.array_equal(numpy_output[i], dali_output[i])
 
 
 class RotatePipeline(CommonPipeline):
@@ -297,10 +297,10 @@ def test_python_operator_rotate():
         (numpy_output,) = numpy_rotate.run()
         (dali_output,) = dali_rotate.run()
         for i in range(len(numpy_output)):
-            if not numpy.array_equal(numpy_output.at(i), dali_output.at(i)):
-                cv2.imwrite("numpy.png", numpy_output.at(i))
-                cv2.imwrite("dali.png", dali_output.at(i))
-                assert numpy.array_equal(numpy_output.at(i), dali_output.at(i))
+            if not numpy.array_equal(numpy_output[i], dali_output[i]):
+                cv2.imwrite("numpy.png", numpy_output[i].as_array())
+                cv2.imwrite("dali.png", dali_output[i].as_array())
+                assert numpy.array_equal(numpy_output[i], dali_output[i])
 
 
 def test_python_operator_brightness():
@@ -313,7 +313,10 @@ def test_python_operator_brightness():
         (dali_output,) = dali_brightness.run()
         for i in range(len(dali_output)):
             assert numpy.allclose(
-                numpy_output.at(i), np.array(dali_output.at(i).as_cpu()), rtol=1e-5, atol=1
+                numpy_output[i],
+                np.array(dali_output[i].as_cpu()),
+                rtol=1e-5,
+                atol=1,
             )
 
 
@@ -354,9 +357,9 @@ def run_two_outputs(func):
         (preprocessed_output,) = pipe.run()
         output1, output2 = pyfunc_pipe.run()
         for i in range(len(output1)):
-            pro1, pro2 = func(preprocessed_output.at(i))
-            assert numpy.array_equal(output1.at(i), pro1)
-            assert numpy.array_equal(output2.at(i), pro2)
+            pro1, pro2 = func(preprocessed_output[i].as_array())
+            assert numpy.array_equal(output1[i], pro1)
+            assert numpy.array_equal(output2[i], pro2)
 
 
 def test_split():
@@ -372,23 +375,25 @@ def multi_per_sample_compare(func, pipe, pyfunc_pipe):
         preprocessed_output1, preprocessed_output2 = pipe.run()
         out1, out2, out3 = pyfunc_pipe.run()
         for i in range(BATCH_SIZE):
-            pro1, pro2, pro3 = func(preprocessed_output1.at(i), preprocessed_output2.at(i))
-            assert numpy.array_equal(out1.at(i), pro1)
-            assert numpy.array_equal(out2.at(i), pro2)
-            assert numpy.array_equal(out3.at(i), pro3)
+            pro1, pro2, pro3 = func(
+                preprocessed_output1[i].as_array(), preprocessed_output2[i].as_array()
+            )
+            assert numpy.array_equal(out1[i], pro1)
+            assert numpy.array_equal(out2[i], pro2)
+            assert numpy.array_equal(out3[i], pro3)
 
 
 def multi_batch_compare(func, pipe, pyfunc_pipe):
     for it in range(ITERS):
         preprocessed_output1, preprocessed_output2 = pipe.run()
         out1, out2, out3 = pyfunc_pipe.run()
-        in1 = [preprocessed_output1.at(i) for i in range(BATCH_SIZE)]
-        in2 = [preprocessed_output2.at(i) for i in range(BATCH_SIZE)]
+        in1 = [preprocessed_output1[i].as_array() for i in range(BATCH_SIZE)]
+        in2 = [preprocessed_output2[i].as_array() for i in range(BATCH_SIZE)]
         pro1, pro2, pro3 = func(in1, in2)
         for i in range(BATCH_SIZE):
-            assert numpy.array_equal(out1.at(i), pro1[i])
-            assert numpy.array_equal(out2.at(i), pro2[i])
-            assert numpy.array_equal(out3.at(i), pro3[i])
+            assert numpy.array_equal(out1[i], pro1[i])
+            assert numpy.array_equal(out2[i], pro2[i])
+            assert numpy.array_equal(out3[i], pro3[i])
 
 
 def run_multi_input_multi_output(func, compare, batch=False):
@@ -546,10 +551,10 @@ def test_func_with_side_effects():
         (out_one,) = pipe_one.run()
         (out_two,) = pipe_two.run()
         assert counter == len(out_one) + len(out_two)
-        elems_one = [out_one.at(s)[0][0][0] for s in range(BATCH_SIZE)]
+        elems_one = [out_one[s].as_array()[0][0][0] for s in range(BATCH_SIZE)]
         elems_one.sort()
         assert elems_one == [i for i in range(1, BATCH_SIZE + 1)]
-        elems_two = [out_two.at(s)[0][0][0] for s in range(BATCH_SIZE)]
+        elems_two = [out_two[s].as_array()[0][0][0] for s in range(BATCH_SIZE)]
         elems_two.sort()
         assert elems_two == [i for i in range(BATCH_SIZE + 1, 2 * BATCH_SIZE + 1)]
 

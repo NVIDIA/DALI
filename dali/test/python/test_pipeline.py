@@ -87,11 +87,11 @@ def test_tensor_multiple_uses():
     a_cpu = out[1]
     a_gpu = out[2].as_cpu()
     for i in range(batch_size):
-        t_raw = a_raw.at(i)
-        t_cpu = a_cpu.at(i)
+        t_raw = a_raw[i].as_array()
+        t_cpu = a_cpu[i].as_array()
         assert np.sum(np.abs(t_cpu - t_raw)) == 0
-        t_cpu = a_cpu.at(i)
-        t_gpu = a_gpu.at(i)
+        t_cpu = a_cpu[i].as_array()
+        t_gpu = a_gpu[i].as_array()
         assert np.sum(np.abs(t_cpu - t_gpu)) == 0
 
 
@@ -163,9 +163,9 @@ def test_multiple_input_sets():
     for i in range(batch_size):
         for j in range(0, len(out) - 2, 2):
             # All boxes should be the same
-            assert np.array_equal(out[j].at(i), out[j + 2].at(i))
+            assert np.array_equal(out[j][i], out[j + 2][i])
             # All labels should be the same
-            assert np.array_equal(out[j + 1].at(i), out[j + 3].at(i))
+            assert np.array_equal(out[j + 1][i], out[j + 3][i])
 
 
 def test_pipeline_separated_exec_setup():
@@ -209,11 +209,11 @@ def test_pipeline_separated_exec_setup():
     a_cpu = out[1]
     a_gpu = out[2].as_cpu()
     for i in range(batch_size):
-        t_raw = a_raw.at(i)
-        t_cpu = a_cpu.at(i)
+        t_raw = a_raw[i].as_array()
+        t_cpu = a_cpu[i].as_array()
         assert np.sum(np.abs(t_cpu - t_raw)) == 0
-        t_cpu = a_cpu.at(i)
-        t_gpu = a_gpu.at(i)
+        t_cpu = a_cpu[i].as_array()
+        t_gpu = a_gpu[i].as_array()
         assert np.sum(np.abs(t_cpu - t_gpu)) == 0
 
 
@@ -331,7 +331,7 @@ def test_use_twice():
     assert out[1].is_dense_tensor()
     assert out[0].as_tensor().shape() == out[1].as_tensor().shape()
     for i in range(batch_size):
-        assert np.array_equal(out[0].at(i), out[0].at(i))
+        assert np.array_equal(out[0][i], out[1][i])
 
 
 def test_cropmirrornormalize_layout():
@@ -378,8 +378,8 @@ def test_cropmirrornormalize_layout():
     a_nchw = out[0].as_cpu()
     a_nhwc = out[1].as_cpu()
     for i in range(batch_size):
-        t_nchw = a_nchw.at(i)
-        t_nhwc = a_nhwc.at(i)
+        t_nchw = a_nchw[i].as_array()
+        t_nhwc = a_nhwc[i].as_array()
         assert t_nchw.shape == (3, 224, 224)
         assert t_nhwc.shape == (224, 224, 3)
         assert np.sum(np.abs(np.transpose(t_nchw, (1, 2, 0)) - t_nhwc)) == 0
@@ -432,8 +432,8 @@ def test_cropmirrornormalize_pad():
         a = out[0].as_cpu()
         a_pad = out[1].as_cpu()
         for i in range(batch_size):
-            t = a.at(i)
-            t_pad = a_pad.at(i)
+            t = a[i].as_array()
+            t_pad = a_pad[i].as_array()
             if layout == types.NCHW:
                 assert t.shape == (3, 224, 224)
                 assert t_pad.shape == (4, 224, 224)
@@ -523,7 +523,7 @@ def test_seed():
         pipe = HybridPipe(batch_size=batch_size, num_threads=2, device_id=0)
         pipe_out = pipe.run()
         pipe_out_cpu = pipe_out[0].as_cpu()
-        img_chw_test = pipe_out_cpu.at(n)
+        img_chw_test = pipe_out_cpu[n].as_array()
         if i == 0:
             img_chw = img_chw_test
         assert np.sum(np.abs(img_chw - img_chw_test)) == 0
@@ -733,7 +733,7 @@ def test_warpaffine():
     import cv2
 
     for i in range(128):
-        orig = orig_cpu.at(i)
+        orig = orig_cpu[i].as_array()
         # apply 0.5 correction for opencv's not-so-good notion of pixel centers
         M = np.array([1.0, 0.8, -0.8 * (112 - 0.5), 0.0, 1.2, -0.2 * (112 - 0.5)]).reshape((2, 3))
         out = cv2.warpAffine(
@@ -744,7 +744,7 @@ def test_warpaffine():
             borderValue=(128, 128, 128),
             flags=(cv2.WARP_INVERSE_MAP + cv2.INTER_LINEAR),
         )
-        dali_output = dali_output_batch.at(i)
+        dali_output = dali_output_batch[i].as_array()
         maxdif = np.max(cv2.absdiff(out, dali_output) / 255.0)
         assert maxdif < 0.025
 
@@ -1269,7 +1269,7 @@ def test_python_formats():
         test_array = np.array([[1, 1], [1, 1]], dtype=t)
         pipe = TestPipeline(2, 1, 0, 1, test_array)
         out = pipe.run()[0]
-        out_dtype = out.at(0).dtype
+        out_dtype = out[0].as_array().dtype
         assert test_array.dtype.itemsize == out_dtype.itemsize
         assert test_array.dtype.str == out_dtype.str
 
@@ -1920,7 +1920,7 @@ def test_pipeline_out_of_scope():
             pipe.set_outputs(dali.fn.external_source(source=[[np.array([-0.5, 1.25])]]))
         return pipe.run()
 
-    out = get_output()[0].at(0)
+    out = get_output()[0][0].as_array()
     assert out[0] == -0.5 and out[1] == 1.25
 
 
@@ -1929,11 +1929,11 @@ def test_return_constants():
     types = [bool, np.int8, np.uint8, np.int16, np.uint16, np.int32, np.uint32, np.float32]
     pipe.set_outputs(np.array([[1, 2], [3, 4]]), 10, *[t(42) for t in types])
     a, b, *other = pipe.run()
-    assert np.array_equal(a.at(0), np.array([[1, 2], [3, 4]]))
-    assert b.at(0) == 10
+    assert np.array_equal(a[0], np.array([[1, 2], [3, 4]]))
+    assert b[0].as_array() == 10
     for i, o in enumerate(other):
-        assert o.at(0) == types[i](42)
-        assert o.at(0).dtype == types[i]
+        assert o[0].as_array() == types[i](42)
+        assert o[0].as_array().dtype == types[i]
 
 
 def test_preserve_arg():
@@ -2014,7 +2014,7 @@ def test_separated_queue_external_source_drains_prefetched_batches(cpu_size, gpu
         assert len(out) == batch_size
         decoded = out.as_cpu()
         for sample_idx in range(batch_size):
-            sample = decoded.at(sample_idx)
+            sample = decoded[sample_idx].as_array()
             assert sample.ndim == 3
             assert sample.shape[-1] == 3
             assert np.any(sample)

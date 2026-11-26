@@ -36,9 +36,9 @@ def test_plain_indexing():
     pipe = index_pipe(src, lambda x: x[1, 1])
     inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
-        x = inp.at(i)
-        assert np.array_equal(x[1, 1], cpu.at(i))
-        assert np.array_equal(x[1, 1], gpu.at(i))
+        x = inp[i].as_array()
+        assert np.array_equal(x[1, 1], cpu[i])
+        assert np.array_equal(x[1, 1], gpu[i])
 
 
 def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_index_func=None):
@@ -46,10 +46,10 @@ def _test_indexing(data_gen, input_layout, output_layout, dali_index_func, ref_i
     pipe = index_pipe(src, dali_index_func)
     inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
-        x = inp.at(i)
+        x = inp[i].as_array()
         ref = (ref_index_func or dali_index_func)(x)
-        assert np.array_equal(ref, cpu.at(i))
-        assert np.array_equal(ref, gpu.at(i))
+        assert np.array_equal(ref, cpu[i])
+        assert np.array_equal(ref, gpu[i])
         assert cpu.layout() == output_layout
         assert gpu.layout() == output_layout
 
@@ -90,9 +90,9 @@ def test_swapped_ends():
     pipe = index_pipe(src, lambda x: x[2:1])
     inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
-        x = inp.at(i)
-        assert np.array_equal(x[2:1], cpu.at(i))
-        assert np.array_equal(x[2:1], gpu.at(i))
+        x = inp[i].as_array()
+        assert np.array_equal(x[2:1], cpu[i])
+        assert np.array_equal(x[2:1], gpu[i])
 
 
 @params(
@@ -108,9 +108,9 @@ def test_swapped_ends_with_stride(ranges):
     pipe = index_pipe(src, lambda x: x[ranges])
     inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
-        x = inp.at(i)
-        assert np.array_equal(x[ranges], cpu.at(i))
-        assert np.array_equal(x[ranges], gpu.at(i))
+        x = inp[i].as_array()
+        assert np.array_equal(x[ranges], cpu[i])
+        assert np.array_equal(x[ranges], gpu[i])
 
 
 def test_noop():
@@ -137,14 +137,14 @@ def test_runtime_indexing():
     for _ in range(4):
         inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
         for i in range(len(inp)):
-            x = inp.at(i)
+            x = inp[i].as_array()
             # fmt: off
             ref = x[lo_idxs[j]:, :hi_idxs[k]]
             # fmt: on
             j = (j + 1) % len(lo_idxs)
             k = (k + 1) % len(hi_idxs)
-            assert np.array_equal(ref, cpu.at(i))
-            assert np.array_equal(ref, gpu.at(i))
+            assert np.array_equal(ref, cpu[i])
+            assert np.array_equal(ref, gpu[i])
 
 
 def test_runtime_stride_dim1():
@@ -163,12 +163,12 @@ def test_runtime_stride_dim1():
     for _ in range(4):
         inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
         for i in range(len(inp)):
-            x = inp.at(i)
+            x = inp[i].as_array()
             # fmt: off
             ref = x[::strides[j]]
             # fmt: on
-            assert np.array_equal(ref, cpu.at(i))
-            assert np.array_equal(ref, gpu.at(i))
+            assert np.array_equal(ref, cpu[i])
+            assert np.array_equal(ref, gpu[i])
             j = (j + 1) % len(strides)
 
 
@@ -188,12 +188,12 @@ def test_runtime_stride_dim2():
     for _ in range(4):
         inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
         for i in range(len(inp)):
-            x = inp.at(i)
+            x = inp[i].as_array()
             # fmt: off
             ref = x[:, ::strides[j]]
             # fmt: on
-            assert np.array_equal(ref, cpu.at(i))
-            assert np.array_equal(ref, gpu.at(i))
+            assert np.array_equal(ref, cpu[i])
+            assert np.array_equal(ref, gpu[i])
             j = (j + 1) % len(strides)
 
 
@@ -308,9 +308,9 @@ def test_multiple_skipped_dims():
     pipe = index_pipe(src, lambda x: x[1, :, :, 1])
     inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
-        x = inp.at(i)
-        assert np.array_equal(x[1, :, :, 1], cpu.at(i))
-        assert np.array_equal(x[1, :, :, 1], gpu.at(i))
+        x = inp[i].as_array()
+        assert np.array_equal(x[1, :, :, 1], cpu[i])
+        assert np.array_equal(x[1, :, :, 1], gpu[i])
 
 
 def test_empty_slice():
@@ -319,9 +319,9 @@ def test_empty_slice():
     pipe = index_pipe(src, lambda x: x[0:0, 0:1])
     inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
-        x = inp.at(i)
-        assert np.array_equal(x[0:0, 0:1], cpu.at(i))
-        assert np.array_equal(x[0:0, 0:1], gpu.at(i))
+        x = inp[i].as_array()
+        assert np.array_equal(x[0:0, 0:1], cpu[i])
+        assert np.array_equal(x[0:0, 0:1], gpu[i])
 
 
 def test_range_truncation():
@@ -330,9 +330,9 @@ def test_range_truncation():
     pipe = index_pipe(src, lambda x: x[50:150])
     inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
-        x = inp.at(i)
-        cpu_sample = cpu.at(i)
-        gpu_sample = gpu.at(i)
+        x = inp[i].as_array()
+        cpu_sample = cpu[i]
+        gpu_sample = gpu[i]
         ref_sample = x[50:150]
         assert np.array_equal(cpu_sample, ref_sample), f"{cpu_sample} != {ref_sample}"
         assert np.array_equal(gpu_sample, ref_sample), f"{cpu_sample} != {ref_sample}"
@@ -344,9 +344,9 @@ def test_reverse_range_truncation():
     pipe = index_pipe(src, lambda x: x[-50:-150:-1])
     inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
-        x = inp.at(i)
-        cpu_sample = cpu.at(i)
-        gpu_sample = gpu.at(i)
+        x = inp[i].as_array()
+        cpu_sample = cpu[i]
+        gpu_sample = gpu[i]
         ref_sample = x[-50:-150:-1]
         assert np.array_equal(cpu_sample, ref_sample), f"{cpu_sample} != {ref_sample}"
         assert np.array_equal(gpu_sample, ref_sample), f"{cpu_sample} != {ref_sample}"
@@ -369,7 +369,7 @@ def test_negative_stride(length, ranges):
     pipe = index_pipe(src, slice_func)
     inp, cpu, gpu = tuple(out.as_cpu() for out in pipe.run())
     for i in range(len(inp)):
-        x = inp.at(i)
+        x = inp[i].as_array()
         ref = slice_func(x)
-        assert np.array_equal(ref, cpu.at(i))
-        assert np.array_equal(ref, gpu.at(i))
+        assert np.array_equal(ref, cpu[i])
+        assert np.array_equal(ref, gpu[i])

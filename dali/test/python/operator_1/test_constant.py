@@ -123,7 +123,7 @@ def _test_op(device):
 
         for o in range(len(ref)):
             for i in range(len(out[o])):
-                check(out[o].at(i), ref[o])
+                check(out[o][i].as_array(), ref[o])
 
 
 def _test_func(device, array_interface):
@@ -135,7 +135,7 @@ def _test_func(device, array_interface):
 
         for o in range(len(ref)):
             for i in range(len(out[o])):
-                check(out[o].at(i), ref[o])
+                check(out[o][i].as_array(), ref[o])
 
 
 def _test_scalar_constant_promotion(device):
@@ -158,7 +158,7 @@ def _test_scalar_constant_promotion(device):
 
         for o in range(len(ref)):
             for i in range(len(out[o])):
-                check(out[o].at(i), ref[o])
+                check(out[o][i].as_array(), ref[o])
 
 
 def test_constant_op():
@@ -199,11 +199,11 @@ def _test_int64_constant(device):
         unsigned_out = unsigned_out.as_cpu()
         implicit_signed_out = implicit_signed_out.as_cpu()
         implicit_unsigned_out = implicit_unsigned_out.as_cpu()
-    check(scalar_out.at(0), scalar)
-    check(signed_out.at(0), signed)
-    check(unsigned_out.at(0), unsigned)
-    check(implicit_signed_out.at(0), implicit_signed.astype(np.int32))
-    check(implicit_unsigned_out.at(0), implicit_unsigned.astype(np.uint32))
+    check(scalar_out[0].as_array(), scalar)
+    check(signed_out[0].as_array(), signed)
+    check(unsigned_out[0].as_array(), unsigned)
+    check(implicit_signed_out[0].as_array(), implicit_signed.astype(np.int32))
+    check(implicit_unsigned_out[0].as_array(), implicit_unsigned.astype(np.uint32))
 
 
 def test_int64_constant():
@@ -233,8 +233,8 @@ def test_variable_batch():
         assert len(gpu) == len(batch)
         gpu = gpu.as_cpu()
         for i in range(len(batch)):
-            assert np.array_equal(cpu.at(i), val)
-            assert np.array_equal(gpu.at(i), val)
+            assert np.array_equal(cpu[i], val)
+            assert np.array_equal(gpu[i], val)
 
 
 def test_constant_promotion_mixed():

@@ -110,9 +110,9 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
         ref = []
         scale = 1
         for idx in range(batch_size):
-            X = outputs[0].at(idx)
+            X = outputs[0][idx].as_array()
             if T_kind == "fused":
-                MT = outputs[4].at(idx)
+                MT = outputs[4][idx].as_array()
                 if MT.size == 1:
                     M = MT
                     T = 0
@@ -120,8 +120,8 @@ def _run_test(device, batch_size, out_dim, in_dim, in_dtype, out_dtype, M_kind, 
                     M = MT[:, :-1]
                     T = MT[:, -1]
             else:
-                M = outputs[2].at(idx)
-                T = outputs[3].at(idx)
+                M = outputs[2][idx].as_array()
+                T = outputs[3][idx].as_array()
 
             if M.size == 1:
                 Y = X.astype(np.float32) * M + T
@@ -228,7 +228,7 @@ def _test_empty_input(device):
     assert o[0].layout() == "AB"
     assert len(o[0]) == 2
     for i in range(len(o[0])):
-        assert o[0].at(0).size == 0
+        assert o[0][0].as_array().size == 0
 
 
 def test_empty_input():

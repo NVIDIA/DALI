@@ -442,8 +442,8 @@ class TestVsNonParallel:
         for i in range(10):
             seq, par = pipe.run()
             for j in range(batch_size):
-                s = seq.at(j)
-                p = par.at(j)
+                s = seq[j]
+                p = par[j]
                 assert np.array_equal(s, p)
 
     @params(generator_shape_empty, generator_shape_10, generator_shape_100x3)
@@ -464,8 +464,8 @@ class TestVsNonParallel:
         for i in range(10):
             seq, par = pipe.run()
             for j in range(50):
-                s = seq.at(j)
-                p = par.at(j)
+                s = seq[j]
+                p = par[j]
                 assert np.array_equal(s, p)
 
 
@@ -972,9 +972,9 @@ class TestDiscard:
             try:
                 e1, e2, e3 = pipe.run()
                 for i in range(bs):
-                    assert e1.at(i) == i
-                    assert np.array_equal(e2.at(i), np.array([sample_in_epoch, i, iteration]))
-                    assert np.array_equal(e3.at(i), np.array([sample_in_epoch, i, iteration]))
+                    assert e1[i].as_array() == i
+                    assert np.array_equal(e2[i], np.array([sample_in_epoch, i, iteration]))
+                    assert np.array_equal(e3[i], np.array([sample_in_epoch, i, iteration]))
                     sample_in_epoch += 1
                 iteration += 1
             except StopIteration:

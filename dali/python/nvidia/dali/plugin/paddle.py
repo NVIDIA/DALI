@@ -91,9 +91,9 @@ def recursive_length(tensor, lod_level):
                 length = len(data)
                 result[0].append(length)
                 for i in range(length):
-                    _recurse(data.at(i), result[1:], level - 1)
+                    _recurse(data[i], result[1:], level - 1)
             elif hasattr(data, "shape"):
-                # handle dense GPU tensors and numpy.ndarray
+                # handle DALI tensors and numpy.ndarray
                 shape = data.shape
                 if callable(shape):
                     shape = shape()
@@ -311,9 +311,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 if lod > 0:
                     # +1 for batch dim
                     seq_len = recursive_length(out, lod + 1)[1:]
-                    shape = out.at(0).shape
-                    if callable(shape):
-                        shape = shape()
+                    shape = out[0].shape()
                     shape = [sum(seq_len[-1])] + list(shape[lod:])
                     category_shapes[cat] = shape
                     category_lengths[cat] = seq_len

@@ -233,9 +233,9 @@ def test_dtype_arg():
     src_pipe.set_outputs(src_ext)
     (out,) = src_pipe.run()
     for i in range(batch_size):
-        t = out.at(i)
+        t = out[i].as_array()
         assert t.dtype == np.uint8
-        np.array_equal(t, np.ones((120, 120, 3), dtype=np.uint8))
+        np.testing.assert_array_equal(t, np.ones((120, 120, 3), dtype=np.uint8))
 
 
 def test_dtype_arg_multioutput():
@@ -253,8 +253,8 @@ def test_dtype_arg_multioutput():
     src_pipe.set_outputs(src_ext, src_ext2)
     out1, out2 = src_pipe.run()
     for i in range(batch_size):
-        t1 = out1.at(i)
-        t2 = out2.at(i)
+        t1 = out1[i].as_array()
+        t2 = out2[i].as_array()
         assert t1.dtype == np.uint8
         assert np.array_equal(t1, np.ones((120, 120, 3), dtype=np.uint8))
         assert t2.dtype == np.float32
@@ -299,8 +299,8 @@ def test_ndim_arg():
     src_pipe.set_outputs(src_ext1, src_ext2)
     out1, out2 = src_pipe.run()
     for i in range(batch_size):
-        t1 = out1.at(i)
-        t2 = out2.at(i)
+        t1 = out1[i]
+        t2 = out2[i]
         assert np.array_equal(t1, np.ones((120, 120, 3), dtype=np.uint8))
         assert np.array_equal(t2, np.ones((120, 120, 3), dtype=np.uint8))
 
@@ -328,12 +328,12 @@ def test_ndim_arg_multioutput():
     src_pipe.set_outputs(src1_ext, src1_ext2, src2_ext, src2_ext2)
     out11, out12, out21, out22 = src_pipe.run()
     for i in range(batch_size):
-        t1 = out11.at(i)
-        t2 = out12.at(i)
+        t1 = out11[i]
+        t2 = out12[i]
         assert np.array_equal(t1, np.ones((120, 120, 3), dtype=np.uint8))
         assert np.allclose(t2, [np.ones((120, 120), dtype=np.float32)])
-        t3 = out21.at(i)
-        t4 = out22.at(i)
+        t3 = out21[i]
+        t4 = out22[i]
         assert np.array_equal(t3, np.ones((120, 120, 3), dtype=np.uint8))
         assert np.allclose(t4, [np.ones((120, 120), dtype=np.float32)])
 
@@ -353,8 +353,8 @@ def test_layout_ndim_match():
     src_pipe.set_outputs(src_ext1, src_ext2)
     out1, out2 = src_pipe.run()
     for i in range(batch_size):
-        t1 = out1.at(i)
-        t2 = out2.at(i)
+        t1 = out1[i]
+        t2 = out2[i]
         assert np.array_equal(t1, np.ones((120, 120, 3), dtype=np.uint8))
         assert np.allclose(t2, [np.ones((120, 120), dtype=np.uint8)])
 
@@ -886,9 +886,9 @@ def test_decorated_external_source():
 
     pipe = test_pipe()
     out0, out1, out2 = pipe.run()
-    np.array_equal(np.array(out0.as_tensor()), np.array([0, 1, 2, 3]))
-    np.array_equal(np.array(out1.as_tensor()), np.array([2, 3, 4, 5]))
-    np.array_equal(np.array(out2.as_tensor()), np.array([42, 42, 42, 42]))
+    np.testing.assert_array_equal(out0.as_tensor(), [[0], [1], [2], [3]])
+    np.testing.assert_array_equal(out1.as_tensor(), [[2], [3], [4], [5]])
+    np.testing.assert_array_equal(out2.as_tensor(), [[42], [42], [42], [42]])
 
 
 @raises(TypeError, glob="Found var-positional argument `*args` which is not allowed")

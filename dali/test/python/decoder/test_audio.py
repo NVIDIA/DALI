@@ -106,10 +106,10 @@ def test_decoded_vs_generated():
     for iter in range(1):
         out = pipeline.run()
         for i in range(len(out[0])):
-            plain = out[0].at(i)
-            res = out[1].at(i)
-            mix = out[2].at(i)[:, np.newaxis]
-            res_mix = out[3].at(i)[:, np.newaxis]
+            plain = out[0][i].as_array()
+            res = out[1][i]
+            mix = out[2][i].as_array()[:, np.newaxis]
+            res_mix = out[3][i].as_array()[:, np.newaxis]
 
             ref_len = [0, 0, 0, 0]
             ref_len[0] = lengths[idx]
@@ -124,10 +124,10 @@ def test_decoded_vs_generated():
             ref3 = generate_waveforms(ref_len[3], freqs[idx] * (rates[idx] / rate2))
             ref3 = ref3.mean(axis=1, keepdims=1)
 
-            assert out[4].at(i) == rates[idx]
-            assert out[5].at(i) == rate1
-            assert out[6].at(i) == rates[idx]
-            assert out[7].at(i) == rate2
+            assert out[4][i].as_array() == rates[idx]
+            assert out[5][i].as_array() == rate1
+            assert out[6][i].as_array() == rates[idx]
+            assert out[7][i].as_array() == rate2
 
             # just reading - allow only for rounding
             assert np.allclose(plain, ref0, rtol=0, atol=0.5)

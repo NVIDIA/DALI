@@ -208,16 +208,16 @@ def test_decoded_vs_generated():
     for iter in range(1):
         out = pipeline.run()
         for idx in range(batch_size):
-            audio_plain_i = out[0].at(idx)
-            audio_plain_f = out[1].at(idx)
-            audio_downmix_i = out[2].at(idx)
-            audio_downmix_f = out[3].at(idx)
-            audio_resampled1_i = out[4].at(idx)
-            audio_resampled1_f = out[5].at(idx)
-            audio_resampled2_i = out[6].at(idx)
-            audio_resampled2_f = out[7].at(idx)
-            text = out[8].at(idx)
-            text_non_ascii = out[9].at(idx)
+            audio_plain_i = out[0][idx]
+            audio_plain_f = out[1][idx]
+            audio_downmix_i = out[2][idx]
+            audio_downmix_f = out[3][idx]
+            audio_resampled1_i = out[4][idx]
+            audio_resampled1_f = out[5][idx]
+            audio_resampled2_i = out[6][idx]
+            audio_resampled2_f = out[7][idx]
+            text = out[8][idx]
+            text_non_ascii = out[9][idx].as_array()
 
             ref_plain_i = ref_i[idx]
             np.testing.assert_allclose(audio_plain_i, ref_plain_i, rtol=1e-7)

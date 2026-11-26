@@ -397,7 +397,7 @@ def to_list(tensor_list):
     tensor_list = tensor_list.as_cpu()
     out = []
     for i in range(len(tensor_list)):
-        out.append(tensor_list.at(i))
+        out.append(tensor_list[i].as_array())
     return out
 
 
