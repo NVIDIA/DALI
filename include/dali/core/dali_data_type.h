@@ -71,6 +71,8 @@ typedef enum _DALIDataType {
   DALI_TENSOR_LAYOUT_VEC = 25,
   DALI_DATA_TYPE_VEC     = 26,
   DALI_INT64_VEC         = 27,
+  DALI_COMPLEX64         = 28,
+  DALI_COMPLEX128        = 29,
   DALI_NUM_BUILTIN_TYPES,
   DALI_CUSTOM_TYPE_START = 1001,
   DALI_DATA_TYPE_FORCE_INT32 = 0x7fffffff
@@ -167,6 +169,10 @@ inline const char *daliDataTypeName(daliDataType_t t) {
       return "list of DALIDataType";
     case DALI_INT64_VEC:
       return "list of int64";
+    case DALI_COMPLEX64:
+      return "complex64";
+    case DALI_COMPLEX128:
+      return "complex128";
     default:
       return 0;
   }
@@ -238,6 +244,17 @@ DALI_CONSTEXPR bool daliDataTypeIsEnum(daliDataType_t type) {
     case DALI_DATA_TYPE:
     case DALI_IMAGE_TYPE:
     case DALI_INTERP_TYPE:
+      return true;
+    default:
+      return false;
+  }
+}
+
+/** Returns `true` if the `type` is a complex number type. */
+DALI_CONSTEXPR bool daliDataTypeIsComplex(daliDataType_t type) {
+  switch (type) {
+    case DALI_COMPLEX64:
+    case DALI_COMPLEX128:
       return true;
     default:
       return false;

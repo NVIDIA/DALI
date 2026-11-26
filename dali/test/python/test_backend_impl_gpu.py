@@ -268,6 +268,8 @@ def test_cuda_array_interface_types():
         cp.float64,
         cp.float32,
         cp.float16,
+        cp.complex64,
+        cp.complex128,
     ]:
         yield check_cuda_array_types, t
 
@@ -295,6 +297,8 @@ def test_dlpack_interface_types():
         cp.float64,
         cp.float32,
         cp.float16,
+        cp.complex64,
+        cp.complex128,
     ]:
         yield check_dlpack_types, t
 

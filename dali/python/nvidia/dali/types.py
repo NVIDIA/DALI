@@ -176,6 +176,8 @@ def to_numpy_type(dali_type):
             DALIDataType.FLOAT: np.float32,
             DALIDataType.FLOAT64: np.float64,
             DALIDataType.BOOL: np.bool_,
+            DALIDataType.COMPLEX64: np.complex64,
+            DALIDataType.COMPLEX128: np.complex128,
         }
 
     return _numpy_types[dali_type]
@@ -485,6 +487,11 @@ _type_name_to_dali_type = {
     "float32": DALIDataType.FLOAT,
     "float64": DALIDataType.FLOAT64,
     "double": DALIDataType.FLOAT64,
+    "complex64": DALIDataType.COMPLEX64,
+    "cfloat": DALIDataType.COMPLEX64,
+    "csingle": DALIDataType.COMPLEX64,
+    "complex128": DALIDataType.COMPLEX128,
+    "cdouble": DALIDataType.COMPLEX128,
 }
 
 dali_type_converters = []

@@ -86,6 +86,8 @@ def test_dlpack_interface_types():
         torch.float64,
         torch.float32,
         torch.float16,
+        torch.complex64,
+        torch.complex128,
     ]:
         yield check_dlpack_types_gpu, t
 
@@ -178,6 +180,8 @@ def test_dlpack_interface_types_cpu():
         torch.uint8,
         torch.float64,
         torch.float32,
+        torch.complex64,
+        torch.complex128,
     ]:
         yield check_dlpack_types_cpu, t
 
