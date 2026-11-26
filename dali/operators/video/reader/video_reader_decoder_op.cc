@@ -1544,8 +1544,13 @@ decoder, one after another. Every decoder has its own frame buffers, so the memo
 the number of decoders. With more than one decoder, the decoders that are done with their part
 of a batch start on the next ones: ``prefetch_queue_depth`` batches are decoded ahead of the one
 being returned, so up to ``prefetch_queue_depth`` more batches of decoded samples are held in memory
-(host memory for the CPU backend). Raising ``prefetch_queue_depth`` keeps the decoders busy when
-the decoding time of the samples varies.
+(host memory for the CPU backend).
+
+Raising ``prefetch_queue_depth`` (default 1) keeps the decoders busy: a decoder that is done
+starts on a later batch instead of waiting for the slowest one. It helps most with consecutive
+samples of a file read in order, with small batches, and with one video read with
+``batch_size=1``; with large batches, the gain is smaller. Each extra batch ahead holds one more
+batch of decoded frames (``batch_size * sequence_length`` frames) in memory.
 
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
