@@ -2097,10 +2097,10 @@ def test_reader_multi_run_lanes_output_independent_of_num_lanes(device, case):
     )
 
 
-# With more than one lane, the lanes decode the next batch while the slowest lane finishes the
-# current one, and while the reader's queue (prefetch_queue_depth) holds earlier batches. Two
-# epochs, so that decoders carry over from batch to batch and into the next epoch
-@cartesian_params(["cpu", "gpu"], (0, 3, 6), (1, 2))
+# With more than one lane, the lanes decode the next batches (prefetch_queue_depth of them) while
+# the slowest lane finishes the current one, and while the reader's queue holds earlier batches.
+# Two epochs, so that decoders carry over from batch to batch and into the next epoch
+@cartesian_params(["cpu", "gpu"], (0, 3, 6), (1, 2, 3))
 def test_reader_output_independent_of_num_lanes_reader_depth(device, case, reader_depth):
     skip_if_m60()
     _check_reader_output_independent_of_num_lanes(
@@ -2116,7 +2116,7 @@ def test_reader_output_independent_of_num_lanes_reader_depth(device, case, reade
 # 26 samples in 3 shards (pad_last_batch): shard 0 has samples 0-7, padded to 9 samples, so that
 # its third batch is sample 7, four times (decoded in the batch before it); shard 2 has samples
 # 17-25, so that its third batch is sample 25 and three repeats of it
-@cartesian_params(("cpu", "gpu"), (0, 2), (1, 2))
+@cartesian_params(("cpu", "gpu"), (0, 2), (1, 2, 3))
 @_strict_plans()
 def test_reader_pad_last_batch_repeats_last_sample(device, shard_id, reader_depth):
     """With pad_last_batch, a shard's last sample is repeated, in its own batch or as the whole
