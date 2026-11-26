@@ -11,8 +11,10 @@ if [ -z "${CUDA_VERSION_MAJOR}" ]; then
 fi
 if [ "${CUDA_VERSION_MAJOR}" -eq 13 ]; then
   export METAL_YAML=linux_64_c_stdlib_version2.28cuda_compiler_version13.4cxx_compiler_version15.yaml
+  export CONDA_OVERRIDE_CUDA="${CONDA_OVERRIDE_CUDA:-13.4}"
 elif [ "${CUDA_VERSION_MAJOR}" -eq 12 ]; then
   export METAL_YAML=linux_64_c_stdlib_version2.17cuda_compiler_version12.9cxx_compiler_version14.yaml
+  export CONDA_OVERRIDE_CUDA="${CONDA_OVERRIDE_CUDA:-12.9}"
 else
   echo "CUDA_VERSION_MAJOR must be 12 or 13, got: ${CUDA_VERSION_MAJOR}" >&2
   exit 1
@@ -62,6 +64,11 @@ grep -q 'github.com/NVIDIA/DALI/archive' "${RECIPE}" && \
 sed -i '/path: \/opt\/dali/a\    use_gitignore: false' "${RECIPE}"
 grep -q 'use_gitignore: false' "${RECIPE}" || \
   { echo "Recipe patch failed: use_gitignore: false not found" >&2; exit 1; }
+
+# The builder has no GPU, so set the __cuda (per CUDA variant above) and __cuda_arch virtual
+# packages the way conda-forge-ci-setup does. libcvcuda >= 0.19 depends on cuda-arch; without
+# __cuda_arch only the CUDA 13 cuda-arch variant is installable, so CUDA 12 builds fail to solve.
+export CONDA_OVERRIDE_CUDA_ARCH="${CONDA_OVERRIDE_CUDA_ARCH:-999.0}"
 
 rattler-build build --recipe $(pwd)/recipe -m  $(pwd)/.ci_support/${METAL_YAML} \
                     --target-platform linux-64 --extra-meta flow_run_id=${NVIDIA_BUILD_ID:-0} \

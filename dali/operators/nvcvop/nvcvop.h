@@ -277,7 +277,7 @@ class NVCVOperator: public BaseOp {
    */
   const nvcv::ImageBatchVarShape &GetInputBatch(Workspace &ws, size_t input_idx) {
     if (inputs_.size() < input_idx + 1) {
-      inputs_.resize(input_idx + 1, nullptr);
+      inputs_.resize(input_idx + 1);
     }
     const auto &tl_input = ws.Input<GPUBackend>(input_idx);
     auto &input = inputs_[input_idx];
@@ -297,7 +297,7 @@ class NVCVOperator: public BaseOp {
    */
   nvcv::ImageBatchVarShape &GetOutputBatch(Workspace &ws, size_t output_idx) {
     if (outputs_.size() < output_idx + 1) {
-      outputs_.resize(output_idx + 1, nullptr);
+      outputs_.resize(output_idx + 1);
     }
     const auto &tl_output = ws.Output<GPUBackend>(output_idx);
     auto &output = outputs_[output_idx];
