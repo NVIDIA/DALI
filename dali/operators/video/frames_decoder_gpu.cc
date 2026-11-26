@@ -624,19 +624,21 @@ static bool IsProbedCodec(AVCodecID codec_id) {
 }
 
 void FramesDecoderGpu::InitGpuDecoder(CUVIDEOFORMAT *video_format) {
+  // The parser calls this again when the format of the stream changes, so this is checked for
+  // every format, also when the decoder already exists.
+  int area_width = video_format->display_area.right - video_format->display_area.left;
+  int area_height = video_format->display_area.bottom - video_format->display_area.top;
+  // Other codecs keep the size from the container, as they did before the probe was added.
+  if (IsProbedCodec(codec_params_->codec_id) &&
+      (area_width != Width() || area_height != Height())) {
+    throw std::runtime_error(make_string(
+        "The size of the pictures decoded by NVDEC (", area_width, "x", area_height,
+        ") differs from the size determined when the file \"", Filename(), "\" was opened (",
+        Width(), "x", Height(), "). The crop of the stream may differ from the size declared by "
+        "the container, or the size could not be determined. Note that the left and top crop "
+        "of the stream is not supported."));
+  }
   if (!nvdecode_state_->decoder) {
-    int area_width = video_format->display_area.right - video_format->display_area.left;
-    int area_height = video_format->display_area.bottom - video_format->display_area.top;
-    // Other codecs keep the size from the container, as they did before the probe was added.
-    if (IsProbedCodec(codec_params_->codec_id) &&
-        (area_width != Width() || area_height != Height())) {
-      throw std::runtime_error(make_string(
-          "The size of the pictures decoded by NVDEC (", area_width, "x", area_height,
-          ") differs from the size determined when the file \"", Filename(), "\" was opened (",
-          Width(), "x", Height(), "). The crop of the stream may differ from the size declared by "
-          "the container, or the size could not be determined. Note that the left and top crop "
-          "of the stream is not supported."));
-    }
     if (image_type_ == DALI_RGB) {
       bool is_full_range = IsFullRange(video_format);
       if (IsBT709(video_format)) {
@@ -660,6 +662,9 @@ namespace {
 
 void SetSequenceHeader(CUVIDEOFORMATEX &parser_extinfo, const AVCodecParameters *codec_params) {
   if (codec_params->extradata_size > 0) {
+    // raw_seqhdr_data has a fixed size (1024 bytes), so a longer header is cut. That does no harm:
+    // the probed packet goes through the same bit stream filter as the decoded ones, which puts
+    // the parameter sets in the stream, before the first keyframe.
     auto hdr_size = std::min(sizeof(parser_extinfo.raw_seqhdr_data),
                              static_cast<std::size_t>(codec_params->extradata_size));
     parser_extinfo.format.seqhdr_data_length = hdr_size;
@@ -693,7 +698,7 @@ bool FramesDecoderGpu::ReadSelectedStreamPacket(AVPacket *packet) {
 
 namespace {
 
-bool SamePacket(const AVPacket *a, const AVPacket *b) {
+bool IsSamePacket(const AVPacket *a, const AVPacket *b) {
   return a->stream_index == b->stream_index && a->pts == b->pts && a->dts == b->dts &&
          a->pos == b->pos && a->size == b->size && memcmp(a->data, b->data, a->size) == 0;
 }
@@ -709,7 +714,7 @@ bool FramesDecoderGpu::RewindToFirstPacket(const AVPacket *first) {
     throw std::runtime_error(
         make_string("Could not allocate av packet for \"", Filename(), "\""));
   return av_seek_frame(ctx_, stream_id_, 0, AVSEEK_FLAG_BACKWARD) >= 0 &&
-         ReadSelectedStreamPacket(again) && SamePacket(first, again) &&
+         ReadSelectedStreamPacket(again) && IsSamePacket(first, again) &&
          av_seek_frame(ctx_, stream_id_, 0, AVSEEK_FLAG_BACKWARD) >= 0;
 }
 
@@ -782,10 +787,11 @@ void FramesDecoderGpu::ProbeDisplaySize() {
              << std::endl;
   }
   if (width > Width() || height > Height()) {
-    DALI_WARN_ONCE(
-        "NVDEC reports a larger picture size than the one declared by the container of a video "
-        "file. This can happen when the stream has a left or top crop, which is not supported. "
-        "The size reported by NVDEC is used.");
+    DALI_WARN_ONCE(make_string(
+        "NVDEC reports a picture size of ", width, "x", height, " for \"", Filename(),
+        "\", larger than the ", Width(), "x", Height(), " declared by the container. This can "
+        "happen when the stream has a left or top crop, which is not supported. The size "
+        "reported by NVDEC is used. Only the first such file is reported."));
   }
   SetDisplaySize(width, height);
 }
