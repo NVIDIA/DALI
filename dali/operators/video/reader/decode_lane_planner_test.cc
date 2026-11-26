@@ -236,6 +236,37 @@ void CheckPlannedPictures(const std::vector<ReaderSample> &batch, std::vector<Re
 
 }  // namespace
 
+TEST(DecodeLanePlannerTest, EvenSplitLanes) {
+  // 16 samples: 3 rounds on 7 lanes as on 6; 2 rounds on 14 lanes as on 8; 1 round on 16
+  EXPECT_EQ(EvenSplitLanes(7, 16), 6);
+  EXPECT_EQ(EvenSplitLanes(14, 16), 8);
+  EXPECT_EQ(EvenSplitLanes(16, 16), 16);
+  EXPECT_EQ(EvenSplitLanes(21, 16), 16);  // capped at the batch size
+  EXPECT_EQ(EvenSplitLanes(8, 16), 8);
+  EXPECT_EQ(EvenSplitLanes(4, 8), 4);
+  EXPECT_EQ(EvenSplitLanes(3, 8), 3);  // 3 rounds on 3 lanes; 2 lanes would need 4
+  EXPECT_EQ(EvenSplitLanes(5, 8), 4);  // 2 rounds on 5 lanes as on 4
+  EXPECT_EQ(EvenSplitLanes(12, 32), 11);  // 3 rounds
+  // never fewer than one lane, never more than the batch
+  EXPECT_EQ(EvenSplitLanes(0, 16), 1);
+  EXPECT_EQ(EvenSplitLanes(8, 1), 1);
+  EXPECT_EQ(EvenSplitLanes(8, 0), 1);
+  for (int batch = 1; batch <= 64; batch++) {
+    for (int max_lanes = 1; max_lanes <= 64; max_lanes++) {
+      int lanes = EvenSplitLanes(max_lanes, batch);
+      int cap = std::min(max_lanes, batch);
+      ASSERT_GE(lanes, 1);
+      ASSERT_LE(lanes, cap);
+      // as many rounds as with `cap` lanes, and one lane fewer would need more
+      auto rounds = [&](int n) { return div_ceil(batch, n); };
+      ASSERT_EQ(rounds(lanes), rounds(cap)) << batch << " " << max_lanes;
+      if (lanes > 1) {
+        ASSERT_GT(rounds(lanes - 1), rounds(cap)) << batch << " " << max_lanes;
+      }
+    }
+  }
+}
+
 TEST(DecodeLanePlannerTest, SampleFrames) {
   using boundary::BoundaryType;
   // the given frames (uniform sampling), sorted, duplicates kept
