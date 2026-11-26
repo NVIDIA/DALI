@@ -1031,14 +1031,19 @@ class VideoReaderDecoder
   /**
    * @brief Number of decode lanes: num_decoders or, when it is 0, num_threads, capped at
    * kLanesPerEngine per NVDEC engine on the GPU (one lane if the number of engines is unknown),
-   * then lowered to as few as decode a full batch in as many rounds (see EvenSplitLanes); never
-   * more than the batch size, since extra lanes are idle.
+   * then lowered to as few as decode a full batch in as many rounds (see EvenSplitLanes) when
+   * that is no more than the batch size. Never more than the samples decoded at once: the batch
+   * being published and the prefetch_queue_depth batches ahead of it. So with a small batch (e.g.
+   * one video read with batch size 1), the lanes take the samples of the batches ahead.
    *
    * On the CPU, decoding is limited by the CPUs, which num_threads already sets: each lane decodes
    * on a CPU, with its own libavcodec decoder and frame buffers.
    */
   int NumLanes(const OpSpec &spec) {
     int batch_size = spec.GetArgument<int>("max_batch_size");
+    // With more than one lane, the batch being published and prefetch_queue_depth batches ahead
+    // of it are decoded at once: a lane can take a sample of a later batch
+    int in_flight = batch_size * (spec.GetArgument<int>("prefetch_queue_depth") + 1);
     int lanes = spec.GetArgument<int>("num_decoders");
     if (lanes == 0) {
       lanes = spec.GetArgument<int>("num_threads");
@@ -1046,14 +1051,20 @@ class VideoReaderDecoder
         int engines = FramesDecoderGpu::NumEngines(spec.GetArgument<int>("device_id"));
         lanes = std::min(lanes, engines > 0 ? kLanesPerEngine * engines : 1);
       }
-      return EvenSplitLanes(lanes, batch_size);
+      if (lanes <= batch_size)
+        return EvenSplitLanes(lanes, batch_size);
+      return std::min(lanes, in_flight);
     }
-    lanes = std::min(lanes, batch_size);
+    lanes = std::min(lanes, in_flight);
     return std::max(lanes, 1);
   }
 
   void InitLanes(const OpSpec &spec) {
     lanes_.resize(NumLanes(spec));
+    // With more lanes than samples in a batch, some lanes are idle in every batch: they keep their
+    // decoders, so that a later batch can continue where they are
+    int batch_size = spec.GetArgument<int>("max_batch_size");
+    release_idle_decoders_ = lanes_.size() > 1 && static_cast<int>(lanes_.size()) <= batch_size;
     // With more than one lane: prefetch_queue_depth batches are read and decoded ahead of the one
     // being published, so that a lane that is done with its part of a batch goes on to the next
     // one, instead of waiting for the slowest lane. Each holds one more batch of samples. The
@@ -1235,7 +1246,7 @@ class VideoReaderDecoder
       auto &lane = lanes_[l];
       const auto &lane_runs = batch.plans[l].runs;
       batch.lane_start[l] = lane.planned;
-      if (lane_runs.empty() && lanes_.size() > 1)
+      if (lane_runs.empty() && release_idle_decoders_)
         lane.planned = {};  // the lane releases its decoder (see DecodeLanePart)
       else
         lane.planned = PredictEnd(batch, make_cspan(lane_runs), std::move(lane.planned));
@@ -1367,7 +1378,7 @@ class VideoReaderDecoder
     auto &lane = lanes_[lane_id];
     const auto &plan = batch.plans[lane_id];
     if (plan.runs.empty()) {
-      if (lanes_.size() > 1)
+      if (release_idle_decoders_)
         lane.decoder.reset();  // frees its frame buffers (an NVDEC decoder goes back to the
                                // NVDECCache, where any lane can reuse it)
       return;
@@ -1510,6 +1521,7 @@ class VideoReaderDecoder
   bool stop_lanes_ = false;  // guarded by lanes_mutex_
   // The batches read, and queued to the lanes, that are not published yet, in reading order
   std::deque<std::unique_ptr<PendingBatch>> pending_;
+  bool release_idle_decoders_ = false;  // see InitLanes
   int decode_ahead_ = 0;  // the batches read and decoded ahead of the one being published
   bool read_failed_ = false;  // reading or planning a batch failed: no batch is read after it
   // Set by the destructor, or by Prefetch when a batch fails: the lanes skip the samples they have
@@ -1698,8 +1710,11 @@ Otherwise, the number of values must match the number of channels in the video.)
   decoders, as on 6.
 * A positive value sets the number of decoders.
 
-The number of decoders is never more than ``max_batch_size``, since extra decoders would be idle.
-Every decoder has its own frame buffers, so the memory used grows with the number of
+The number of decoders is never more than the samples decoded at once,
+``max_batch_size * (prefetch_queue_depth + 1)``, since extra decoders would be idle. With more
+decoders than ``max_batch_size``, the decoders take the samples of the batches decoded ahead: for
+example, one video read with ``batch_size=1`` and ``prefetch_queue_depth=3`` is decoded by up to 4
+decoders, each starting at a keyframe. Every decoder has its own frame buffers, so the memory used grows with the number of
 decoders. On the CPU, the decoders run on the reader's own threads (one per decoder), alongside
 the ``num_threads`` threads that run the pipeline's other CPU operators, and each keeps its frame
 buffers in host memory: with a large ``num_threads``, set ``num_decoders`` to limit the threads and

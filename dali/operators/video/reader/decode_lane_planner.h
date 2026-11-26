@@ -125,9 +125,11 @@ DLL_PUBLIC bool CanReachWithoutSeek(const FrameIndex &index, int next, int frame
 DLL_PUBLIC int EvenSplitLanes(int max_lanes, int batch_size);
 
 /**
- * @brief Assigns the runs to lanes: longest first, each to the lane that would finish it first.
- * On a tie, it prefers a lane whose decoder no run left in the batch needs, then the lane with the
- * least backlog, then the lowest lane.
+ * @brief Assigns the runs to lanes: longest first, each to the lane that would finish it first,
+ * counting the work of earlier batches that the lane may still be doing (LaneStart::backlog). So a
+ * run that continues where a busy lane's decoder is goes to another lane when opening a decoder
+ * there costs less than waiting for the busy one. On a tie, it prefers a lane whose decoder no run
+ * left in the batch needs, then the lane with the least backlog, then the lowest lane.
  *
  * A lane decodes the runs of one file together, by first frame: first the file its decoder holds
  * (starting with the run that continues where the decoder is), then the others in batch order,

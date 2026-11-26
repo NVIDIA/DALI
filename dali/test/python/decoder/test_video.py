@@ -2047,13 +2047,17 @@ def test_reader_output_independent_of_num_lanes(device, case):
     )
 
 
-# One sample per batch: one lane decodes, also when more lanes are asked for than the batch has
-# samples, and its decoder carries over from batch to batch
-@cartesian_params(["cpu", "gpu"], (0, 1, 3))
-def test_reader_batch_size_1_output_independent_of_num_lanes(device, case):
+# One sample per batch: with the batches decoded ahead, up to batch_size * (prefetch_queue_depth
+# + 1) lanes take the samples of later batches, each from a keyframe, or a lane's decoder carries
+# over from batch to batch
+@cartesian_params(["cpu", "gpu"], (0, 1, 3), (1, 3))
+def test_reader_batch_size_1_output_independent_of_num_lanes(device, case, reader_depth):
     skip_if_m60()
     _check_reader_output_independent_of_num_lanes(
-        device, _lanes_reader_cases[case], batch_size=1, num_lanes=4
+        device,
+        dict(_lanes_reader_cases[case], prefetch_queue_depth=reader_depth),
+        batch_size=1,
+        num_lanes=4,
     )
 
 

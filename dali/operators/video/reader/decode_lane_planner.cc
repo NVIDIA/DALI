@@ -237,7 +237,9 @@ void PlanLanes(std::vector<LanePlan> &plans, span<const PlannedRun> runs,
         work = FileWork(runs, lanes[l], make_cspan(candidate));
         delta = Cost(work, open_cost) - (group ? Cost(group->work, open_cost) : 0);
       }
-      int64_t end = plans[l].load + delta;
+      // the lane is busy with its backlog first: a run that continues where a busy lane's
+      // decoder is can go to another lane, if opening a decoder there costs less than the wait
+      int64_t end = lanes[l].backlog + plans[l].load + delta;
       // on a tie, not a lane whose decoder a run left in the batch may continue on, then the lane
       // with the least backlog
       bool spare = pending[l] == 0 || Holds(lanes[l], run.filename);
@@ -263,7 +265,7 @@ void PlanLanes(std::vector<LanePlan> &plans, span<const PlannedRun> runs,
     }
     group->runs = best_runs;
     group->work = best_work;
-    plans[best].load = best_end;
+    plans[best].load = best_end - lanes[best].backlog;
   }
 
   for (int l = 0; l < num_lanes; l++) {

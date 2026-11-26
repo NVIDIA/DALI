@@ -429,7 +429,7 @@ TEST(DecodeLanePlannerTest, OneLongRunUsesOneLane) {
     EXPECT_TRUE(plans[l].runs.empty()) << "lane " << l;
 }
 
-TEST(DecodeLanePlannerTest, TiesToTheLeastBacklog) {
+TEST(DecodeLanePlannerTest, Backlog) {
   auto index = MakeIndex(100, 100);
   Batch batch;
   batch.Add("a", &index, 0, 0, 29);
@@ -443,19 +443,24 @@ TEST(DecodeLanePlannerTest, TiesToTheLeastBacklog) {
   plans = Plan(batch, {behind, less_behind, behind});
   EXPECT_TRUE(plans[0].runs.empty());
   EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
-  // the backlog only breaks ties: the lane that continues the run gets it
+  // the backlog counts in when a lane would finish: the lane that continues the run gets it while
+  // its backlog is less than opening a decoder elsewhere (30 pictures + kOpenCost vs 30 + backlog)
   auto held = Held("a", index, 0);
-  held.backlog = 1000;
+  held.backlog = kOpenCost - 1;
   plans = Plan(batch, {{}, held});
   EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
-  // a lane whose decoder a later run of the batch continues on goes before the backlog
+  EXPECT_EQ(plans[1].load, 30);  // the load is the batch's work, without the backlog
+  // and a lane without a decoder gets it once the busy lane would finish later
+  held.backlog = kOpenCost + 1;
+  plans = Plan(batch, {{}, held});
+  EXPECT_EQ(plans[0].runs, std::vector<int>({0}));
+  EXPECT_EQ(plans[0].load, 30 + kOpenCost);
+  // on a tie, a lane whose decoder a later run of the batch continues on goes last
   auto long_index = MakeIndex(1000, 250);
   Batch two;
   two.Add("b", &long_index, 0, 0, 47);
   two.Add("a", &long_index, 1, 500, 515);
-  LaneStart spare;
-  spare.backlog = 10;
-  plans = Plan(two, {Held("a", long_index, 500), spare});
+  plans = Plan(two, {Held("a", long_index, 500), {}});
   EXPECT_EQ(plans[0].runs, std::vector<int>({1}));
   EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
 }
