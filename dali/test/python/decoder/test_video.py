@@ -2209,11 +2209,14 @@ def test_reader_reports_first_error_of_batch(device, num_lanes, reader_depth):
             if delete:
                 os.remove(filename)
         expected = f"Invalid decoder for filename {re.escape(files[5])}"
-        # The reader prefetches batch 1 while batch 0 is consumed, and can fail on it before the
-        # consumer wakes up. Then the error is raised by the first run, not the second.
-        with assert_raises(RuntimeError, regex=expected):
+        if reader_depth == 1:
+            # With a queue of 1, the reader reads batch 1 only once batch 0 is consumed
             p.run()  # batch 0
-            p.run()  # batch 1
+        with assert_raises(RuntimeError, regex=expected):
+            # With a queue of 2, the reader reads batch 1 while batch 0 is consumed and can fail
+            # on it before the consumer wakes up: then the first run raises the error
+            p.run()  # batch 1 (with reader_depth=2, possibly batch 0)
+            p.run()
         # Destroyed right after the error, while the lanes may still be decoding batch 2, and
         # before the files of tmp_dir are removed. Left to the function's return, the pipeline
         # would be destroyed only after the `with` block has removed the directory.
