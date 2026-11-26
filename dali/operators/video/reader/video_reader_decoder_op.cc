@@ -1290,18 +1290,19 @@ class VideoReaderDecoder
     return first ? first->error : nullptr;
   }
 
-  void LaneMain(int l) {
+  void LaneMain(int lane_id) {
     // Nothing may throw out of a lane's thread: if setting it up fails, it fails its part of every
     // batch with that error
     std::exception_ptr setup_error;
     std::optional<DeviceGuard> device_guard;
     try {
-      SetThreadName(make_string("[DALI][VR lane ", l, "]").c_str());
+      // The OS keeps 15 characters of a thread's name: the index goes first, so that it is kept
+      SetThreadName(make_string("[DALI][VR", lane_id, "] decode lane").c_str());
       device_guard.emplace(lane_device_id_);
     } catch (...) {
       setup_error = std::current_exception();
     }
-    auto &lane = lanes_[l];
+    auto &lane = lanes_[lane_id];
     std::unique_lock<std::mutex> lock(lanes_mutex_);
     for (;;) {
       lanes_cv_.wait(lock, [&] { return stop_lanes_ || !lane.queue.empty(); });
@@ -1310,7 +1311,7 @@ class VideoReaderDecoder
       PendingBatch *batch = lane.queue.front();
       lane.queue.pop_front();
       lock.unlock();
-      RunLanePart(l, *batch, setup_error);
+      RunLanePart(lane_id, *batch, setup_error);
       lock.lock();
     }
   }
