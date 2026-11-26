@@ -44,13 +44,11 @@ DataNode.__module__ = __name__  # move to pipeline
 
 def _show_deprecation_warning(deprecated, in_favor_of):
     # show by default, but honor warning filters configured by the user
-    with warnings.catch_warnings():
-        warnings.simplefilter("default", append=True)
-        warnings.warn(
-            "{} is deprecated, please use {} instead".format(deprecated, in_favor_of),
-            Warning,
-            stacklevel=2,
-        )
+    warnings.warn(
+        f"{deprecated} is deprecated, please use {in_favor_of} instead",
+        Warning,
+        stacklevel=2,
+    )
 
 
 def _show_warning(message):

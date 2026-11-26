@@ -407,7 +407,8 @@ def test_backend_deprecation_warning_honors_user_filters():
 def test_backend_deprecation_warning_shown_by_default():
     with warnings.catch_warnings(record=True) as w:
         warnings.resetwarnings()
-        dali.backend.deprecation_warning("backend deprecation warning default check")
+        for _ in range(2):
+            dali.backend.deprecation_warning("backend deprecation warning default check")
         assert len(w) == 1
         assert w[0].category is Warning
         assert "backend deprecation warning default check" == str(w[0].message)
