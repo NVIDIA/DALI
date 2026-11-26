@@ -24,6 +24,7 @@ Configurations (a group is one set of samples, read with different num_threads /
 
   lanes          256 distinct files, one sequence each: every sample is a new file, so the cost
                  of opening a file and the parallelism of decoding dominate
+  lanes_hevc     the same with the HEVC trailer (each of the 256 files is a link to it)
   cpu            the same on the CPU backend (VP8/VP9 files)
   seq, random    the 15 H.264 clips as they are, read in order or shuffled
   random_hevc    the HEVC trailer, shuffled (keyframe seeks, open GOPs)
@@ -31,8 +32,9 @@ Configurations (a group is one set of samples, read with different num_threads /
   single_*       one long file, batch 1: a single stream, so what is measured is how fast one
                  decoder runs per frame, not how many run in parallel
 
-The GPU configurations also run through torchcodec on the GPU (groups *_torchcodec, FFmpeg's
-NVDEC), on the same samples: for reference only, never checked, skipped if it is not installed.
+The GPU configurations also run through torchcodec on the GPU (groups *_torchcodec), on the same
+samples: for reference only, never checked, skipped if it is not installed. torchcodec uses its
+default CUDA backend ("nvdec"); --torchcodec_backend ffmpeg selects FFmpeg's NVDEC instead.
 
 Every configuration runs in a fresh process, so the frame index and NVDEC decoder caches do not
 carry over, and is repeated --repeat times: the median is reported. The first batches (those
@@ -81,6 +83,7 @@ def dali_configs(threads):
     t_max = max(threads)
     for t in threads:
         yield "lanes", dict(base, files=CLIPS, many=256, t=t)
+        yield "lanes_hevc", dict(base, files=HEVC_LONG, many=256, t=t)
         yield "cpu", dict(base, files=VPX, many=128, t=t, device="cpu", batch=8, seq=16)
     for name, files in (("seq", CLIPS), ("random", CLIPS), ("random_hevc", HEVC_LONG)):
         for t in sorted({1, t_max}):
@@ -94,12 +97,12 @@ def dali_configs(threads):
         yield name, dict(base, files=CLIPS, t=t_max, rd=2, hash_only=True, **extra)
 
 
-def configs(threads, torchcodec=True):
+def configs(threads, torchcodec=True, torchcodec_backend="nvdec"):
     cfgs = list(dali_configs(threads))
     yield from cfgs
     for group, cfg in cfgs if torchcodec else ():
         if cfg["device"] == "gpu" and group != "reader_depth" and not cfg.get("hash_only"):
-            yield group + "_torchcodec", dict(cfg, lib="torchcodec")
+            yield group + "_torchcodec", dict(cfg, lib="torchcodec", backend=torchcodec_backend)
 
 
 def key(group, cfg):
@@ -127,14 +130,14 @@ def torchcodec_step(cfg, samples):
         random.Random(0).shuffle(samples)
     batches, local, keep = itertools.cycle(samples), threading.local(), []
     pool = ThreadPoolExecutor(min(cfg["t"], cfg["batch"]))
-    # FFmpeg's NVDEC, as the default CUDA backend differs between torchcodec versions
+    # set explicitly, as the default CUDA backend differs between torchcodec versions
     backend = getattr(decoders, "set_cuda_backend", None)
 
     def decode(sample):
         path, first, end = sample
         if getattr(local, "path", None) != path:
             torch.cuda.set_device(0)
-            with backend("ffmpeg") if backend else contextlib.nullcontext():
+            with backend(cfg["backend"]) if backend else contextlib.nullcontext():
                 local.decoder = decoders.VideoDecoder(path, device="cuda:0")
             local.path = path
         frames = local.decoder.get_frames_in_range(first, end).data
@@ -261,7 +264,9 @@ def check_scaling(out, tolerance=0.10):
 def run(args):
     todo = [
         (group, cfg)
-        for group, cfg in configs(args.threads, args.torchcodec and not args.hash)
+        for group, cfg in configs(
+            args.threads, args.torchcodec and not args.hash, args.torchcodec_backend
+        )
         if args.only in group and (args.hash or not cfg.get("hash_only"))
     ]
     for _, cfg in todo:  # once here, not as a failure of every child process
@@ -292,6 +297,8 @@ def run(args):
             reps.append(json.loads(r.stdout.splitlines()[-1]))
         if reps:
             out[key(group, cfg)] = dict(group=group, t=cfg["t"], rd=cfg["rd"])
+            if reference:  # which torchcodec backend produced the row
+                out[key(group, cfg)]["backend"] = cfg["backend"]
             for k in reps[0]:
                 out[key(group, cfg)][k] = (
                     reps[0][k] if k == "hash" else statistics.median(x[k] for x in reps)
@@ -323,8 +330,14 @@ def compare(path_a, path_b):
         if a[k].get("hash") != b[k].get("hash"):
             bad.append(k)
         if "fps" in a[k] and "fps" in b[k]:
-            ratio = b[k]["fps"] / a[k]["fps"]
-            print(f"{k:34} {a[k]['fps']:9.1f} -> {b[k]['fps']:9.1f} frames/s  x{ratio:.2f}")
+            line = f"{k:34} {a[k]['fps']:9.1f} -> {b[k]['fps']:9.1f} frames/s"
+            # only torchcodec rows have a "backend" (and not those of older result files)
+            backends = [x[k].get("backend", "?") for x in (a, b)]
+            if backends[0] != backends[1]:  # not the same decoder: no ratio
+                line += f"  torchcodec backend {backends[0]} -> {backends[1]}"
+            else:
+                line += f"  x{b[k]['fps'] / a[k]['fps']:.2f}"
+            print(line)
     print("DIFFERENT / MISSING:", bad if bad else "none")
     return int(bool(bad))
 
@@ -341,6 +354,12 @@ def main():
     ap.add_argument("--repeat", type=int, default=3, help="fresh-process runs per configuration")
     ap.add_argument("--only", default="", help="only groups containing this text")
     ap.add_argument("--no_torchcodec", dest="torchcodec", action="store_false", help="DALI only")
+    ap.add_argument(
+        "--torchcodec_backend",
+        choices=["nvdec", "ffmpeg"],
+        default="nvdec",
+        help="the CUDA backend of the torchcodec rows (torchcodec's default: nvdec)",
+    )
     ap.add_argument("--dali_extra", default=os.environ.get("DALI_EXTRA_PATH", ""))
     ap.add_argument("--child", help=argparse.SUPPRESS)
     args = ap.parse_args()
