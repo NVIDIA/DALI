@@ -289,6 +289,34 @@ def test_colorjitter_contrast_matches_torchvision(contrast, device):
             ), f"contrast={contrast} on floats differs from torchvision by more than 1: {fn}"
 
 
+@cartesian_params((0.5, 1.5), ("cpu", "gpu"))
+def test_colorjitter_contrast_after_brightness_matches_torchvision(contrast, device):
+    # Contrast runs after fn.color_twist, so it blends towards the mean of the brightened image.
+    # On floats neither side requantizes between the two steps, and a brightness below 1 keeps
+    # every value in [0, 1], so torchvision doesn't clamp between them either.
+    brightness = 0.6
+    cj = Compose(
+        [
+            Normalize(mean=[0.0, 0.0, 0.0], std=[255.0, 255.0, 255.0], device=device),
+            ColorJitter(
+                brightness=(brightness, brightness), contrast=(contrast, contrast), device=device
+            ),
+        ]
+    )
+
+    for fn in test_files:
+        img = Image.open(fn).convert("RGB")
+        x = transforms.functional.pil_to_tensor(img) / 255
+        expected = transforms.functional.adjust_brightness(x, brightness)
+        expected = transforms.functional.adjust_contrast(expected, contrast)
+        # The PIL output floors the floats (see to_pil_image).
+        expected = (expected * 255).floor()
+        actual = transforms.functional.pil_to_tensor(cj(img)).float()
+        assert verify_non_one_off(
+            actual, expected
+        ), f"brightness={brightness}, contrast={contrast} differs from torchvision: {fn}"
+
+
 """
 TODO (https://github.com/NVIDIA/DALI/issues/DALI-4656):
 DALI ColorJitter does not currently work on CHW layout
