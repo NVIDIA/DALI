@@ -819,10 +819,10 @@ def test_video_reader_resize_reader(
     )
 
 
-# With more than one decode lane, the reader decodes a batch ahead of the one it publishes: the
-# checkpoints must still be those of the batches returned, also with batches in the reader's own
-# queue and with a shuffle buffer (both hold samples of the loader)
-@cartesian_params(("cpu", "gpu"), (1, 2), (False, True))
+# With more than one decode lane, the reader decodes prefetch_queue_depth batches ahead of the one
+# it publishes: the checkpoints must still be those of the batches returned, also with batches in
+# the reader's own queue and with a shuffle buffer (both hold samples of the loader)
+@cartesian_params(("cpu", "gpu"), (1, 2, 3), (False, True))
 def test_experimental_video_reader_prefetch_queue_depth(device, reader_depth, random_shuffle):
     files = [
         os.path.join(get_dali_extra_path(), "db", "video", "vfr", f"test_{i}_vp9.mp4")
