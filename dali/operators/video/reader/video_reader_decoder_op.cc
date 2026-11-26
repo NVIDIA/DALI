@@ -61,6 +61,9 @@ namespace dali {
 struct VideoFileIndex {
   bool valid = false;          // false if the file is not a valid video (it is skipped)
   AVCodecID codec_id = AV_CODEC_ID_NONE;  // of the video stream, if valid
+  // of the video stream, if valid and the codec is supported (unknown if not probed, see
+  // IndexVideoFile)
+  AVPixelFormat pix_fmt = AV_PIX_FMT_NONE;
   std::exception_ptr error;    // set if indexing the file failed with an exception
   // set if valid and the codec is supported (otherwise, the file is skipped), and there's no error
   std::shared_ptr<const FrameIndex> index;
@@ -74,10 +77,13 @@ struct VideoFileIndex {
  * The index is taken from FrameIndexCache, or built and cached there. It is not built for the
  * files whose codec is not in `supported_codecs` (made by the decoder's `SupportedCodecs`), which
  * are skipped, as with the decoder. It does not warn about them: the caller does, in the order of
- * the file list. It does not touch CUDA, so it can run on any thread.
+ * the file list. With `probe_pixel_format` (for the GPU decoder), the pixel format of MJPEG
+ * streams is probed, as the decoder does (see FramesDecoderBase::CanDetermineMjpegPixelFormat),
+ * and a file whose probe fails is not valid. It does not touch CUDA, so it can run on any thread.
  */
 static VideoFileIndex IndexVideoFile(const std::string &filename, DALIImageType image_type,
-                                     span<const AVCodecID> supported_codecs) {
+                                     span<const AVCodecID> supported_codecs,
+                                     bool probe_pixel_format) {
   VideoFileIndex result;
   try {
     // the version of the file that the indexer opens (see FrameIndexCache::GetOrBuild)
@@ -96,6 +102,11 @@ static VideoFileIndex IndexVideoFile(const std::string &filename, DALIImageType 
       LOG_LINE << "Unsupported codec in video file: " << filename << std::endl;
       return result;
     }
+    if (probe_pixel_format && !indexer.CanDetermineMjpegPixelFormat()) {
+      result.valid = false;  // as the decoder, whose stream selection fails then
+      return result;
+    }
+    result.pix_fmt = static_cast<AVPixelFormat>(indexer.CodecParameters().format);
     result.index = FrameIndexCache::instance().GetOrBuild(filename, stamp, [&]() {
       LOG_LINE << "Building index for " << filename << std::endl;
       indexer.BuildIndex();
@@ -387,12 +398,16 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     // needs a current CUDA context; this thread has the device of the reader, the threads of the
     // pool have none. Then the indexing does not touch CUDA.
     const std::vector<AVCodecID> supported_codecs = FramesDecoderImpl::SupportedCodecs();
+    // Only the GPU decoder needs the pixel format of MJPEG streams, to tell whether NVDEC can
+    // decode them.
+    constexpr bool probe_pixel_format = std::is_same_v<FramesDecoderImpl, FramesDecoderGpu>;
 
     std::atomic<size_t> first_error{filenames.size()};  // the lowest failing slot so far
     auto index_file = [&](size_t i) {
       if (i > first_error.load(std::memory_order_relaxed))
         return;  // a file before this one failed: the second phase does not get to this one
-      results[i] = IndexVideoFile(filenames[i], image_type_, make_cspan(supported_codecs));
+      results[i] = IndexVideoFile(filenames[i], image_type_, make_cspan(supported_codecs),
+                                  probe_pixel_format);
       if (results[i].error) {
         size_t prev = first_error.load(std::memory_order_relaxed);
         while (i < prev && !first_error.compare_exchange_weak(prev, i, std::memory_order_relaxed)) {
@@ -425,9 +440,10 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
    * 2. The list is walked in order, sequentially. For every entry, the frame range is resolved
    *    (from `file_list`, if given) and the samples (or, with `uniform_sample`, the frame indices
    *    of the sample) are made from the index of its file. The entries that are not valid videos,
-   *    whose codec is not supported or whose frame range is empty are skipped (with a warning,
-   *    except for the invalid ones). An error that occurred while indexing is thrown here, so the
-   *    one reported is that of the first failing file in the list, however many threads there are.
+   *    whose video stream the decoder can't decode or whose frame range is empty are skipped (with
+   *    a warning, except for the invalid ones). An error that occurred while indexing is thrown
+   *    here, so the one reported is that of the first failing file in the list, however many
+   *    threads there are.
    *
    * Finally, the samples are shuffled (if `shuffle`) and the reader is set to the start of its
    * shard.
@@ -467,11 +483,15 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         std::rethrow_exception(file_index.error);  // the first failing file, in the list order
       if (!file_index.valid)
         continue;
-      if (!file_index.index) {
-        // The codec is not supported: skipped, as with the decoder. The check is made again (its
-        // result is cached) to warn here, once per entry and in the order of the list, not from
-        // the indexing threads.
-        FramesDecoderImpl::IsCodecSupported(file_index.codec_id);
+      // A stream that the decoder can't decode is skipped, as the decoder would reject it: its
+      // codec is not supported (then it is not indexed) or, for MJPEG on the GPU, NVDEC doesn't
+      // support its pixel format on this device. That is checked here, and not by the indexing
+      // threads, because it needs CUDA (the result is cached), and so that the warnings come once
+      // per entry and in the order of the list.
+      std::string unsupported =
+          FramesDecoderImpl::UnsupportedStreamReason(file_index.codec_id, file_index.pix_fmt);
+      if (!unsupported.empty() || !file_index.index) {
+        DALI_WARN(make_string(unsupported, " Skipping ", entry.filename, "."));
         continue;
       }
       const FrameIndex &index = *file_index.index;
@@ -1223,6 +1243,11 @@ Consecutive samples of one file that can be decoded without seeking are decoded 
 decoder, one after another. Every decoder has its own frame buffers, so the memory used grows with
 the number of decoders.
 
+.. note::
+  For MJPEG streams in 4:2:2 or 4:4:4, the GPU backend subsamples the chroma to 4:2:0 before the
+  color conversion. The colors of fine details and sharp edges then differ from those of the CPU
+  backend, which keeps the chroma resolution of the stream.
+
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
 * ``video``: A sequence of frames with shape ``(F, H, W, C)`` where ``F`` is the number of frames in the sequence
@@ -1379,7 +1404,8 @@ the memory the reader uses.)code",
     .AddOptionalArg("image_type", R"(The color space of the output frames (RGB or YCbCr).
 
 YCbCr output contains the decoded samples upsampled to 4:4:4, in the color range and matrix of
-the stream (usually limited range); RGB output is full range.)",
+the stream (usually limited range); RGB output is full range. The GPU backend upsamples them from
+4:2:0 (for MJPEG, also when the stream is 4:2:2 or 4:4:4).)",
                     DALI_RGB)
     .AddParent("LoaderBase")
     .OutputNDim(0, 4)
