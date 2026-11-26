@@ -311,9 +311,7 @@ class DALIGenericIterator(_DaliBaseIterator):
                 if lod > 0:
                     # +1 for batch dim
                     seq_len = recursive_length(out, lod + 1)[1:]
-                    shape = out[0].shape
-                    if callable(shape):
-                        shape = shape()
+                    shape = out[0].shape()
                     shape = [sum(seq_len[-1])] + list(shape[lod:])
                     category_shapes[cat] = shape
                     category_lengths[cat] = seq_len

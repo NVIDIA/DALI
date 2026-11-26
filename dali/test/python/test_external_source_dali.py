@@ -235,7 +235,7 @@ def test_dtype_arg():
     for i in range(batch_size):
         t = out[i].as_array()
         assert t.dtype == np.uint8
-        np.array_equal(t, np.ones((120, 120, 3), dtype=np.uint8))
+        np.testing.assert_array_equal(t, np.ones((120, 120, 3), dtype=np.uint8))
 
 
 def test_dtype_arg_multioutput():
@@ -886,9 +886,9 @@ def test_decorated_external_source():
 
     pipe = test_pipe()
     out0, out1, out2 = pipe.run()
-    np.array_equal(np.array(out0.as_tensor()), np.array([0, 1, 2, 3]))
-    np.array_equal(np.array(out1.as_tensor()), np.array([2, 3, 4, 5]))
-    np.array_equal(np.array(out2.as_tensor()), np.array([42, 42, 42, 42]))
+    np.testing.assert_array_equal(out0.as_tensor(), [[0], [1], [2], [3]])
+    np.testing.assert_array_equal(out1.as_tensor(), [[2], [3], [4], [5]])
+    np.testing.assert_array_equal(out2.as_tensor(), [[42], [42], [42], [42]])
 
 
 @raises(TypeError, glob="Found var-positional argument `*args` which is not allowed")
