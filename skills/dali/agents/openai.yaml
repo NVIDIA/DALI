@@ -1,0 +1,3 @@
+interface:
+  display_name: DALI
+  short_description: Decide whether DALI helps data loading and pick its API
