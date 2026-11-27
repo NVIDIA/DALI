@@ -14,12 +14,14 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cassert>
 #include <exception>
 #include <functional>
 #include <limits>
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -459,19 +461,25 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
     std::vector<VideoFileIndex> file_indices = BuildFileIndices(filenames);
 
     // Phase 2: build the samples, in the order of the list.
+    // For the error message when there are no samples: the entries that were skipped (with a
+    // warning) and those that were too short for a whole sequence (without a warning).
+    int64_t num_skipped = 0, num_too_short = 0;
     for (size_t i = 0; i < video_files_info_.size(); ++i) {
       auto& entry = video_files_info_[i];
       LOG_LINE << "Processing video file " << i << ": " << entry.filename << std::endl;
       const VideoFileIndex &file_index = file_indices[file_slot[i]];
       if (file_index.error)
         std::rethrow_exception(file_index.error);  // the first failing file, in the list order
-      if (!file_index.valid)
+      if (!file_index.valid) {
+        ++num_skipped;
         continue;
+      }
       if (!file_index.index) {
         // The codec is not supported: skipped, as with the decoder. The check is made again (its
         // result is cached) to warn here, once per entry and in the order of the list, not from
         // the indexing threads.
         FramesDecoderImpl::IsCodecSupported(file_index.codec_id);
+        ++num_skipped;
         continue;
       }
       const FrameIndex &index = *file_index.index;
@@ -519,6 +527,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
       if (entry.start_frame >= entry.end_frame) {
         DALI_WARN(make_string("Empty frame range [", entry.start_frame, ", ", entry.end_frame,
                               ") for file ", entry.filename, ". Skipping."));
+        ++num_skipped;
         continue;
       }
 
@@ -542,6 +551,7 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
         const int full_seq_stride = stride_ * sequence_len_;
         // int64: after the last sample, start + step_ can exceed INT_MAX.
         int64_t start = entry.start_frame;
+        const size_t num_samples_before = samples_.size();
         for (; start + full_seq_stride <= entry.end_frame; start += step_) {
           LOG_LINE << "Adding sample with start=" << start << ", end=" << start + full_seq_stride
                    << ", stride=" << stride_ << std::endl;
@@ -567,10 +577,39 @@ class VideoLoaderDecoder : public Loader<Backend, Sample, true> {
                                    "stride or sequence_length."));
           samples_.emplace_back(&entry, static_cast<int>(start), end, stride_);
         }
+        // Only possible with pad_mode='none': a sample needs full_seq_stride frames from its
+        // start, which is more than the frames the sequence spans when stride > 1.
+        if (samples_.size() == num_samples_before)
+          ++num_too_short;
       }
     }
 
     LOG_LINE << "Created " << samples_.size() << " total samples" << std::endl;
+
+    // Without this check, the loader would report that there are fewer samples than shards,
+    // which does not say why there are none.
+    if (samples_.empty()) {
+      auto entries = [](int64_t n) {
+        return n == 1 ? make_string(n, " input file or frame range was")
+                      : make_string(n, " input files or frame ranges were");
+      };
+      std::stringstream why;
+      if (num_skipped > 0)
+        why << entries(num_skipped) << " skipped (not a valid video, an unsupported codec or an "
+            << "empty frame range; see the warnings above, if any)";
+      if (num_too_short > 0)
+        why << (num_skipped > 0 ? "; " : "") << entries(num_too_short)
+            << " too short for a whole sequence: with pad_mode='none', sequence_length="
+            << sequence_len_ << " and stride=" << stride_ << " need at least "
+            << int64_t{sequence_len_} * stride_ << " frames";
+      // The constructor throws when there are no files, and every file without a sample is
+      // counted in one of the two
+      assert(num_skipped + num_too_short == static_cast<int64_t>(video_files_info_.size()));
+      if (why.str().empty())  // not reached (see the assert), but never an empty reason
+        why << "no input file or frame range produced a sample";
+      throw std::runtime_error(
+          make_string("No samples could be built from the input: ", why.str(), "."));
+    }
 
     if (shuffle_) {
       LOG_LINE << "Shuffling samples" << std::endl;
@@ -1342,7 +1381,9 @@ The ``stride``, ``step``, and ``pad_mode`` arguments are ignored.)code",
         R"code(How to handle videos with insufficient frames when using start_frame/sequence_length/stride:
 
 * ``'none'``: No padding: a sequence that would extend past the last frame is not returned, so
-  every sample has exactly ``sequence_length`` frames: ABC -> (dropped)
+  every sample has exactly ``sequence_length`` frames: ABC -> (dropped). A sequence takes
+  ``sequence_length * stride`` frames from its first one, so with ``stride=3`` a sequence of 4
+  needs 12 frames, although it returns only frames 0, 3, 6 and 9.
 * ``'constant'``: Pad with a fixed value (specified by ``fill_value``): ABC -> ABCPPP
 * ``'edge'`` or ``'repeat'``: Repeat the last valid frame: ABC -> ABCCCC
 * ``'reflect_1001'`` or ``'symmetric'``: Reflect padding, including the last element: ABC -> ABCCBA
