@@ -53,6 +53,11 @@ LaneStart Held(std::string_view file, const FrameIndex &index, int next_frame) {
   return {file, FramesDecoderBase::PositionAt(index, next_frame)};
 }
 
+// Where a decoder with an index is, for LaneStart
+FramesDecoderBase::DecodePosition DecoderPosition(const FramesDecoderBase &decoder) {
+  return FramesDecoderBase::PositionAt(decoder.GetIndex(), decoder.NextFrameIdx());
+}
+
 /**
  * @brief The runs of a batch, and the frames of their samples.
  */
@@ -424,6 +429,42 @@ TEST(DecodeLanePlannerTest, OneLongRunUsesOneLane) {
     EXPECT_TRUE(plans[l].runs.empty()) << "lane " << l;
 }
 
+TEST(DecodeLanePlannerTest, Backlog) {
+  auto index = MakeIndex(100, 100);
+  Batch batch;
+  batch.Add("a", &index, 0, 0, 29);
+  // lanes without decoders, which would all finish the run at the same time: the lowest one
+  auto plans = Plan(batch, {{}, {}, {}});
+  EXPECT_EQ(plans[0].runs, std::vector<int>({0}));
+  // unless it has more work of earlier batches left than another
+  LaneStart behind, less_behind;
+  behind.backlog = 10;
+  less_behind.backlog = 5;
+  plans = Plan(batch, {behind, less_behind, behind});
+  EXPECT_TRUE(plans[0].runs.empty());
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
+  // the backlog counts in when a lane would finish: the lane that continues the run gets it while
+  // its backlog is less than opening a decoder elsewhere (30 pictures + kOpenCost vs 30 + backlog)
+  auto held = Held("a", index, 0);
+  held.backlog = kOpenCost - 1;
+  plans = Plan(batch, {{}, held});
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
+  EXPECT_EQ(plans[1].load, 30);  // the load is the batch's work, without the backlog
+  // and a lane without a decoder gets it once the busy lane would finish later
+  held.backlog = kOpenCost + 1;
+  plans = Plan(batch, {{}, held});
+  EXPECT_EQ(plans[0].runs, std::vector<int>({0}));
+  EXPECT_EQ(plans[0].load, 30 + kOpenCost);
+  // on a tie, a lane whose decoder a later run of the batch continues on goes last
+  auto long_index = MakeIndex(1000, 250);
+  Batch two;
+  two.Add("b", &long_index, 0, 0, 47);
+  two.Add("a", &long_index, 1, 500, 515);
+  plans = Plan(two, {Held("a", long_index, 500), {}});
+  EXPECT_EQ(plans[0].runs, std::vector<int>({1}));
+  EXPECT_EQ(plans[1].runs, std::vector<int>({0}));
+}
+
 TEST(DecodeLanePlannerTest, HeldFileContinues) {
   auto index = MakeIndex(100, 50);
   // frames 20-39 of the GOP from frame 0: 20 frames of preroll after a seek
@@ -620,6 +661,7 @@ TEST(DecodeLanePlannerTest, PlannedPicturesAreDecoded) {
   int n = indices[gops].size();
 
   for (int num_lanes : {1, 2}) {
+    SCOPED_TRACE(make_string(num_lanes, " lanes"));
     // the first lane holds a decoder of the first file, which decoded frames 20 to 29
     std::vector<ReaderLane> lanes(num_lanes);
     lanes[0].decoder = std::make_unique<FramesDecoderCpu>(gops);
@@ -629,18 +671,17 @@ TEST(DecodeLanePlannerTest, PlannedPicturesAreDecoded) {
 
     // continuing on that decoder, the last frame repeated (edge padding: the decoder resets), a
     // stride, uniform sampling, seeking forward and back, and continuing from the previous batch
-    std::string what = make_string(num_lanes, " lanes, batch ");
     ASSERT_NO_FATAL_FAILURE(CheckPlannedPictures({{gops, n - 6, n + 2, 1},
                                                   {gops, 30, 46, 2},
                                                   {gops, 0, 0, 1, {0, n / 3, 2 * n / 3, n - 1}},
                                                   {single_gop, 0, 16, 1},
                                                   {single_gop, 25, 41, 1}},
-                                                 lanes, indices, buffer, what + "1"));
+                                                 lanes, indices, buffer, "batch 1 (open decoder)"));
     ASSERT_NO_FATAL_FAILURE(CheckPlannedPictures({{gops, 30, 46, 1},
                                                   {gops, 5, 21, 1},
                                                   {single_gop, 16, 32, 1},
                                                   {single_gop, 34, 50, 1}},
-                                                 lanes, indices, buffer, what + "2"));
+                                                 lanes, indices, buffer, "batch 2 (continuing)"));
     // regions of the files (a file list), padded past their end
     ASSERT_NO_FATAL_FAILURE(CheckPlannedPictures(
         {{gops, 12, 28, 1, {}, boundary::BoundaryType::REFLECT_101, 12, 20},
@@ -648,7 +689,7 @@ TEST(DecodeLanePlannerTest, PlannedPicturesAreDecoded) {
          {gops, 50, 60, 1, {}, boundary::BoundaryType::CONSTANT, 50, 55},
          {single_gop, 32, 48, 2, {}, boundary::BoundaryType::REFLECT_1001, 32, 40},
          {single_gop, 0, 0, 1, {3, 6, 9}, boundary::BoundaryType::CLAMP, 2, 12}},
-        lanes, indices, buffer, what + "3"));
+        lanes, indices, buffer, "batch 3 (file regions)"));
   }
 }
 
