@@ -141,7 +141,10 @@ class VideoReaderDecoderBaseTest : public VideoTestBase {
         gt_frame_id += step;
         ++sequence_id;
 
-        if (gt_frame_id + stride * sequence_length >= ground_truth_videos[video_idx].NumFrames()) {
+        // A sequence spans (sequence_length - 1) * stride + 1 frames: the next one fits in the
+        // video if its last frame does
+        if (gt_frame_id + stride * (sequence_length - 1) >=
+            ground_truth_videos[video_idx].NumFrames()) {
           gt_frame_id = 0;
           ++video_idx;
           if (video_idx == this->NumVideos()) {
