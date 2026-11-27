@@ -28,7 +28,11 @@ Configurations (a group is one set of samples, read with different num_threads /
   cpu            the same on the CPU backend (VP8/VP9 files)
   seq, random    the 15 H.264 clips as they are, read in order or shuffled
   random_hevc    the HEVC trailer, shuffled (keyframe seeks, open GOPs)
-  reader_depth   the reader's own prefetch_queue_depth at batch 1
+  reader_depth   the reader's own prefetch_queue_depth at batch 1: one decode lane, so no batch is
+                 decoded ahead and only the depth of the reader's queue of samples changes
+  lanes_ahead    the samples of lanes on 4 decode lanes (num_decoders=4), with reader_depth 1 or
+                 2: with more than one lane, the lanes decode that many batches ahead of the one
+                 being published
   single_*       one long file, batch 1: a single stream, so what is measured is how fast one
                  decoder runs per frame, not how many run in parallel
 
@@ -43,7 +47,7 @@ the pipeline and the reader's queue may have produced before the clock starts) a
 With --hash, the output of every configuration of a group must be identical, whatever
 num_threads and reader_depth: each configuration records a checksum of the first >= 40 samples
 (so that the reader's prefetch queue wraps around). The configurations marked "checksums only"
-add reader_depth 2 with batches of 16, which the timed ones do not run.
+add reader_depth 2 with batches of 16 to the lanes, seq and random groups.
 """
 
 import argparse
@@ -78,7 +82,8 @@ def dali_configs(threads):
     A configuration is a dict of: files (glob patterns), device, t (num_threads), rd (the reader's
     prefetch_queue_depth), batch (batch_size), seq (sequence_length), shuffle (random_shuffle),
     many (optional: that number of symlinks to the files, one sequence each; without it, the
-    files as they are), hash_only (optional: not timed)."""
+    files as they are), dec (optional: num_decoders; without it, picked by the reader),
+    hash_only (optional: not timed)."""
     base = dict(batch=16, seq=32, rd=1, shuffle=False, device="gpu")
     t_max = max(threads)
     for t in threads:
@@ -90,6 +95,8 @@ def dali_configs(threads):
             yield name, dict(base, files=files, t=t, shuffle=name != "seq")
     for rd in (1, 2, 4):
         yield "reader_depth", dict(base, files=CLIPS, many=256, t=8, rd=rd, batch=1)
+    for rd in (1, 2):  # a set number of lanes, whatever the number of NVDEC engines
+        yield "lanes_ahead", dict(base, files=CLIPS, many=256, t=t_max, rd=rd, dec=4)
     for name, files in (("single_h264", H264_LONG), ("single_hevc", HEVC_LONG)):
         yield name, dict(base, files=files, t=4, batch=1, seq=64)
     # checksums only: several decode lanes with two batches in the reader's queue
@@ -101,7 +108,11 @@ def configs(threads, torchcodec=True, torchcodec_backend="nvdec"):
     cfgs = list(dali_configs(threads))
     yield from cfgs
     for group, cfg in cfgs if torchcodec else ():
-        if cfg["device"] == "gpu" and group != "reader_depth" and not cfg.get("hash_only"):
+        if (
+            cfg["device"] == "gpu"
+            and group not in ("reader_depth", "lanes_ahead")
+            and not cfg.get("hash_only")
+        ):
             yield group + "_torchcodec", dict(cfg, lib="torchcodec", backend=torchcodec_backend)
 
 
@@ -203,6 +214,8 @@ def run_config(cfg, root, hash_out, tmp):
             prefetch_queue_depth=PIPELINE_DEPTH,
         )
         def pipe():
+            # only when set: a build without num_decoders can still run the other groups
+            dec = dict(num_decoders=cfg["dec"]) if "dec" in cfg else {}
             return tuple(
                 fn.experimental.readers.video(
                     device=cfg["device"],
@@ -210,6 +223,7 @@ def run_config(cfg, root, hash_out, tmp):
                     random_shuffle=cfg["shuffle"],
                     prefetch_queue_depth=cfg["rd"],
                     **src,
+                    **dec,
                 )
             )
 
