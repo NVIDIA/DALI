@@ -10,6 +10,12 @@ pip_packages='${python_test_runner_package} numpy librosa scipy nvidia-ml-py==11
 
 target_dir=./dali/test/python
 
+do_once() {
+  # decoder/test_video.py rewrites the crop of an H.264 stream with the ffmpeg executable
+  apt-get update
+  apt-get install -y --no-install-recommends ffmpeg
+}
+
 # test_body definition is in separate file so it can be used without setup
 source test_body.sh
 

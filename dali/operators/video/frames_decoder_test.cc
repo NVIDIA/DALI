@@ -1226,6 +1226,21 @@ void ExpectReadWithoutData(const std::exception &e, const char *reason = nullptr
 // when other pictures refer to them (H.264 non-reference pictures are left out), and it does not
 // map or convert them, nor keep a frame buffer for them (nor a place in the buffer, if they are
 // never read)
+// The display size probe reads the first packet and seeks back to it. It reopens the file only
+// when the seek does not land on the first packet again: no container needs that, but the raw
+// H.264 and HEVC streams, which have no index, do.
+TEST_F(FramesDecoderGpuTest, DisplaySizeProbeReopensOnlyRawStreams) {
+  auto dir = make_string(testing::dali_extra_path(), "/db/video/");
+  std::pair<const char *, int> files[] = {
+      {"cfr/test_1.mp4", 0},         {"cfr/test_1_hevc.mp4", 0},    {"containers/mkv/cfr.mkv", 0},
+      {"containers/avi/cfr.avi", 0}, {"containers/mov/cfr.mov", 0}, {"containers/mpeg/cfr.mpeg", 0},
+      {"cfr/test_1.h264", 1},        {"cfr/test_1.h265", 1}};
+  for (auto [file, reopens] : files) {
+    FramesDecoderGpu decoder(make_string(dir, file));
+    EXPECT_EQ(decoder.Reopens(), reopens) << file;
+  }
+}
+
 TEST_F(FramesDecoderGpuTest, PicturesNotReadAreNotMapped) {
   // 188 pictures hidden by an edit list, decoded before the first frame
   auto path = SintelVideoFile(4);
