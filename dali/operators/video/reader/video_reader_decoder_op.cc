@@ -947,24 +947,31 @@ class VideoReaderDecoder
     }
   };
 
+  // Which threads use a field of PendingBatch or DecodeLane:
+  //   [P] the prefetch thread, which reads and plans the batches
+  //   [D] the lanes' decode threads (with one lane, decoding runs on the prefetch thread)
+  //   [M] both, under lanes_mutex_ (the prefetch thread reads them without it after WaitForBatch)
+  // (InitLanes sets the lanes up before any thread starts.)
+
   /**
    * @brief A batch, from when it is read until it is published: its samples and their decoding.
+   *
+   * The untagged fields are written by the prefetch thread before it queues the batch, read by the
+   * lanes, and taken back by the prefetch thread once lanes_left is 0.
    */
   struct PendingBatch {
-    typename Base::BatchQueueElement samples;
-    LoaderStateSnapshot snapshot;  // the loader's state after reading the batch (checkpointing)
+    typename Base::BatchQueueElement samples;  // the lanes decode into them
+    LoaderStateSnapshot snapshot;  // [P] the loader's state after reading the batch (checkpointing)
     std::vector<SampleTask> tasks;
     std::vector<DecodeRun> runs;
     std::vector<LanePlan> plans;  // the runs of each lane, in decoding order
     std::vector<LanePosition> lane_start;  // where the plan expects each lane's decoder
-    // Reading, planning or queuing the batch failed (once the batch is queued, guarded by
-    // lanes_mutex_)
-    std::exception_ptr error;
-    // Guarded by lanes_mutex_: the lanes that have yet to do their part, and the first error of
-    // the lanes, by position in the batch, then by lane (whatever the lanes' timing)
-    int lanes_left = 0;
+    std::exception_ptr error;  // [P] reading, planning or queuing the batch failed
+    int lanes_left = 0;  // [M] the lanes that have yet to do their part
+    // [M] the lanes' first error, by position in the batch, then by lane (whatever the timing)
     std::optional<SampleError> first_error;
-    // The batch index of the first sample that failed so far, in any lane (max: none)
+    // [D] atomic, shared by the batch's lanes: the position of the first sample that failed so
+    // far (max: none)
     std::atomic<int> first_error_idx{std::numeric_limits<int>::max()};
   };
 
@@ -978,19 +985,20 @@ class VideoReaderDecoder
    * timing. A lane does its parts of the batches in the order they are read.
    */
   struct DecodeLane {
-    CUDAStreamLease stream;  // GPU only; empty: the default stream
-    std::unique_ptr<FramesDecoderImpl> decoder;  // after `stream`: destroyed (and synced) first
-    Tensor<Backend> constant_frame;
-    SmallVector<int, 32> frames;  // scratch: the frames of the sample it decodes (DecodeSample)
-    // Planning: where the decoder is once the lane is done with the batches planned so far. The
-    // plans are made from it, not from the decoder.
+    CUDAStreamLease stream;  // [D] GPU only; empty: the default stream
+    std::unique_ptr<FramesDecoderImpl> decoder;  // [D] after `stream`: destroyed (and synced) first
+    Tensor<Backend> constant_frame;  // [D]
+    SmallVector<int, 32> frames;  // [D] scratch for DecodeSample
+    // [P] where the decoder is once the lane is done with the batches planned so far: the plans
+    // are made from it, not from the decoder
     LanePosition planned;
-    int64_t backlog = 0;  // planning: see LaneStart::backlog
-    // Whether decoding a sample failed (and reset the decoder) since the lane last opened one:
-    // the decoder is then not where the plan expects it
+    int64_t backlog = 0;  // [P] see LaneStart::backlog
+    // [D] a sample failed or was skipped since the lane last opened a decoder: the decoder may
+    // not be where the plan expects it
     bool failed = false;
-    std::deque<PendingBatch *> queue;  // guarded by lanes_mutex_: the batches to do, in order
-    std::thread thread;  // with more than one lane
+    std::deque<PendingBatch *> queue;  // [M] the batches to do, in order
+    // With more than one lane: started by the prefetch thread, joined by StopLanes
+    std::thread thread;
   };
 
   // Planning costs, in pictures decoded: opening a decoder (or resetting it, which reopens the
