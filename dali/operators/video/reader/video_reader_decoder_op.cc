@@ -1598,10 +1598,11 @@ being returned, so up to ``prefetch_queue_depth`` more batches of decoded sample
 (host memory for the CPU backend).
 
 Raising ``prefetch_queue_depth`` (default 1) keeps the decoders busy: a decoder that is done
-starts on a later batch instead of waiting for the slowest one. It helps most with consecutive
-samples of a file read in order, with small batches, and with one video read with
-``batch_size=1``; with large batches, the gain is smaller. Each extra batch ahead holds one more
-batch of decoded frames (``batch_size * sequence_length`` frames) in memory.
+starts on a later batch instead of waiting for the slowest one. This needs more than one decoder
+(see `num_decoders`, never more than ``max_batch_size``): with one decoder, for example with
+``max_batch_size=1``, no batch is decoded ahead. It helps most with consecutive samples of a file
+read in order and with small batches; with large batches, the gain is smaller. Each extra batch
+ahead holds one more batch of decoded frames (``batch_size * sequence_length`` frames) in memory.
 
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
