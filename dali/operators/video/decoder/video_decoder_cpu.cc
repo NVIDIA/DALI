@@ -39,8 +39,9 @@ The following codecs are supported by the Mixed backend only:
 
 .. note::
   For MJPEG streams in 4:2:2 or 4:4:4, the Mixed backend subsamples the chroma to 4:2:0 before the
-  color conversion. The colors of fine details and sharp edges then differ from those of the CPU
-  backend, which keeps the chroma resolution of the stream.
+  color conversion, because the NVDEC decoder outputs 4:2:0. The colors of fine details and sharp
+  edges then differ from those of the CPU backend, which keeps the chroma resolution of the
+  stream: use the CPU backend when that matters.
 
 Each output sample is a sequence of frames with shape ``(F, H, W, C)`` where:
 

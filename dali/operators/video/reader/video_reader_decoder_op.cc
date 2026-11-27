@@ -1212,8 +1212,9 @@ the number of decoders.
 
 .. note::
   For MJPEG streams in 4:2:2 or 4:4:4, the GPU backend subsamples the chroma to 4:2:0 before the
-  color conversion. The colors of fine details and sharp edges then differ from those of the CPU
-  backend, which keeps the chroma resolution of the stream.
+  color conversion, because the NVDEC decoder outputs 4:2:0. The colors of fine details and sharp
+  edges then differ from those of the CPU backend, which keeps the chroma resolution of the
+  stream: use the CPU backend when that matters.
 
 The outputs of the operator are: video, [labels], [frame_num], [timestamps].
 
