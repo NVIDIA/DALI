@@ -103,6 +103,8 @@ IMAGE_LIKE_OPERATORS = [
     OperatorTestConfig("clahe", {"tiles_x": 4, "tiles_y": 4, "clip_limit": 2.0}),
     OperatorTestConfig("equalize"),
     OperatorTestConfig("slice", {"rel_start": 0.1, "rel_end": 0.5}),
+    OperatorTestConfig("slice", {"rel_start": 0.1, "rel_shape": 0.4}),
+    OperatorTestConfig("slice", {"start": [10, 10], "shape": [50, 50]}),
     OperatorTestConfig("experimental.median_blur"),
     OperatorTestConfig("experimental.dilate"),
     OperatorTestConfig("experimental.erode"),
