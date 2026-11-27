@@ -936,6 +936,15 @@ class VideoReaderDecoder
     int batch_idx;
     int lane;
     std::exception_ptr error;
+
+    /**
+     * @brief Keeps in `first` the error that comes first in the batch, `error` or `first` itself.
+     * On a tie (only within a lane), the one recorded first is kept.
+     */
+    static void KeepFirst(std::optional<SampleError> &first, SampleError error) {
+      if (!first || std::tie(error.batch_idx, error.lane) < std::tie(first->batch_idx, first->lane))
+        first = std::move(error);
+    }
   };
 
   /**
@@ -948,12 +957,13 @@ class VideoReaderDecoder
     std::vector<DecodeRun> runs;
     std::vector<LanePlan> plans;  // the runs of each lane, in decoding order
     std::vector<LanePosition> lane_start;  // where the plan expects each lane's decoder
-    // Reading, planning or queuing the batch, or recording a lane's errors, failed (once the batch
-    // is queued, guarded by lanes_mutex_)
+    // Reading, planning or queuing the batch failed (once the batch is queued, guarded by
+    // lanes_mutex_)
     std::exception_ptr error;
-    // Guarded by lanes_mutex_: the lanes that have yet to do their part, and the errors
+    // Guarded by lanes_mutex_: the lanes that have yet to do their part, and the first error of
+    // the lanes, by position in the batch, then by lane (whatever the lanes' timing)
     int lanes_left = 0;
-    std::vector<SampleError> errors;
+    std::optional<SampleError> first_error;
     // The batch index of the first sample that failed so far, in any lane (max: none)
     std::atomic<int> first_error_idx{std::numeric_limits<int>::max()};
   };
@@ -1321,12 +1331,7 @@ class VideoReaderDecoder
   static std::exception_ptr FirstError(const PendingBatch &batch) {
     if (batch.error)
       return batch.error;
-    const SampleError *first = nullptr;
-    for (const auto &error : batch.errors) {
-      if (!first || std::tie(error.batch_idx, error.lane) < std::tie(first->batch_idx, first->lane))
-        first = &error;
-    }
-    return first ? first->error : nullptr;
+    return batch.first_error ? batch.first_error->error : nullptr;
   }
 
   void LaneMain(int lane_id) {
@@ -1361,25 +1366,20 @@ class VideoReaderDecoder
    * (the lane's thread could not be set up), the part fails with it.
    */
   void RunLanePart(int lane_id, PendingBatch &batch, std::exception_ptr setup_error = nullptr) {
-    std::vector<SampleError> errors;
+    std::optional<SampleError> error;  // the lane's first
     std::exception_ptr failure = setup_error;  // of the lane's part, not of a sample
     if (!failure) {
       try {
-        DecodeLanePart(lane_id, batch, errors);
+        DecodeLanePart(lane_id, batch, error);
       } catch (...) {
         failure = std::current_exception();
       }
     }
+    if (failure)
+      SampleError::KeepFirst(error, {std::numeric_limits<int>::max(), lane_id, failure});
     std::lock_guard<std::mutex> lock(lanes_mutex_);
-    try {
-      if (failure)
-        errors.push_back({std::numeric_limits<int>::max(), lane_id, failure});
-      batch.errors.insert(batch.errors.end(), errors.begin(), errors.end());
-    } catch (...) {
-      // out of memory: the batch fails all the same
-      if (!batch.error)
-        batch.error = failure ? failure : std::current_exception();
-    }
+    if (error)
+      SampleError::KeepFirst(batch.first_error, std::move(*error));
     if (--batch.lanes_left == 0)
       batch_done_cv_.notify_all();
   }
@@ -1396,13 +1396,15 @@ class VideoReaderDecoder
   }
 
   /**
-   * @brief Decodes a lane's runs of a batch. A sample that fails is recorded in `errors`.
+   * @brief Decodes a lane's runs of a batch. `error` keeps the lane's first error (see
+   * SampleError::KeepFirst): of a failing sample, of the lane's decoder not being where the plan
+   * expects it (at the lane's first sample), or of syncing the lane's stream (of no sample).
    *
    * Once a sample of the batch has failed, in any lane, the samples after it in the batch are not
    * decoded: the batch fails, and none of them can be its first failing sample. The samples
    * before it still are, since one of them may fail too and is then the error reported.
    */
-  void DecodeLanePart(int lane_id, PendingBatch &batch, std::vector<SampleError> &errors) {
+  void DecodeLanePart(int lane_id, PendingBatch &batch, std::optional<SampleError> &error) {
     auto &lane = lanes_[lane_id];
     const auto &plan = batch.plans[lane_id];
     if (plan.runs.empty()) {
@@ -1417,7 +1419,8 @@ class VideoReaderDecoder
       CheckPlan(lane, batch.lane_start[lane_id]);
     } catch (...) {
       int first_task = batch.runs[plan.runs[0]].tasks[0];
-      errors.push_back({batch.tasks[first_task].batch_idx, lane_id, std::current_exception()});
+      SampleError::KeepFirst(
+          error, {batch.tasks[first_task].batch_idx, lane_id, std::current_exception()});
       NoteFailure(batch, batch.tasks[first_task].batch_idx);
     }
     bool cancelled = false;
@@ -1438,7 +1441,7 @@ class VideoReaderDecoder
         } catch (...) {
           lane.decoder.reset();  // in an unknown state; its destructor waits for its stream
           lane.failed = true;
-          errors.push_back({task.batch_idx, lane_id, std::current_exception()});
+          SampleError::KeepFirst(error, {task.batch_idx, lane_id, std::current_exception()});
           NoteFailure(batch, task.batch_idx);
         }
       }
@@ -1446,11 +1449,12 @@ class VideoReaderDecoder
     if constexpr (std::is_same_v<Backend, GPUBackend>) {
       // the samples are read on the workspace stream once the batch is consumed
       cudaStream_t stream = lane.stream ? lane.stream.get() : 0;
-      if (errors.empty()) {
+      if (!error) {
         try {
           CUDA_CALL(cudaStreamSynchronize(stream));
         } catch (...) {
-          errors.push_back({std::numeric_limits<int>::max(), lane_id, std::current_exception()});
+          SampleError::KeepFirst(
+              error, {std::numeric_limits<int>::max(), lane_id, std::current_exception()});
         }
       } else if (cudaStreamSynchronize(stream) != cudaSuccess) {
         (void)cudaGetLastError();  // already failing: report the sample's error
